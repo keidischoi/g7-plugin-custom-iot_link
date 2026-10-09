@@ -332,6 +332,19 @@ class HaService
             } catch (\Throwable) {
             }
         }
+        // 0.1.1 업체검색 재고 — 내가 관리하는 업체의 개봉한 필라멘트 중 같은 보관 위치
+        if ($d->target === 'location' && $d->location && $hum !== null && $this->hasTable('cmp_spools')) {
+            try {
+                $cids = array_column($this->companies((int) $d->user_id), 'id');
+                $loc = Rules::loc($d->location);
+                $names = $cids === [] ? [] : DB::table('cmp_spools')->whereIn('company_id', $cids)->whereIn('status', ['in_use', 'low'])->whereNotNull('location')->get()
+                    ->filter(fn ($s) => empty($s->deleted_at) && Rules::loc($s->location) === $loc)->map(fn ($s) => trim(($s->brand ? $s->brand.' ' : '').$s->material.($s->color ? ' '.$s->color : '')))->take(8)->all();
+                if ($names) {
+                    $lines[] = '🏢 업체 재고: '.implode(' · ', $names).' — 건조를 챙겨 주세요.';
+                }
+            } catch (\Throwable) {
+            }
+        }
         Notify::send((int) $d->user_id, $ch, '[HA 연결] '.$d->name.' '.($hum !== null ? '습도가 높아요 💧' : '온도가 높아요 🌡️'), implode("\n", $lines));
     }
 
