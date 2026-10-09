@@ -1,8 +1,8 @@
-/*! custom-ha_link 0.1.9 — 🏠 HA 연결 (Home Assistant 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-ha_link 0.1.10 — 🏠 HA 연결 (Home Assistant 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-ha_link', BASE = '/ha-link', V = '0.1.9';
+  var API = '/api/plugins/custom-ha_link', BASE = '/ha-link', V = '0.1.10';
   var S = { root: null, key: '', d: null };
 
   // ── 공통 ──
@@ -85,7 +85,7 @@
       '<div class="hal-stats"><span>기기 <b>' + d.devices.length + '</b></span><span>🟢 연결됨 <b>' + live + '</b></span>' + (over ? '<span class="hot">⚠️ 기준 넘음 <b>' + over + '</b></span>' : '') + '<button class="hal-btn ghost" data-guide title="연결 방법 보기" aria-label="연결 방법 보기">❓ 연결 방법</button><button class="hal-btn light" data-new>➕ 기기 연결</button></div></section>' +
       (d.devices.length ? '<div class="hal-grid">' + d.devices.map(card).join('') + '</div>' +
         '<p class="hal-note">' + (liveSec() ? '🔄 이 화면은 ' + (liveSec() >= 60 && liveSec() % 60 === 0 ? liveSec() / 60 + '분' : liveSec() + '초') + '마다 스스로 새 값을 받아 와요' : '🔄 새 값을 보려면 화면을 새로 고쳐 주세요') + ' (Home Assistant 는 ' + (d.config.send_mode === 'change' ? '값이 변하면' : (d.config.interval_min || 10) + '분마다') + ' · 상태가 바뀌면 바로 보내요).</p><p class="hal-note">🔒 받는 주소는 비밀번호와 같아요 — 남에게 보이지 마세요. 사이트가 내 집으로 접속하지 않고, 내 Home Assistant 가 보내는 값만 받아요.' + (d.config.maintenance ? ' · <a href="/maintenance?tab=drawer" data-go>🧵 필라멘트 서랍 보기</a>' : '') + '</p>'
-        : '<section class="hal-start"><h2>세 걸음이면 돼요</h2><ol><li><b>① HACS 에서 「3ds」 설치</b><span>단추 한 번으로 저장소가 들어가요</span></li><li><b>② 사이트 주소 · 연결 코드 붙여 넣기</b><span>복사 단추 두 번</span></li><li><b>③ HA 화면에서 센서 고르기</b><span>설정 글(YAML)을 쓸 필요 없어요</span></li></ol><div class="hal-row center"><button class="hal-btn pri big" data-new>➕ 첫 기기 연결하기</button><button class="hal-btn big" data-guide>❓ 그림으로 보는 연결 방법</button></div></section>'));
+        : '<section class="hal-start"><h2>세 걸음이면 돼요</h2><ol><li><b>① HACS 에서 「3ds」 설치</b><span>단추 한 번으로 저장소가 들어가요</span></li><li><b>② 사이트 주소 · 연결 코드 붙여 넣기</b><span>복사 단추 두 번</span></li><li><b>③ 「⚡ 알아서 찾아 연결」 → 확인</b><span>내 프린터 · 필라멘트 보관 위치와 이름이 맞는 것을 찾아 줘요</span></li></ol><div class="hal-row center"><button class="hal-btn pri big" data-new>➕ 첫 기기 연결하기</button><button class="hal-btn big" data-guide>❓ 그림으로 보는 연결 방법</button></div></section>'));
     qa('[data-guide]').forEach(function (b) { b.onclick = function () { guideBox(); }; });
     qa('[data-snap]').forEach(function (b) { snapLoad(b); b.onclick = function () { var u = SNAP[b.getAttribute('data-snap')]; if (u && u.url) modal('📷 ' + esc(find(b.getAttribute('data-snap')).name), '<img class="hal-snapbig" src="' + u.url + '" alt="">'); }; });
     qa('[data-new]').forEach(function (b) { b.onclick = function () { connectBox(); }; });
@@ -106,18 +106,20 @@
     var L = S.d.link, code = String(L.code || '').slice(0, 6) + '…', btn = function (t, cls) { return '<span class="hal-fake-btn ' + (cls || '') + '">' + t + '</span>'; }, row = function (a, b) { return '<div class="hal-fake-row"><span>' + a + '</span>' + b + '</div>'; };
     var fld = function (label, val) { return '<div class="hal-fake-fld"><small>' + label + '</small><span>' + val + '</span></div>'; }, chk = function (on, t) { return '<div class="hal-fake-chk"><i class="' + (on ? 'on' : '') + '">' + (on ? '✓' : '') + '</i>' + t + '</div>'; };
     var steps = [
-      ['이 화면에서 「➕ 기기 연결」 누르기', '사이트 주소와 연결 코드가 나와요. 이 두 가지를 Home Assistant 에 붙여 넣을 거예요.',
-        shot('사이트 · HA 연결', '<div class="hal-fake-hero"><b>🏠 HA 연결</b>' + hl(btn('➕ 기기 연결', 'light'), 1) + '</div>' + row('사이트 주소', '<code>' + esc(L.site) + '</code>' + hl(btn('📋 복사', 'pri sm'), 2)) + row('연결 코드', '<code>' + esc(code) + '</code>' + hl(btn('📋 복사', 'pri sm'), 3)))],
-      ['HACS 에서 「3ds」 내려받기 <small>처음 한 번만</small>', '연결 창의 <b>🧩 내 Home Assistant 의 HACS 에서 열기</b>를 누르면 HACS 가 열려요. 오른쪽 아래 <b>다운로드</b>를 누르고, Home Assistant 를 <b>다시 시작</b>해 주세요.',
-        shot('Home Assistant · HACS', '<div class="hal-fake-repo"><span class="hal-fake-logo">3DS</span><div><b>3ds</b><small>keidischoi/ha-3ds-link · 통합</small></div></div><p class="hal-fake-p">온습도 센서 · 프린터 상태 · 카메라 사진을 사이트로 보냅니다.</p><div class="hal-fake-end">' + hl(btn('⬇ 다운로드', 'pri'), 1) + '</div><div class="hal-fake-note">설정 › 시스템 › ' + hl('<u>다시 시작</u>', 2) + '</div>', 'ha')],
-      ['통합을 추가하고 두 가지 붙여 넣기', '연결 창의 <b>⚙️ 「3ds」 통합 추가 열기</b>를 누르거나, 설정 › 기기 및 서비스 › <b>통합 추가</b>에서 「3ds」를 찾으세요. 1번에서 복사한 것을 붙여 넣고 <b>확인</b>.',
-        shot('Home Assistant · 통합 추가', '<b class="hal-fake-t">3ds 사이트에 연결</b>' + hl(fld('사이트 주소', esc(L.site)), 1) + hl(fld('연결 코드', '●●●●●●●●●●●●'), 2) + '<div class="hal-fake-end">' + hl(btn('확인', 'pri'), 3) + '</div>', 'ha')],
-      ['「한꺼번에」를 고르고 습도 센서 체크', '맨 위 <b>✨ 온습도 센서 여러 개를 한꺼번에</b>를 고르고, 다음 화면에서 보관함의 <b>습도 센서</b>들을 체크하세요. 같은 기기의 온도 센서는 알아서 같이 붙어요.',
-        shot('Home Assistant · 3ds', '<b class="hal-fake-t">무엇에 붙일까요?</b>' + hl('<div class="hal-fake-opt on">◉ ✨ 온습도 센서 여러 개를 한꺼번에</div>', 1) + '<div class="hal-fake-opt">○ 내 프린터 — 하나씩</div><div class="hal-fake-opt">○ 업체 장비 — 하나씩</div><hr><b class="hal-fake-t">습도 센서 (여러 개 고르기)</b>' + hl(chk(1, '드라이박스 습도') + chk(1, 'AMS 습도') + chk(0, '거실 습도'), 2) + '<div class="hal-fake-end">' + hl(btn('확인', 'pri'), 3) + '</div>', 'ha')],
-      ['이 화면에 🟢 로 나타나면 끝', '1~2분 안에 보관함이 카드로 나타나요. 이름 · 알림 기준 · 붙일 곳은 카드의 <b>✏️</b>에서 고쳐요.',
-        shot('사이트 · HA 연결', '<div class="hal-fake-card"><div class="hal-fake-row"><span>🧵 <b>드라이박스</b></span>' + hl('<span class="hal-fake-ico">✏️</span>', 2) + '</div><div class="hal-fake-vals"><span>💧 <b>32.5</b>%</span><span>🌡️ <b>23.4</b>°C</span></div>' + hl('<div class="hal-fake-st"><i></i>방금</div>', 1) + '</div>')],
-      ['필라멘트에 붙이기', '정비 수첩에서 필라멘트를 넣거나 고칠 때 <b>보관 위치</b>를 목록에서 고르면, 그 보관함의 습도가 필라멘트 카드에 같이 보여요. 기준을 넘으면 알림도 가요.',
-        shot('사이트 · 정비 수첩 › 필라멘트', fld('이름', 'PETG 검정') + hl('<div class="hal-fake-fld"><small>보관 위치 <em>🏠 온습도 센서가 있는 곳</em></small><span>드라이박스 ▾</span></div>', 1) + '<div class="hal-fake-tags"><span>💧 건조 12일 뒤</span>' + hl('<span class="ha">🏠 💧32.5% 🌡️23.4°C</span>', 2) + '</div>')]
+      ['HACS 에 저장소 넣기 <small>처음 한 번만</small>', 'HACS 오른쪽 위 <b>⋮</b> → <b>사용자 지정 저장소</b> → 주소를 붙여 넣고 종류는 <b>통합</b> → <b>추가</b>. 연결 창의 <b>🧩 내 Home Assistant 의 HACS 에서 열기</b>를 누르면 이 걸음은 건너뛰어요.',
+        shot('Home Assistant · HACS', '<div class="hal-fake-row"><b class="hal-fake-t">HACS</b>' + hl('<span class="hal-fake-ico">⋮</span>', 1) + '</div>' + hl('<div class="hal-fake-opt">사용자 지정 저장소</div>', 2) + hl(fld('저장소', 'https://github.com/' + esc(L.repo)) + fld('종류', '통합'), 3) + '<div class="hal-fake-end">' + hl(btn('추가', 'pri'), 4) + '</div>', 'ha')],
+      ['내려받고 다시 시작', '<b>3ds</b> 를 열어 <b>다운로드</b>를 누르고, Home Assistant 를 <b>다시 시작</b>해 주세요 (설정 › 시스템 › 다시 시작). 다시 시작해야 통합 목록에 나와요.',
+        shot('Home Assistant · HACS · 3ds', '<div class="hal-fake-repo"><span class="hal-fake-logo">3DS</span><div><b>3ds</b><small>' + esc(L.repo) + ' · 통합</small></div></div><p class="hal-fake-p">온습도 센서 · 프린터 상태 · 카메라 사진을 사이트로 보냅니다.</p><div class="hal-fake-end">' + hl(btn('⬇ 다운로드', 'pri'), 1) + '</div><div class="hal-fake-note">설정 › 시스템 › ' + hl('<u>다시 시작</u>', 2) + '</div>', 'ha')],
+      ['통합 추가에서 「3ds」 찾기', '설정 › 기기 및 서비스 → 오른쪽 아래 <b>통합 추가</b> → <b>3ds</b> 를 찾아 누르세요. 연결 창의 <b>⚙️ 「3ds」 통합 추가 열기</b>를 눌러도 돼요.',
+        shot('Home Assistant · 기기 및 서비스', '<b class="hal-fake-t">통합</b>' + hl('<div class="hal-fake-fld"><span>🔍 3ds</span></div>', 2) + hl('<div class="hal-fake-repo"><span class="hal-fake-logo">3DS</span><div><b>3ds</b><small>온습도 · 프린터 · 장비 상태를 사이트로</small></div></div>', 3) + '<div class="hal-fake-end">' + hl(btn('＋ 통합 추가', 'pri'), 1) + '</div>', 'ha')],
+      ['사이트 주소 · 연결 코드 붙여 넣기', '이 화면의 <b>➕ 기기 연결</b>을 누르면 두 가지가 나와요. <b>📋 복사</b>해서 Home Assistant 에 붙여 넣고 <b>확인</b>. 연결 코드는 비밀번호와 같아요.',
+        shot('사이트 → Home Assistant', row('사이트 주소', '<code>' + esc(L.site) + '</code>' + hl(btn('📋 복사', 'pri sm'), 1)) + row('연결 코드', '<code>' + esc(code) + '</code>' + hl(btn('📋 복사', 'pri sm'), 2)) + '<hr>' + hl(fld('사이트 주소', esc(L.site)) + fld('연결 코드', '●●●●●●●●●●●●'), 3) + '<div class="hal-fake-end">' + hl(btn('확인', 'pri'), 4) + '</div>', 'ha')],
+      ['「⚡ 알아서 찾아 연결」 → 확인', '맨 위 <b>⚡ 알아서 찾아 연결</b>을 고르면, 사이트의 내 프린터 · 필라멘트 보관 위치와 <b>이름이 맞는 것</b>이 체크되어 나와요. 맞는지 보고 <b>확인</b>. 같은 기기의 온도 센서는 알아서 같이 붙어요.',
+        shot('Home Assistant · 3ds', '<b class="hal-fake-t">무엇에 붙일까요?</b>' + hl('<div class="hal-fake-opt on">◉ ⚡ 알아서 찾아 연결 (추천)</div>', 1) + '<div class="hal-fake-opt">○ 내 프린터 — 하나씩</div><hr><b class="hal-fake-t">연결할 것</b>' + hl(chk(1, '🖨️ 거실 · Bambu Lab P1S ← P1S') + chk(1, '🧵 드라이박스 ← 드라이박스 습도') + chk(0, '🧵 거실 습도 (새 보관함)'), 2) + '<div class="hal-fake-end">' + hl(btn('확인', 'pri'), 3) + '</div>', 'ha')],
+      ['못 찾은 프린터 · 장비 붙이기 <small>필요할 때만</small>', '이름이 달라 못 찾았으면 통합을 한 번 더 추가해 <b>내 프린터 — 하나씩</b> · <b>업체 장비 — 하나씩</b>을 고르세요. Home Assistant 의 <b>기기를 고르면</b> 상태 · 진행률 · 카메라 센서를 찾아 채워 줘요.',
+        shot('Home Assistant · 3ds — 하나씩', hl(fld('기기 (안 골라도 됨)', 'Bambu Lab P1S'), 1) + '<hr><b class="hal-fake-t">센서 고르기 <small>찾은 것이 채워져 있어요</small></b>' + hl(fld('상태', 'sensor.p1s_print_status') + fld('진행률 (%)', 'sensor.p1s_print_progress') + fld('카메라', 'camera.p1s_camera'), 2) + '<div class="hal-fake-end">' + hl(btn('확인', 'pri'), 3) + '</div>', 'ha')],
+      ['사이트에서 마무리', '1~2분 안에 이 화면에 🟢 로 나타나요. 카드의 <b>✏️</b>에서 <b>알림 기준</b> · 이름 · 붙일 곳 · <b>사진 공개</b>를 정하고, 정비 수첩에서 필라멘트의 <b>보관 위치</b>를 목록에서 고르면 습도가 필라멘트에 같이 보여요.',
+        shot('사이트 · HA 연결 · 정비 수첩', '<div class="hal-fake-card"><div class="hal-fake-row"><span>🧵 <b>드라이박스</b></span>' + hl('<span class="hal-fake-ico">✏️</span>', 2) + '</div><div class="hal-fake-vals"><span>💧 <b>32.5</b>%</span><span>🌡️ <b>23.4</b>°C</span></div>' + hl('<div class="hal-fake-st"><i></i>방금</div>', 1) + '</div>' + hl('<div class="hal-fake-fld"><small>보관 위치 <em>🏠 온습도 센서가 있는 곳</em></small><span>드라이박스 ▾</span></div>', 3) + '<div class="hal-fake-tags"><span>💧 건조 12일 뒤</span><span class="ha">🏠 💧32.5% 🌡️23.4°C</span></div>')]
     ];
     var more = '<section class="hal-sec hal-tips"><h4>💡 더 알아 두면 좋아요</h4><ul>' +
       '<li><b>프린터 · 업체 장비</b>는 통합을 한 번 더 추가해 「내 프린터 — 하나씩」 · 「업체 장비 — 하나씩」을 고르세요. Home Assistant 의 기기를 고르면 상태 · 진행률 · 카메라 센서를 찾아 채워 줘요.</li>' +
@@ -126,7 +128,7 @@
       '<li><b>🟢 로 안 바뀌면</b> Home Assistant 를 다시 시작했는지, 사이트 주소가 <code>https://</code> 로 시작하는지 확인하세요. 그래도 안 되면 설정 › 시스템 › 로그에서 <code>g7_link</code> 를 찾아보세요.</li>' +
       '<li>HACS 를 안 쓰면 연결 창의 <b>📝 HACS 없이 설정 글로</b>를 누르세요.</li></ul>' +
       '<p class="hal-hint">그림은 화면을 본떠 그린 거예요. Home Assistant 화면은 버전에 따라 조금 다를 수 있어요.</p></section>';
-    var ov = modal('❓ 연결 방법', '<p class="hal-guide-top">처음이라면 <b>5분</b>이면 돼요. 빨간 테두리 <span class="hal-hl sm">이렇게</span> 표시한 곳을 순서대로 누르면 돼요.</p><ol class="hal-guide">' + steps.map(function (s, i) {
+    var ov = modal('❓ 연결 방법', '<p class="hal-guide-top">처음이라면 <b>5분</b>이면 돼요. Home Assistant 에서 할 일(①~⑥)과 사이트에서 할 일(⑦)을 순서대로 보여 드려요. 빨간 테두리 <span class="hal-hl sm">이렇게</span> 표시한 곳을 순서대로 누르면 돼요.</p><ol class="hal-guide">' + steps.map(function (s, i) {
       return '<li><div class="hal-guide-t"><em>' + (i + 1) + '</em><div><b>' + s[0] + '</b><p>' + s[1] + '</p></div></div>' + s[2] + '</li>';
     }).join('') + '</ol>' + more, { left: '<button type="button" class="hal-btn pri" data-start>➕ 지금 연결하기</button>' });
     ov.classList.add('wide');
@@ -143,7 +145,7 @@
       '<section class="hal-sec"><h4><em>2</em> 통합을 추가하고 아래 두 가지를 붙여 넣기</h4>' +
         '<div class="hal-row"><a class="hal-btn" target="_blank" rel="noopener" href="' + my + 'config_flow_start/?domain=g7_link">⚙️ 「3ds」 통합 추가 열기</a></div>' + row('사이트 주소', L.site, 'site') + row('연결 코드', L.code, 'code') +
         '<p class="hal-hint">🔒 연결 코드는 비밀번호와 같아요. 새어 나갔으면 아래 「코드 새로 만들기」.</p></section>' +
-      '<section class="hal-sec"><h4><em>3</em> Home Assistant 화면에서 붙일 곳 · 센서 고르기</h4><p class="hal-hint">필라멘트 보관함 · 내 프린터 · 업체 장비 · 그 밖 중에 고르고, 온도 · 습도 · 상태 센서를 목록에서 고르면 끝이에요. 기기를 더 붙일 때는 통합을 한 번 더 추가하면 돼요 (코드는 그대로). 조금 뒤 이 화면에 🟢 로 나타나요.</p></section>',
+      '<section class="hal-sec"><h4><em>3</em> 「⚡ 알아서 찾아 연결」 → 확인</h4><p class="hal-hint">사이트의 <b>내 프린터</b> · 필라멘트 <b>보관 위치</b>와 이름이 맞는 Home Assistant 기기 · 습도 센서를 찾아 체크해 둬요. 맞으면 <b>확인</b>만 누르면 끝 — 프린터는 상태 · 진행률 · 카메라, 보관함은 습도 · 온도가 한 번에 붙어요. 이름이 달라 못 찾은 것은 같은 목록에서 직접 체크하거나 「하나씩」으로 붙이면 돼요. 조금 뒤 이 화면에 🟢 로 나타나요.</p></section>',
       { left: '<button type="button" class="hal-btn" data-guide2>❓ 그림으로 보기</button><button type="button" class="hal-btn" data-rl>🔑 코드 새로 만들기</button><button type="button" class="hal-btn" data-manual>📝 HACS 없이 설정 글로</button>' });
     ov.addEventListener('click', function (ev) {
       var c = ev.target.closest('[data-cp]'); if (c) { copy(c.getAttribute('data-cp') === 'site' ? L.site : L.code, c); return; }
