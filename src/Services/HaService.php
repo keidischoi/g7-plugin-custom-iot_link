@@ -271,7 +271,7 @@ class HaService
 
         return ['site' => (string) (config('app.name') ?: 'G7'), 'targets' => $o['targets'], 'locations' => $o['locations'], 'printers' => $o['printers'],
             'equipment' => array_map(fn ($e) => ['id' => $e['id'], 'name' => trim((string) (collect($o['companies'])->firstWhere('id', $e['company_id'])['name'] ?? '').' — '.$e['name'], ' —')], $o['equipment']),
-            'devices' => array_map(fn ($d) => ['id' => $d['id'], 'name' => $d['name'], 'target' => $d['target'], 'token' => $d['token'], 'entities' => $d['entities'], 'humidity_max' => $d['humidity_max'], 'temp_max' => $d['temp_max'], 'snap_public' => $d['snap_public']], $o['devices']),
+            'devices' => array_map(fn ($d) => ['id' => $d['id'], 'name' => $d['name'], 'target' => $d['target'], 'token' => $d['token'], 'printer_id' => $d['printer_id'], 'equipment_id' => $d['equipment_id'], 'location' => $d['location'], 'entities' => $d['entities'], 'humidity_max' => $d['humidity_max'], 'temp_max' => $d['temp_max'], 'snap_public' => $d['snap_public']], $o['devices']),
             'push_url' => $o['config']['base'], 'interval_min' => (int) Settings::get('interval_min'), 'send_mode' => (string) Settings::get('send_mode'),
             'next_min' => (int) Settings::get(Settings::get('send_mode') === 'change' ? 'idle_min' : 'interval_min'), 'change_hum' => (int) Settings::get('change_hum'), 'change_temp' => 0.5, 'gap_sec' => 60, 'snapshot' => (bool) Settings::get('snapshot'), 'snap_gap_min' => (int) Settings::get('snap_gap_min'), 'snap_max' => self::SNAP_MAX];
     }
@@ -544,7 +544,8 @@ class HaService
         }
         try {
             return DB::table('mpr_printers')->where('user_id', $uid)->orderBy('sort')->orderBy('id')->get()
-                ->map(fn ($p) => ['id' => (int) $p->id, 'name' => trim(($p->nickname ? $p->nickname.' · ' : '').$p->brand.' '.$p->model)])->all();
+                ->map(fn ($p) => ['id' => (int) $p->id, 'name' => trim(($p->nickname ? $p->nickname.' · ' : '').$p->brand.' '.$p->model),
+                    'brand' => (string) $p->brand, 'model' => (string) $p->model, 'nickname' => (string) ($p->nickname ?? '')])->all();   // 0.1.10 통합이 HA 기기와 이름을 맞춤
         } catch (\Throwable) {
             return [];
         }
