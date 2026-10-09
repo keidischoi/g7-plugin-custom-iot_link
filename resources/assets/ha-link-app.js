@@ -1,8 +1,8 @@
-/*! custom-ha_link 0.1.8 — 🏠 HA 연결 (Home Assistant 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-ha_link 0.1.9 — 🏠 HA 연결 (Home Assistant 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-ha_link', BASE = '/ha-link', V = '0.1.8';
+  var API = '/api/plugins/custom-ha_link', BASE = '/ha-link', V = '0.1.9';
   var S = { root: null, key: '', d: null };
 
   // ── 공통 ──

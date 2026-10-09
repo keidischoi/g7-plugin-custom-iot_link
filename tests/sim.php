@@ -153,7 +153,7 @@ namespace {
     echo "■ 가동 시간 · 내 프린터\n";
     HaService::$nowOverride = '2026-10-09 12:00:00';
     $svc->ingest($prn->token, ['state' => 'running', 'progress' => '10', 'job' => 'benchy.3mf']);
-    t(count(FakePrinter::$got) === 1 && FakePrinter::$got[0][0] === str_repeat('a', 32) && FakePrinter::$got[0][1] === ['state' => 'running', 'progress' => 10.0, 'job' => 'benchy.3mf'] && DB::table('hal_runs')->where('device_id', $prn->id)->whereNull('ended_at')->count() === 1, '프린터 상태 → 내 프린터의 자동 연결로 넘김 · 가동 시작');
+    t(count(FakePrinter::$got) === 1 && FakePrinter::$got[0][0] === str_repeat('a', 32) && FakePrinter::$got[0][1] === ['state' => 'printing', 'progress' => 10.0, 'job' => 'benchy.3mf'] && DB::table('hal_runs')->where('device_id', $prn->id)->whereNull('ended_at')->count() === 1, '프린터 상태 → 내 프린터의 자동 연결로 넘김 · 가동 시작');
     HaService::$nowOverride = '2026-10-09 13:00:00';
     $svc->ingest($prn->token, ['state' => 'running', 'progress' => '60']);
     t(DB::table('hal_runs')->where('device_id', $prn->id)->count() === 1 && $svc->hours([(int) $prn->id], '2026-10-09 00:00:00') === 1.0, '계속 가동 — 구간은 하나 · 지금까지 1시간');
@@ -169,6 +169,13 @@ namespace {
     $de = array_values(array_filter($o['devices'], fn ($v) => $v['id'] === (int) $eq->id))[0];
     $db = array_values(array_filter($o['devices'], fn ($v) => $v['id'] === (int) $box->id))[0];
     t($de['is_on'] && $de['where'] === 'Bambu Lab X1C' && $db['stale'] && ! $db['over'] && $svc->overview(2)['devices'] === [], '화면: 가동 중 · 오래된 값은 「끊김」(경고 아님) · 남의 기기는 안 보임');
+
+    echo "■ 0.1.9 프린터 라운지와 맞춤\n";
+    FakePrinter::$got = [];
+    $svc->ingest($prn->token, ['state' => 'processing', 'temperature' => '41.5', 'humidity' => '22', 'remaining' => '1h 04m']);
+    $svc->ingest($prn->token, ['temperature' => '42', 'humidity' => '23']);   // 상태 없이 온 값은 넘기지 않음 (그쪽이 출력을 닫지 않게)
+    $svc->ingest($prn->token, ['state' => 'stopped']);
+    t(count(FakePrinter::$got) === 2 && FakePrinter::$got[0][1] === ['state' => 'printing', 'remaining_min' => 64.0, 'chamber' => 41.5, 'humidity' => 22.0] && FakePrinter::$got[1][1] === ['state' => 'cancelled'], '모르는 가동 상태 → printing · 내부 온도 · 습도 같이 · 멈춤 → cancelled · 상태 없는 값은 안 넘김');
 
     echo "■ 연결 코드 · 허브 (HACS 통합)\n";
     $code = $svc->linkCode(1);
