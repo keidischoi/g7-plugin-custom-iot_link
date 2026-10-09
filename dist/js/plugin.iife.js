@@ -1,9 +1,9 @@
-/*! custom-ha_link 0.1.3 — HA 연결 화면 불러오기 (이 플러그인 화면 data-hal-app 이 있을 때만 앱 · CSS 를 받음) */
+/*! custom-ha_link 0.1.4 — HA 연결 화면 불러오기 (이 플러그인 화면 data-hal-app 이 있을 때만 앱 · CSS 를 받음) */
 (function () {
   'use strict';
   if (window.__halLoader) return;
   window.__halLoader = true;
-  var API = '/api/plugins/custom-ha_link', V = '0.1.3', loading = false;
+  var API = '/api/plugins/custom-ha_link', V = '0.1.4', loading = false;
   function css() {
     if (document.getElementById('hal-css')) return;
     var l = document.createElement('link'); l.id = 'hal-css'; l.rel = 'stylesheet'; l.href = API + '/assets/ha-link.css?v=' + V; document.head.appendChild(l);
