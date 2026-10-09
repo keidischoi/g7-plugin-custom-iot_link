@@ -42,6 +42,7 @@ class HaService
     public function overview(int $uid): array
     {
         Schema::ensure();
+        $this->touchSeen($uid);
         $rows = DB::table(Schema::DEVICES)->where('user_id', $uid)->orderBy('target')->orderBy('name')->orderBy('id')->get();
         $ids = $rows->pluck('id')->all();
         $hist = [];
@@ -59,7 +60,7 @@ class HaService
             'printers' => $printers, 'companies' => $companies, 'equipment' => array_values($equip), 'locations' => $this->locations($uid),
             'targets' => Rules::TARGETS,
             'link' => ['code' => $this->linkCode($uid), 'site' => rtrim((string) config('app.url'), '/'), 'repo' => (string) Settings::get('hacs_repo')],
-            'config' => ['max_devices' => (int) Settings::get('max_devices'), 'interval_min' => (int) Settings::get('interval_min'), 'stale_hours' => (int) Settings::get('stale_hours'), 'base' => rtrim((string) config('app.url'), '/').'/api/plugins/custom-ha_link/in/',
+            'config' => ['max_devices' => (int) Settings::get('max_devices'), 'interval_min' => (int) Settings::get('interval_min'), 'refresh_sec' => (int) Settings::get('refresh_sec'), 'stale_hours' => (int) Settings::get('stale_hours'), 'base' => rtrim((string) config('app.url'), '/').'/api/plugins/custom-ha_link/in/',
                 'printer_link' => $printers !== [] || ((bool) Settings::get('printer_link') && $this->hasTable('mpr_printers')), 'maintenance' => $this->hasTable('mnt_spools')],
         ];
     }
@@ -197,6 +198,40 @@ class HaService
         return $c;
     }
 
+    /** 0.1.5 이 회원이 지금 사이트 화면을 보고 있음 — 1분에 한 번만 적음 */
+    public function touchSeen(int $uid): void
+    {
+        if ($uid <= 0 || ! Schema::ensure()) {
+            return;
+        }
+        try {
+            $this->linkCode($uid);
+            DB::table(Schema::LINKS)->where('user_id', $uid)->where('updated_at', '<', now()->subSeconds(60))->update(['updated_at' => now()]);
+        } catch (\Throwable) {
+        }
+    }
+
+    /**
+     * 0.1.5 통합에게 알려 줄 것 — 다음에 몇 분 뒤에 보낼지 · 사진을 보낼지.
+     *  회원이 사이트 화면을 「자리 비움」 시간 넘게 안 봤으면 느린 주기로. 공개로 둔 사진은 자리 비움이어도 받음 (다른 사람이 보므로).
+     *
+     * @return array{next_min: int, snap: bool, away: bool}
+     */
+    public function pace(int $uid, bool $snapPublic = false): array
+    {
+        $after = (int) Settings::get('away_after_min');
+        $away = false;
+        if ($after > 0) {
+            try {
+                $seen = DB::table(Schema::LINKS)->where('user_id', $uid)->value('updated_at');
+                $away = $seen === null || strtotime((string) $seen) < time() - $after * 60;
+            } catch (\Throwable) {
+            }
+        }
+
+        return ['next_min' => (int) Settings::get($away ? 'away_interval_min' : 'interval_min'), 'snap' => (bool) Settings::get('snapshot') && (! $away || $snapPublic), 'away' => $away];
+    }
+
     /** 연결 코드 새로 만들기 — 예전 코드로는 통합이 기기를 만들거나 고치지 못함 (이미 만든 기기의 값 보내기는 그대로 됨) @return array{0: bool, 1: string} */
     public function rotateLink(int $uid): array
     {
@@ -253,7 +288,7 @@ class HaService
      * 받는 주소로 들어온 값 반영 — 요청 하나에 조회 1 · 저장 1~3.
      *
      * @param  array<string, mixed>  $payload  temperature · humidity · state(on) · progress · remaining_min · job
-     * @return array{0: bool, 1: string}
+     * @return array{0: bool, 1: string, 2?: array{next_min: int, snap: bool, away: bool}}
      */
     public function ingest(string $token, array $payload): array
     {
@@ -313,7 +348,7 @@ class HaService
             $this->tidy();
         }
 
-        return [true, 'ok'];
+        return [true, 'ok', $this->pace((int) $d->user_id, (bool) ($d->snap_public ?? false))];
     }
 
     private function alert(object $d, ?float $hum, ?float $temp): void

@@ -132,6 +132,19 @@ namespace {
     $svc->ingest($box->token, ['humidity' => 45]);
     t(count($sent) === 2 && DB::table('hal_readings')->where('device_id', $box->id)->count() === 4, '내려갔다 다시 넘으면 또 알림 · 한 시간에 한 줄');
 
+    echo "■ 0.1.5 자리 비움 — 회원이 화면을 안 보면 느리게\n";
+    $svc->overview(1);   // 화면을 봄
+    $r = $svc->ingest($box->token, ['humidity' => 30]);
+    t($r[2]['next_min'] === 10 && $r[2]['away'] === false && $r[2]['snap'] === true, '화면을 보고 있으면 평소 주기');
+    DB::table('hal_links')->where('user_id', 1)->update(['updated_at' => now()->subMinutes(45)]);
+    $r = $svc->ingest($box->token, ['humidity' => 30]);
+    t($r[2]['next_min'] === 60 && $r[2]['away'] === true && $r[2]['snap'] === false && $svc->pace(1, true)['snap'] === true, '30분 넘게 안 보면 느린 주기 · 사진은 안 받음 (공개 사진은 받음)');
+    Settings::save(['away_after_min' => 0]);
+    t($svc->ingest($box->token, ['humidity' => 30])[2]['next_min'] === 10, '기능을 끄면 늘 평소 주기');
+    Settings::save(['away_after_min' => 30]);
+    $svc->overview(1);
+    t($svc->pace(1)['away'] === false, '화면을 다시 열면 평소 주기로');
+
     echo "■ 가동 시간 · 내 프린터\n";
     HaService::$nowOverride = '2026-10-09 12:00:00';
     $svc->ingest($prn->token, ['state' => 'running', 'progress' => '10', 'job' => 'benchy.3mf']);
