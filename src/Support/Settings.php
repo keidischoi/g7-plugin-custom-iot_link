@@ -15,6 +15,9 @@ final class Settings
         'menu_label' => 'HA 연결',      // 헤더 메뉴 이름 (12글자까지)
         'max_devices' => 20,           // 회원 한 명이 연결할 수 있는 기기
         'interval_min' => 10,          // 0.1.3 값 보내는 주기 (분) — 통합이 이 주기로 보냄. 회원은 이보다 길게만 고를 수 있음
+        'refresh_sec' => 60,           // 0.1.5 화면이 값을 다시 받는 간격 (초) — 0 = 끔, 5~3600
+        'away_after_min' => 30,        // 0.1.5 회원이 사이트의 HA 연결 · 정비 수첩 화면을 이만큼(분) 안 보면 「자리 비움」 — 0 = 이 기능 끔 (늘 같은 주기)
+        'away_interval_min' => 60,     // 0.1.5 자리 비움일 때 값 보내는 주기 (분) — 통합이 스스로 늦춤. 상태 변화(출력 시작 · 끝)는 그대로 바로 보냄
         'keep_days' => 30,             // 온습도 기록을 며칠 둘지 (한 시간에 한 줄)
         'stale_hours' => 3,            // 이 시간 넘게 소식이 없으면 「끊김」
         'alert_gap_hours' => 12,       // 같은 기기의 경고를 다시 보내기까지
@@ -66,6 +69,9 @@ final class Settings
         }
         $out['max_devices'] = max(1, min(200, $out['max_devices']));
         $out['interval_min'] = max(1, min(60, $out['interval_min']));
+        $out['refresh_sec'] = $out['refresh_sec'] <= 0 ? 0 : max(5, min(3600, $out['refresh_sec']));   // 0 = 끔 · 5초보다 짧게는 안 됨
+        $out['away_after_min'] = $out['away_after_min'] <= 0 ? 0 : max(5, min(1440, $out['away_after_min']));
+        $out['away_interval_min'] = max($out['interval_min'], min(1440, $out['away_interval_min']));   // 평소 주기보다 짧을 수 없음
         $out['keep_days'] = max(1, min(365, $out['keep_days']));
         $out['stale_hours'] = max(1, min(72, $out['stale_hours']));
         $out['alert_gap_hours'] = max(1, min(168, $out['alert_gap_hours']));

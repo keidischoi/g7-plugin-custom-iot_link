@@ -1,8 +1,8 @@
-/*! custom-ha_link 0.1.4 — 🏠 HA 연결 (Home Assistant 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-ha_link 0.1.5 — 🏠 HA 연결 (Home Assistant 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-ha_link', BASE = '/ha-link', V = '0.1.4';
+  var API = '/api/plugins/custom-ha_link', BASE = '/ha-link', V = '0.1.5';
   var S = { root: null, key: '', d: null };
 
   // ── 공통 ──
@@ -84,7 +84,7 @@
     wrap('<section class="hal-hero"><div><h1>🏠 HA 연결</h1><p>Home Assistant 의 온습도 센서 · 프린터 · 장비 상태를 받아 정비 수첩과 내 프린터에 이어요.</p></div>' +
       '<div class="hal-stats"><span>기기 <b>' + d.devices.length + '</b></span><span>🟢 연결됨 <b>' + live + '</b></span>' + (over ? '<span class="hot">⚠️ 기준 넘음 <b>' + over + '</b></span>' : '') + '<button class="hal-btn light" data-new>➕ 기기 연결</button></div></section>' +
       (d.devices.length ? '<div class="hal-grid">' + d.devices.map(card).join('') + '</div>' +
-        '<p class="hal-note">🔄 이 화면은 1분마다 스스로 새 값을 받아 와요 (Home Assistant 는 ' + (d.config.interval_min || 10) + '분마다 · 상태가 바뀌면 바로 보내요).</p><p class="hal-note">🔒 받는 주소는 비밀번호와 같아요 — 남에게 보이지 마세요. 사이트가 내 집으로 접속하지 않고, 내 Home Assistant 가 보내는 값만 받아요.' + (d.config.maintenance ? ' · <a href="/maintenance?tab=drawer" data-go>🧵 필라멘트 서랍 보기</a>' : '') + '</p>'
+        '<p class="hal-note">' + (liveSec() ? '🔄 이 화면은 ' + (liveSec() >= 60 && liveSec() % 60 === 0 ? liveSec() / 60 + '분' : liveSec() + '초') + '마다 스스로 새 값을 받아 와요' : '🔄 새 값을 보려면 화면을 새로 고쳐 주세요') + ' (Home Assistant 는 ' + (d.config.interval_min || 10) + '분마다 · 상태가 바뀌면 바로 보내요).</p><p class="hal-note">🔒 받는 주소는 비밀번호와 같아요 — 남에게 보이지 마세요. 사이트가 내 집으로 접속하지 않고, 내 Home Assistant 가 보내는 값만 받아요.' + (d.config.maintenance ? ' · <a href="/maintenance?tab=drawer" data-go>🧵 필라멘트 서랍 보기</a>' : '') + '</p>'
         : '<section class="hal-start"><h2>세 걸음이면 돼요</h2><ol><li><b>① HACS 에서 「3ds 연결」 설치</b><span>단추 한 번으로 저장소가 들어가요</span></li><li><b>② 사이트 주소 · 연결 코드 붙여 넣기</b><span>복사 단추 두 번</span></li><li><b>③ HA 화면에서 센서 고르기</b><span>설정 글(YAML)을 쓸 필요 없어요</span></li></ol><button class="hal-btn pri big" data-new>➕ 첫 기기 연결하기</button></section>'));
     qa('[data-snap]').forEach(function (b) { snapLoad(b); b.onclick = function () { var u = SNAP[b.getAttribute('data-snap')]; if (u && u.url) modal('📷 ' + esc(find(b.getAttribute('data-snap')).name), '<img class="hal-snapbig" src="' + u.url + '" alt="">'); }; });
     qa('[data-new]').forEach(function (b) { b.onclick = function () { connectBox(); }; });
@@ -215,7 +215,8 @@
 
   // ── 관리자 ──
   var FIELDS = [['enabled', 'HA 연결 쓰기', 'bool'], ['menu_enabled', '헤더 메인 메뉴에 「HA 연결」 넣기 (홈 디자인 「메인 메뉴 보이기」와 같은 값)', 'bool'], ['menu_label', '헤더 메뉴 이름 (12글자까지)', 'text'],
-    ['max_devices', '회원 한 명이 연결할 수 있는 기기', 'num'], ['interval_min', '값 보내는 주기 (분, 1~60) — 회원은 이보다 길게만 고를 수 있음', 'num'], ['keep_days', '온습도 기록을 며칠 둘지 (한 시간에 한 줄)', 'num'], ['stale_hours', '몇 시간 소식이 없으면 「끊김」', 'num'], ['alert_gap_hours', '같은 기기의 경고를 다시 보내기까지 (시간)', 'num'],
+    ['max_devices', '회원 한 명이 연결할 수 있는 기기', 'num'], ['interval_min', '값 보내는 주기 (분, 1~60) — 회원은 이보다 길게만 고를 수 있음', 'num'], ['refresh_sec', '화면이 새 값을 다시 받는 간격 (초, 5~3600 · 0 = 끔)', 'num'],
+    ['away_after_min', '회원이 화면을 이만큼(분) 안 보면 「자리 비움」 (5~1440 · 0 = 끔: 늘 같은 주기)', 'num'], ['away_interval_min', '자리 비움일 때 값 보내는 주기 (분) — 통합 「3ds 연결」이 스스로 늦춤', 'num'], ['keep_days', '온습도 기록을 며칠 둘지 (한 시간에 한 줄)', 'num'], ['stale_hours', '몇 시간 소식이 없으면 「끊김」', 'num'], ['alert_gap_hours', '같은 기기의 경고를 다시 보내기까지 (시간)', 'num'],
     ['notify_site', '기준을 넘으면 사이트 알림', 'bool'], ['notify_mail', '기준을 넘으면 메일도', 'bool'], ['snapshot', '카메라 사진 받기 (기기마다 최신 한 장 · 주인만 봄)', 'bool'], ['snap_gap_min', '사진을 받는 가장 짧은 간격 (분)', 'num'], ['printer_link', '내 프린터로 출력 상태 넘기기', 'bool'], ['company_link', '업체 보유 장비에 연결', 'bool'], ['hacs_repo', 'HACS 통합 저장소 (GitHub 주인/이름)', 'text'], ['timezone', '시간대 (예: Asia/Seoul)', 'text']];
   function renderAdmin() {
     api('GET', '/admin/settings').then(function (r) {
@@ -223,7 +224,7 @@
       wrap('<section class="hal-hero"><div><h1>🏠 HA 연결 — 관리자</h1><p>회원 화면: <a href="' + BASE + '" target="_blank">' + BASE + '</a> · 회원 기기의 값 · 받는 주소는 관리자에게도 보이지 않아요</p></div><div class="hal-stats"><span>쓰는 회원 <b>' + n(st.users) + '</b></span><span>기기 <b>' + n(st.devices) + '</b></span><span>🟢 연결됨 <b>' + n(st.live) + '</b></span><span>기록 <b>' + n(st.readings) + '</b>줄</span></div></section>' +
         '<div class="hal-form">' + FIELDS.map(function (f) {
           return f[2] === 'bool' ? '<label class="hal-chk"><input type="checkbox" data-k="' + f[0] + '"' + (s[f[0]] ? ' checked' : '') + '> ' + esc(f[1]) + '</label>' : '<label>' + esc(f[1]) + '<input type="' + (f[2] === 'num' ? 'number' : 'text') + '" data-k="' + f[0] + '" value="' + esc(s[f[0]]) + '"></label>';
-        }).join('') + '<p class="hal-hint full">서버 부담: 기기 하나가 위 「값 보내는 주기」마다 한 번(상태가 바뀔 때 한 번 더) 작은 값을 보내요 — 주기를 줄이면 요청이 그만큼 늘어요 (기기 100대 · 10분이면 한 시간에 600번, 1분이면 6,000번). 바꾼 주기는 회원의 Home Assistant 가 다시 시작하거나 통합을 다시 읽을 때 적용돼요 — 요청 하나에 조회 1 · 저장 1~3. 기록은 기기마다 한 시간에 한 줄만 남기고 위 날짜가 지나면 지워요. 받는 주소는 1분에 30번까지만 받아요.</p>' +
+        }).join('') + '<p class="hal-hint full">서버 부담: 기기 하나가 위 「값 보내는 주기」마다 한 번(상태가 바뀔 때 한 번 더) 작은 값을 보내요 — 주기를 줄이면 요청이 그만큼 늘어요 (기기 100대 · 10분이면 한 시간에 600번, 1분이면 6,000번). 회원이 사이트의 HA 연결 · 정비 수첩 화면을 한동안 안 보면(자리 비움) 통합이 느린 주기로 바꿔 보내요 — 그동안에도 출력 시작 · 끝 같은 상태 변화는 바로 오고, 습도 경고는 느린 주기만큼 늦어질 수 있어요. 다시 화면을 열면 다음 번 값이 올 때부터 평소 주기로 돌아와요 (설정 글(YAML)로 붙인 기기는 늘 같은 주기) — 요청 하나에 조회 1 · 저장 1~3. 기록은 기기마다 한 시간에 한 줄만 남기고 위 날짜가 지나면 지워요. 받는 주소는 1분에 30번까지만 받아요.</p>' +
         '<div class="hal-acts full"><button class="hal-btn pri" id="hal-asave">저장</button></div></div>');
       q('#hal-asave').onclick = function () {
         var out = {}; qa('[data-k]').forEach(function (i) { out[i.getAttribute('data-k')] = i.type === 'checkbox' ? i.checked : i.type === 'number' ? +i.value : i.value; });
@@ -256,7 +257,9 @@
   try { new MutationObserver(function () { if (wait) return; wait = setTimeout(function () { wait = 0; var r = document.querySelector('[data-hal-app],[data-hal-admin]'); if (r !== S.root || location.pathname + location.search !== S.key) tick(); }, 120); }).observe(document.documentElement, { childList: true, subtree: true }); } catch (e) {}
   /* 0.1.4 화면을 켜 둔 동안 1분마다 값만 다시 받아 옴 — 새로고침 없이 바뀜.
    *   화면이 보일 때만 · 떠 있는 창이 없을 때만 · 바뀐 것이 있을 때만 다시 그림 (깜빡임 · 스크롤 튐 없음). 다른 탭에 갔다 돌아오면 바로 한 번 */
-  var LIVE_MS = 60000, liveBusy = false, liveAt = 0;
+  var liveBusy = false, liveAt = 0;
+  /** 0.1.5 다시 받는 간격 (초) — 관리자 설정 (0 = 끔) */
+  function liveSec() { var c = S.d && S.d.config, v = c && c.refresh_sec != null ? +c.refresh_sec : 60; return v > 0 ? Math.max(5, v) : 0; }
   function sig(d) { return JSON.stringify(d.devices.map(function (x) { return [x.id, x.temp, x.humidity, x.state, x.is_on, x.seen, x.stale, x.over, x.snap_at, x.hours_30d, x.name, x.where, x.humidity_max, x.temp_max, x.snap_public]; })); }
   function live() {
     if (liveBusy || !S.root || !S.d || S.root.hasAttribute('data-hal-admin') || document.hidden || document.querySelector('.hal-modal') || !document.contains(S.root)) return;
@@ -264,6 +267,6 @@
     api('GET', '/me').then(function (r) { var old = sig(S.d); S.d = r.data; if (sig(r.data) !== old && !document.querySelector('.hal-modal')) { var y = window.scrollY; draw(); window.scrollTo(0, y); } else { qa('.hal-st').forEach(function (el, i) { var d = S.d.devices[i]; if (d && !d.never && !d.stale) el.innerHTML = '<span class="hal-dot on"></span>' + agoText(d.seen); }); } })
       .catch(function () {}).then(function () { liveBusy = false; });
   }
-  setInterval(live, LIVE_MS);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden && Date.now() - liveAt > 15000) live(); });
+  setInterval(function () { var s = liveSec(); if (s && Date.now() - liveAt >= s * 1000 - 500) live(); }, 5000);   // 5초마다 「때가 됐나」만 봄 — 요청은 정한 간격에 한 번
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && liveSec() && Date.now() - liveAt > 4000) live(); });
 })();

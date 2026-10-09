@@ -127,8 +127,9 @@ class HaController extends Controller
         if (! is_array($body) || $body === []) {
             $body = $request->except(['token']);
         }
-        [$ok, $msg] = $this->svc->ingest($token, is_array($body) ? array_slice($body, 0, 12, true) : []);
+        $res = $this->svc->ingest($token, is_array($body) ? array_slice($body, 0, 12, true) : []);
 
-        return response()->json(['ok' => $ok, 'message' => $msg], $ok ? 200 : 404);
+        // 0.1.5 next_min · snap — 통합이 이 값을 보고 다음 주기를 맞춤 (회원이 사이트를 안 보는 동안에는 느리게)
+        return response()->json(['ok' => $res[0], 'message' => $res[1]] + ($res[2] ?? []), $res[0] ? 200 : 404);
     }
 }
