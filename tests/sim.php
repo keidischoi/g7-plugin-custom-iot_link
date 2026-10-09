@@ -155,6 +155,9 @@ namespace {
     echo "■ 연결 코드 · 허브 (HACS 통합)\n";
     $code = $svc->linkCode(1);
     t(strlen($code) === 32 && $svc->linkCode(1) === $code && $svc->linkUser($code) === 1 && $svc->linkUser(str_repeat('0', 32)) === 0 && $svc->linkUser('x') === 0 && $svc->overview(1)['link']['code'] === $code, '연결 코드 — 회원마다 하나 · 틀린 코드는 0');
+    Settings::save(['interval_min' => 5]);
+    t($svc->hub(1)['interval_min'] === 5 && $svc->overview(1)['config']['interval_min'] === 5, '0.1.3 값 보내는 주기 — 관리자 설정이 통합 · 설정 글에 전해짐');
+    Settings::save(['interval_min' => 10]);
     $h = $svc->hub(1);
     t($h['locations'] === ['AMS', '드라이 박스'] && $h['printers'][0]['id'] === 5 && $h['equipment'][0]['name'] === '삼디 공방 — Bambu Lab X1C' && count($h['devices']) === 3 && strlen($h['devices'][0]['token']) === 32 && $h['push_url'] === 'https://3ds.test/api/plugins/custom-ha_link/in/', '허브: 붙일 곳 목록 · 내 기기');
     [$ok, , $nd] = $svc->hubSave(1, null, ['target' => 'location', 'location' => 'AMS', 'ent_hum' => 'sensor.ams_humidity', 'humidity_max' => 30]);

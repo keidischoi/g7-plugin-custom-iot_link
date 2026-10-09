@@ -1,8 +1,8 @@
-/*! custom-ha_link 0.1.2 — 🏠 HA 연결 (Home Assistant 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-ha_link 0.1.3 — 🏠 HA 연결 (Home Assistant 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-ha_link', BASE = '/ha-link', V = '0.1.2';
+  var API = '/api/plugins/custom-ha_link', BASE = '/ha-link', V = '0.1.3';
   var S = { root: null, key: '', d: null };
 
   // ── 공통 ──
@@ -188,11 +188,12 @@
 
   /** Home Assistant 에 붙여 넣을 설정 글 — rest_command(보내는 방법) + automation(10분마다 · 상태가 바뀔 때) */
   function yamlText(d) {
+    var iv = Math.max(1, +S.d.config.interval_min || 10);   // 0.1.3 사이트가 정한 주기
     var e = d.entities, id = 'g7_ha_' + d.id, st = function (x) { return "{{ states(''" + x + "'') | tojson }}"; }, parts = [];
     if (e.temp) parts.push('"temperature": ' + st(e.temp)); if (e.hum) parts.push('"humidity": ' + st(e.hum)); if (e.state) parts.push('"state": ' + st(e.state));
     if (d.target === 'printer') { if (e.progress) parts.push('"progress": ' + st(e.progress)); if (e.remaining) parts.push('"remaining_min": ' + st(e.remaining)); if (e.job) parts.push('"job": ' + st(e.job)); }
     var conf = 'rest_command:\n  ' + id + ':\n    url: "' + S.d.config.base + d.token + '"\n    method: POST\n    content_type: "application/json"\n    payload: \'{' + parts.join(', ') + '}\'\n';
-    var auto = '- alias: "3ds 보내기 — ' + String(d.name).replace(/["\\]/g, '') + '"\n  trigger:\n    - platform: time_pattern\n      minutes: "/10"\n' + (e.state ? '    - platform: state\n      entity_id: ' + e.state + '\n' : '') + '  action:\n    - service: rest_command.' + id + '\n  mode: single\n';
+    var auto = '- alias: "3ds 보내기 — ' + String(d.name).replace(/["\\]/g, '') + '"\n  trigger:\n    - platform: time_pattern\n      ' + (iv >= 60 ? 'hours: "/1"' : 'minutes: "/' + iv + '"') + '\n' + (e.state ? '    - platform: state\n      entity_id: ' + e.state + '\n' : '') + '  action:\n    - service: rest_command.' + id + '\n  mode: single\n';
     return [conf, auto];
   }
   function yamlBox(d) {
@@ -200,7 +201,7 @@
     var y = yamlText(d), box = function (i, title, sub) { return '<section class="hal-sec"><h4><em>' + (i + 1) + '</em> ' + title + ' <small>' + sub + '</small></h4><div class="hal-code"><pre>' + esc(y[i]) + '</pre><button type="button" class="hal-btn sm pri" data-copy="' + i + '">📋 복사</button></div></section>'; };
     var ov = modal('📋 ' + esc(d.name) + ' — Home Assistant 에 붙여 넣기',
       box(0, '<code>configuration.yaml</code> 에 붙여 넣기', '이미 <code>rest_command:</code> 가 있으면 둘째 줄부터 그 아래에') +
-      box(1, '<code>automations.yaml</code> 에 붙여 넣기', '10분마다' + (d.entities.state ? ' · 상태가 바뀔 때' : '') + ' 보내요') +
+      box(1, '<code>automations.yaml</code> 에 붙여 넣기', (S.d.config.interval_min || 10) + '분마다' + (d.entities.state ? ' · 상태가 바뀔 때' : '') + ' 보내요') +
       '<section class="hal-sec"><h4><em>3</em> Home Assistant 다시 시작</h4><p class="hal-hint">설정 › 시스템 › 다시 시작. 조금 뒤 이 화면의 기기가 🟢 로 바뀌면 끝이에요.' + (d.target === 'printer' ? ' 프린터 상태는 「내 프린터」에도 같이 들어가요 (내 프린터의 자동 연결이 켜져 있을 때).' : '') + '</p></section>',
       { left: '<button type="button" class="hal-btn" data-rotate>🔑 주소 새로 만들기</button>' });
     ov.addEventListener('click', function (ev) {
@@ -214,7 +215,7 @@
 
   // ── 관리자 ──
   var FIELDS = [['enabled', 'HA 연결 쓰기', 'bool'], ['menu_enabled', '헤더 메인 메뉴에 「HA 연결」 넣기 (홈 디자인 「메인 메뉴 보이기」와 같은 값)', 'bool'], ['menu_label', '헤더 메뉴 이름 (12글자까지)', 'text'],
-    ['max_devices', '회원 한 명이 연결할 수 있는 기기', 'num'], ['keep_days', '온습도 기록을 며칠 둘지 (한 시간에 한 줄)', 'num'], ['stale_hours', '몇 시간 소식이 없으면 「끊김」', 'num'], ['alert_gap_hours', '같은 기기의 경고를 다시 보내기까지 (시간)', 'num'],
+    ['max_devices', '회원 한 명이 연결할 수 있는 기기', 'num'], ['interval_min', '값 보내는 주기 (분, 1~60) — 회원은 이보다 길게만 고를 수 있음', 'num'], ['keep_days', '온습도 기록을 며칠 둘지 (한 시간에 한 줄)', 'num'], ['stale_hours', '몇 시간 소식이 없으면 「끊김」', 'num'], ['alert_gap_hours', '같은 기기의 경고를 다시 보내기까지 (시간)', 'num'],
     ['notify_site', '기준을 넘으면 사이트 알림', 'bool'], ['notify_mail', '기준을 넘으면 메일도', 'bool'], ['snapshot', '카메라 사진 받기 (기기마다 최신 한 장 · 주인만 봄)', 'bool'], ['snap_gap_min', '사진을 받는 가장 짧은 간격 (분)', 'num'], ['printer_link', '내 프린터로 출력 상태 넘기기', 'bool'], ['company_link', '업체 보유 장비에 연결', 'bool'], ['hacs_repo', 'HACS 통합 저장소 (GitHub 주인/이름)', 'text'], ['timezone', '시간대 (예: Asia/Seoul)', 'text']];
   function renderAdmin() {
     api('GET', '/admin/settings').then(function (r) {
@@ -222,7 +223,7 @@
       wrap('<section class="hal-hero"><div><h1>🏠 HA 연결 — 관리자</h1><p>회원 화면: <a href="' + BASE + '" target="_blank">' + BASE + '</a> · 회원 기기의 값 · 받는 주소는 관리자에게도 보이지 않아요</p></div><div class="hal-stats"><span>쓰는 회원 <b>' + n(st.users) + '</b></span><span>기기 <b>' + n(st.devices) + '</b></span><span>🟢 연결됨 <b>' + n(st.live) + '</b></span><span>기록 <b>' + n(st.readings) + '</b>줄</span></div></section>' +
         '<div class="hal-form">' + FIELDS.map(function (f) {
           return f[2] === 'bool' ? '<label class="hal-chk"><input type="checkbox" data-k="' + f[0] + '"' + (s[f[0]] ? ' checked' : '') + '> ' + esc(f[1]) + '</label>' : '<label>' + esc(f[1]) + '<input type="' + (f[2] === 'num' ? 'number' : 'text') + '" data-k="' + f[0] + '" value="' + esc(s[f[0]]) + '"></label>';
-        }).join('') + '<p class="hal-hint full">서버 부담: 기기 하나가 10분에 한 번(상태가 바뀔 때 한 번 더) 작은 값을 보내요 — 요청 하나에 조회 1 · 저장 1~3. 기록은 기기마다 한 시간에 한 줄만 남기고 위 날짜가 지나면 지워요. 받는 주소는 1분에 30번까지만 받아요.</p>' +
+        }).join('') + '<p class="hal-hint full">서버 부담: 기기 하나가 위 「값 보내는 주기」마다 한 번(상태가 바뀔 때 한 번 더) 작은 값을 보내요 — 주기를 줄이면 요청이 그만큼 늘어요 (기기 100대 · 10분이면 한 시간에 600번, 1분이면 6,000번). 바꾼 주기는 회원의 Home Assistant 가 다시 시작하거나 통합을 다시 읽을 때 적용돼요 — 요청 하나에 조회 1 · 저장 1~3. 기록은 기기마다 한 시간에 한 줄만 남기고 위 날짜가 지나면 지워요. 받는 주소는 1분에 30번까지만 받아요.</p>' +
         '<div class="hal-acts full"><button class="hal-btn pri" id="hal-asave">저장</button></div></div>');
       q('#hal-asave').onclick = function () {
         var out = {}; qa('[data-k]').forEach(function (i) { out[i.getAttribute('data-k')] = i.type === 'checkbox' ? i.checked : i.type === 'number' ? +i.value : i.value; });
