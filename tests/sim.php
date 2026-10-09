@@ -83,6 +83,9 @@ namespace {
     DB::table('cmp_companies')->insert([['id' => 10, 'name' => '삼디 공방'], ['id' => 11, 'name' => '남의 업체']]);
     DB::table('cmp_members')->insert([['company_id' => 10, 'user_id' => 1, 'role' => 'owner', 'status' => 'active'], ['company_id' => 11, 'user_id' => 2, 'role' => 'owner', 'status' => 'active']]);
     DB::table('cmp_equipment')->insert([['id' => 100, 'company_id' => 10, 'kind' => 'fdm', 'brand' => 'Bambu Lab', 'model' => 'X1C'], ['id' => 102, 'company_id' => 11, 'kind' => 'sla', 'brand' => 'Elegoo', 'model' => 'Mars']]);
+    $sb->create('cmp_spools', function ($t) { $t->id(); $t->integer('company_id'); $t->string('material'); $t->string('color')->nullable(); $t->string('brand')->nullable(); $t->string('status'); $t->string('location')->nullable(); $t->timestamp('deleted_at')->nullable(); });
+    DB::table('cmp_spools')->insert([['company_id' => 10, 'material' => 'PETG', 'color' => '빨강', 'brand' => 'eSun', 'status' => 'in_use', 'location' => '드라이박스'], ['company_id' => 11, 'material' => 'PA', 'color' => null, 'brand' => null, 'status' => 'in_use', 'location' => '드라이박스'],
+        ['company_id' => 10, 'material' => 'PLA', 'color' => null, 'brand' => null, 'status' => 'new', 'location' => '드라이박스']]);
     $sb->create('mnt_spools', function ($t) { $t->id(); $t->integer('user_id'); $t->string('name'); $t->string('material'); $t->string('location')->nullable(); $t->string('status')->default('open'); });
     DB::table('mnt_spools')->insert([['user_id' => 1, 'name' => 'PETG 검정', 'material' => 'PETG', 'location' => '드라이 박스', 'status' => 'open'], ['user_id' => 1, 'name' => 'PLA 흰색', 'material' => 'PLA', 'location' => 'AMS', 'status' => 'open'], ['user_id' => 2, 'name' => '남의 것', 'material' => 'PA', 'location' => '드라이박스', 'status' => 'open']]);
 
@@ -116,7 +119,8 @@ namespace {
     HaService::$nowOverride = '2026-10-09 08:20:00';
     $svc->ingest($box->token, ['temperature' => 'unavailable', 'humidity' => 47]);
     t(DB::table('hal_readings')->where('device_id', $box->id)->count() === 1 && (float) DB::table('hal_readings')->where('device_id', $box->id)->value('humidity') === 47.0 && (float) DB::table('hal_readings')->where('device_id', $box->id)->value('temp') === 23.4, '같은 시간은 한 줄 (마지막 값) · unavailable 은 건너뜀');
-    t(count($sent) === 1 && $sent[0][0] === 1 && str_contains($sent[0][2], '습도가 높아요') && str_contains($sent[0][3], '습도 47% (기준 40%)') && str_contains($sent[0][3], 'PETG 검정 (PETG)') && ! str_contains($sent[0][3], '남의 것') && ! str_contains($sent[0][3], 'PLA 흰색'), '기준을 넘으면 알림 — 그 보관함의 내 필라멘트 이름도 (빈칸 달라도 같은 위치)');
+    t(count($sent) === 1 && $sent[0][0] === 1 && str_contains($sent[0][2], '습도가 높아요') && str_contains($sent[0][3], '습도 47% (기준 40%)') && str_contains($sent[0][3], 'PETG 검정 (PETG)') && ! str_contains($sent[0][3], '남의 것') && ! str_contains($sent[0][3], 'PLA 흰색')
+        && str_contains($sent[0][3], '🏢 업체 재고: eSun PETG 빨강 —') && ! str_contains($sent[0][3], 'PA') , '기준을 넘으면 알림 — 그 보관함의 내 필라멘트 이름도 (빈칸 달라도 같은 위치)');
     HaService::$nowOverride = '2026-10-09 09:00:00';
     $svc->ingest($box->token, ['humidity' => 52]);
     t(count($sent) === 1, '계속 높아도 다시 보내지 않음');
