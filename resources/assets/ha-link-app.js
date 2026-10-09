@@ -1,8 +1,8 @@
-/*! custom-ha_link 0.1.6 — 🏠 HA 연결 (Home Assistant 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-ha_link 0.1.7 — 🏠 HA 연결 (Home Assistant 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-ha_link', BASE = '/ha-link', V = '0.1.6';
+  var API = '/api/plugins/custom-ha_link', BASE = '/ha-link', V = '0.1.7';
   var S = { root: null, key: '', d: null };
 
   // ── 공통 ──
@@ -85,7 +85,7 @@
       '<div class="hal-stats"><span>기기 <b>' + d.devices.length + '</b></span><span>🟢 연결됨 <b>' + live + '</b></span>' + (over ? '<span class="hot">⚠️ 기준 넘음 <b>' + over + '</b></span>' : '') + '<button class="hal-btn light" data-new>➕ 기기 연결</button></div></section>' +
       (d.devices.length ? '<div class="hal-grid">' + d.devices.map(card).join('') + '</div>' +
         '<p class="hal-note">' + (liveSec() ? '🔄 이 화면은 ' + (liveSec() >= 60 && liveSec() % 60 === 0 ? liveSec() / 60 + '분' : liveSec() + '초') + '마다 스스로 새 값을 받아 와요' : '🔄 새 값을 보려면 화면을 새로 고쳐 주세요') + ' (Home Assistant 는 ' + (d.config.send_mode === 'change' ? '값이 변하면' : (d.config.interval_min || 10) + '분마다') + ' · 상태가 바뀌면 바로 보내요).</p><p class="hal-note">🔒 받는 주소는 비밀번호와 같아요 — 남에게 보이지 마세요. 사이트가 내 집으로 접속하지 않고, 내 Home Assistant 가 보내는 값만 받아요.' + (d.config.maintenance ? ' · <a href="/maintenance?tab=drawer" data-go>🧵 필라멘트 서랍 보기</a>' : '') + '</p>'
-        : '<section class="hal-start"><h2>세 걸음이면 돼요</h2><ol><li><b>① HACS 에서 「3ds 연결」 설치</b><span>단추 한 번으로 저장소가 들어가요</span></li><li><b>② 사이트 주소 · 연결 코드 붙여 넣기</b><span>복사 단추 두 번</span></li><li><b>③ HA 화면에서 센서 고르기</b><span>설정 글(YAML)을 쓸 필요 없어요</span></li></ol><button class="hal-btn pri big" data-new>➕ 첫 기기 연결하기</button></section>'));
+        : '<section class="hal-start"><h2>세 걸음이면 돼요</h2><ol><li><b>① HACS 에서 「3ds」 설치</b><span>단추 한 번으로 저장소가 들어가요</span></li><li><b>② 사이트 주소 · 연결 코드 붙여 넣기</b><span>복사 단추 두 번</span></li><li><b>③ HA 화면에서 센서 고르기</b><span>설정 글(YAML)을 쓸 필요 없어요</span></li></ol><button class="hal-btn pri big" data-new>➕ 첫 기기 연결하기</button></section>'));
     qa('[data-snap]').forEach(function (b) { snapLoad(b); b.onclick = function () { var u = SNAP[b.getAttribute('data-snap')]; if (u && u.url) modal('📷 ' + esc(find(b.getAttribute('data-snap')).name), '<img class="hal-snapbig" src="' + u.url + '" alt="">'); }; });
     qa('[data-new]').forEach(function (b) { b.onclick = function () { connectBox(); }; });
     qa('[data-edit]').forEach(function (b) { b.onclick = function () { form(find(b.getAttribute('data-edit'))); }; });
@@ -101,11 +101,11 @@
   function connectBox() {
     var L = S.d.link, rp = String(L.repo).split('/'), my = 'https://my.home-assistant.io/redirect/';
     var row = function (label, val, key) { return '<div class="hal-copy"><span>' + label + '</span><code>' + esc(val) + '</code><button type="button" class="hal-btn sm pri" data-cp="' + key + '">📋 복사</button></div>'; };
-    var ov = modal('➕ 기기 연결', '<section class="hal-sec"><h4><em>1</em> HACS 에서 「3ds 연결」 설치 <small>처음 한 번만</small></h4>' +
+    var ov = modal('➕ 기기 연결', '<section class="hal-sec"><h4><em>1</em> HACS 에서 「3ds」 설치 <small>처음 한 번만</small></h4>' +
         '<div class="hal-row"><a class="hal-btn pri" target="_blank" rel="noopener" href="' + my + 'hacs_repository/?owner=' + encodeURIComponent(rp[0]) + '&repository=' + encodeURIComponent(rp[1] || '') + '&category=integration">🧩 내 Home Assistant 의 HACS 에서 열기</a></div>' +
         '<p class="hal-hint">열린 화면에서 <b>다운로드</b>를 누르고 Home Assistant 를 다시 시작해 주세요. 단추가 안 되면 HACS › 사용자 지정 저장소에 <code>https://github.com/' + esc(L.repo) + '</code> (종류: 통합)을 넣으면 돼요.</p></section>' +
       '<section class="hal-sec"><h4><em>2</em> 통합을 추가하고 아래 두 가지를 붙여 넣기</h4>' +
-        '<div class="hal-row"><a class="hal-btn" target="_blank" rel="noopener" href="' + my + 'config_flow_start/?domain=g7_link">⚙️ 「3ds 연결」 통합 추가 열기</a></div>' + row('사이트 주소', L.site, 'site') + row('연결 코드', L.code, 'code') +
+        '<div class="hal-row"><a class="hal-btn" target="_blank" rel="noopener" href="' + my + 'config_flow_start/?domain=g7_link">⚙️ 「3ds」 통합 추가 열기</a></div>' + row('사이트 주소', L.site, 'site') + row('연결 코드', L.code, 'code') +
         '<p class="hal-hint">🔒 연결 코드는 비밀번호와 같아요. 새어 나갔으면 아래 「코드 새로 만들기」.</p></section>' +
       '<section class="hal-sec"><h4><em>3</em> Home Assistant 화면에서 붙일 곳 · 센서 고르기</h4><p class="hal-hint">필라멘트 보관함 · 내 프린터 · 업체 장비 · 그 밖 중에 고르고, 온도 · 습도 · 상태 센서를 목록에서 고르면 끝이에요. 기기를 더 붙일 때는 통합을 한 번 더 추가하면 돼요 (코드는 그대로). 조금 뒤 이 화면에 🟢 로 나타나요.</p></section>',
       { left: '<button type="button" class="hal-btn" data-rl>🔑 코드 새로 만들기</button><button type="button" class="hal-btn" data-manual>📝 HACS 없이 설정 글로</button>' });
@@ -215,10 +215,10 @@
 
   // ── 관리자 ──
   var FIELDS = [['enabled', 'HA 연결 쓰기', 'bool'], ['menu_enabled', '헤더 메인 메뉴에 「HA 연결」 넣기 (홈 디자인 「메인 메뉴 보이기」와 같은 값)', 'bool'], ['menu_label', '헤더 메뉴 이름 (12글자까지)', 'text'],
-    ['max_devices', '회원 한 명이 연결할 수 있는 기기', 'num'], ['send_mode', '전송 방식 (통합 「3ds 연결」)', 'sel', [['change', '값이 변하면 보내기 (권장)'], ['interval', '주기적으로 보내기']]],
+    ['max_devices', '회원 한 명이 연결할 수 있는 기기', 'num'], ['send_mode', '전송 방식 (통합 「3ds」)', 'sel', [['change', '값이 변하면 보내기 (권장)'], ['interval', '주기적으로 보내기']]],
     ['change_hum', '「변하면」: 습도가 이만큼(%) 변하면 보냄 (1~10 · 온도는 0.5°C)', 'num'], ['idle_min', '「변하면」: 변화가 없어도 이만큼(분)마다 한 번 (5~180)', 'num'],
     ['interval_min', '「주기적으로」 · 설정 글(YAML): 값 보내는 주기 (분, 1~60)', 'num'], ['refresh_sec', '화면이 새 값을 다시 받는 간격 (초, 5~3600 · 0 = 끔)', 'num'],
-    ['away_after_min', '회원이 화면을 이만큼(분) 안 보면 「자리 비움」 (5~1440 · 0 = 끔: 늘 같은 주기)', 'num'], ['away_interval_min', '자리 비움일 때 값 보내는 주기 (분) — 통합 「3ds 연결」이 스스로 늦춤', 'num'], ['keep_days', '온습도 기록을 며칠 둘지 (한 시간에 한 줄)', 'num'], ['stale_hours', '몇 시간 소식이 없으면 「끊김」', 'num'], ['alert_gap_hours', '같은 기기의 경고를 다시 보내기까지 (시간)', 'num'],
+    ['away_after_min', '회원이 화면을 이만큼(분) 안 보면 「자리 비움」 (5~1440 · 0 = 끔: 늘 같은 주기)', 'num'], ['away_interval_min', '자리 비움일 때 값 보내는 주기 (분) — 통합 「3ds」이 스스로 늦춤', 'num'], ['keep_days', '온습도 기록을 며칠 둘지 (한 시간에 한 줄)', 'num'], ['stale_hours', '몇 시간 소식이 없으면 「끊김」', 'num'], ['alert_gap_hours', '같은 기기의 경고를 다시 보내기까지 (시간)', 'num'],
     ['notify_site', '기준을 넘으면 사이트 알림', 'bool'], ['notify_mail', '기준을 넘으면 메일도', 'bool'], ['snapshot', '카메라 사진 받기 (기기마다 최신 한 장 · 주인만 봄)', 'bool'], ['snap_gap_min', '사진을 받는 가장 짧은 간격 (분)', 'num'], ['printer_link', '내 프린터로 출력 상태 넘기기', 'bool'], ['company_link', '업체 보유 장비에 연결', 'bool'], ['hacs_repo', 'HACS 통합 저장소 (GitHub 주인/이름)', 'text'], ['timezone', '시간대 (예: Asia/Seoul)', 'text']];
   function renderAdmin() {
     api('GET', '/admin/settings').then(function (r) {
