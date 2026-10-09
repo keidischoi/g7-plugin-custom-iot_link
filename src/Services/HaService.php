@@ -13,6 +13,7 @@ use Plugins\Custom\HaLink\Support\Settings;
  *  - 기기 = 받는 주소 하나 (비밀 키). 필라멘트 · 레진 보관함 / 내 프린터 / 업체 장비 / 그 밖에 붙임
  *  - 온습도: 지금 값 + 한 시간에 한 줄 기록, 기준(습도 · 온도)을 넘으면 알림 (같은 기기는 일정 시간에 한 번)
  *  - 상태: 「가동 중」 구간을 기록 (정비 수첩이 「가동 몇 시간마다」에 씀) · 내 프린터에 붙인 기기는 그 프린터의 자동 연결로 넘김
+ *    (프린터 라운지 PrinterService::hook($token, $payload, $via = 'ha') — 상태가 든 값만 넘김: 상태 없이 넘기면 그쪽이 「쉬는 중」으로 보고 출력을 닫음)
  * 실패는 [false, 메시지] (컨트롤러가 422).
  */
 class HaService
@@ -400,7 +401,9 @@ class HaService
             if ($tok === '' || ! class_exists($cls) || ! method_exists($cls, 'hook')) {
                 return;
             }
-            (new $cls())->hook($tok, array_filter(['state' => $v['state'], 'progress' => $v['progress'], 'remaining_min' => $v['remaining_min'], 'job' => $v['job']], static fn ($x) => $x !== null));
+            // 0.1.9 상태는 그쪽이 아는 말로 (모르는 글이면 출력이 「그만둠」으로 닫힘) · 내부 온도 · 습도도 같이 (프린터 라운지 0.1.24+ 가 보임 — chamber · humidity)
+            (new $cls())->hook($tok, array_filter(['state' => Rules::printerState($v['state']), 'progress' => $v['progress'], 'remaining_min' => $v['remaining_min'], 'job' => $v['job'],
+                'chamber' => $v['temp'], 'humidity' => $v['humidity']], static fn ($x) => $x !== null));
         } catch (\Throwable) {
         }
     }

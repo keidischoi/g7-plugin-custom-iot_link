@@ -43,6 +43,27 @@ final class Rules
         return $s === '' || in_array(strtolower($s), ['unavailable', 'unknown', 'none', 'null'], true) ? null : $s;
     }
 
+    /**
+     * 0.1.9 프린터 라운지(내 프린터)로 넘길 상태 글 — 그쪽이 아는 말로 바꿈.
+     *  그쪽은 모르는 글을 「쉬는 중」으로 보고, 출력 중에 「쉬는 중」이 오면 출력을 「그만둠」으로 닫음 → 가동 중인데 모르는 글(processing 등)은 printing 으로.
+     *  멈춤(stopped · aborted)은 cancelled, 스위치 꺼짐(off)은 idle. 이미 아는 글은 그대로.
+     */
+    public static function printerState(?string $state): string
+    {
+        $s = strtolower(trim((string) $state));
+        if (in_array($s, ['paused', 'pause', 'pausing'], true)) {
+            return 'paused';
+        }
+        if (in_array($s, ['stopped', 'stop', 'aborted', 'abort', 'canceled', 'cancelled', 'cancelling'], true)) {
+            return 'cancelled';
+        }
+        if (in_array($s, ['complete', 'completed', 'finish', 'finished', 'done', 'success', 'succeeded', 'error', 'failed', 'fail', 'failure'], true)) {
+            return $s;
+        }
+
+        return self::isOn($s) ? 'printing' : 'idle';
+    }
+
     /** 그 상태 글이 「가동 중」인가 */
     public static function isOn(?string $state): bool
     {

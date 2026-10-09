@@ -2,7 +2,7 @@
     "name": "plugins/custom-ha_link",
     "description": "G7 HA 연결 — Home Assistant 온습도 · 기기 상태 받기",
     "type": "library",
-    "version": "0.1.8",
+    "version": "0.1.9",
     "license": "MIT",
     "autoload": {
         "psr-4": {
