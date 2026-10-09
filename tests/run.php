@@ -27,8 +27,8 @@ check(R::payload(['on' => 'true'])['state'] === 'on' && R::payload(['on' => fals
 check(R::entity('sensor.DryBox_humidity') === 'sensor.drybox_humidity' && R::entity('switch.dryer') === 'switch.dryer' && R::entity("sensor.x'); drop") === '' && R::entity('nodot') === '', 'HA 엔티티 이름만');
 check(R::loc(' Dry Box ') === 'drybox' && R::loc('드라이 박스') === R::loc('드라이박스') && strlen(R::token()) === 32, '보관 위치 견주기 · 비밀 키');
 $n = S::normalize(['max_devices' => 9999, 'stale_hours' => 0, 'timezone' => 'Mars/Base', 'menu_label' => '<b>집</b>']);
-check($n['max_devices'] === 200 && $n['stale_hours'] === 1 && $n['timezone'] === 'Asia/Seoul' && $n['menu_label'] === '집' && S::normalize([])['menu_label'] === 'HA 연결' && $n['hacs_repo'] === 'keidischoi/ha-g7-link'
-    && S::normalize(['hacs_repo' => 'me/my-repo'])['hacs_repo'] === 'me/my-repo' && S::normalize(['hacs_repo' => 'https://evil/x y'])['hacs_repo'] === 'keidischoi/ha-g7-link', '설정 정리');
+check($n['max_devices'] === 200 && $n['stale_hours'] === 1 && $n['timezone'] === 'Asia/Seoul' && $n['menu_label'] === '집' && S::normalize([])['menu_label'] === 'HA 연결' && $n['hacs_repo'] === 'keidischoi/ha-3ds-link'
+    && S::normalize(['hacs_repo' => 'me/my-repo'])['hacs_repo'] === 'me/my-repo' && S::normalize(['hacs_repo' => 'https://evil/x y'])['hacs_repo'] === 'keidischoi/ha-3ds-link', '설정 정리');
 
 $root = dirname(__DIR__);
 $pj = json_decode((string) file_get_contents($root.'/plugin.json'), true);
