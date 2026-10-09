@@ -24,7 +24,7 @@ final class Settings
         'printer_link' => true,        // 내 프린터(custom-my_printer)로 프린터 상태 넘기기
         'company_link' => true,        // 업체검색(custom-companies) 보유 장비에 연결
         'timezone' => 'Asia/Seoul',    // 날짜 기준 시간대
-        'hacs_repo' => 'keidischoi/ha-g7-link',   // HACS 에 넣을 통합 저장소 (GitHub 주인/이름)
+        'hacs_repo' => 'keidischoi/ha-3ds-link',   // HACS 에 넣을 통합 저장소 (GitHub 주인/이름)
     ];
 
     /** @var array<string, mixed>|null */
@@ -69,6 +69,9 @@ final class Settings
         $out['alert_gap_hours'] = max(1, min(168, $out['alert_gap_hours']));
         $out['snap_gap_min'] = max(1, min(120, $out['snap_gap_min']));
         $repo = is_string($in['hacs_repo'] ?? null) ? trim($in['hacs_repo']) : '';
+        if ($repo === 'keidischoi/ha-g7-link') {
+            $repo = self::DEFAULTS['hacs_repo'];   // 0.1.2 저장소 이름이 바뀜
+        }
         $out['hacs_repo'] = preg_match('#^[A-Za-z0-9_.-]{1,39}/[A-Za-z0-9_.-]{1,100}$#', $repo) ? $repo : self::DEFAULTS['hacs_repo'];
         $tz = is_string($in['timezone'] ?? null) ? trim($in['timezone']) : '';
         $out['timezone'] = $tz !== '' && in_array($tz, \DateTimeZone::listIdentifiers(), true) ? $tz : self::DEFAULTS['timezone'];
