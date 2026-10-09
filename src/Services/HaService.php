@@ -60,7 +60,7 @@ class HaService
             'printers' => $printers, 'companies' => $companies, 'equipment' => array_values($equip), 'locations' => $this->locations($uid),
             'targets' => Rules::TARGETS,
             'link' => ['code' => $this->linkCode($uid), 'site' => rtrim((string) config('app.url'), '/'), 'repo' => (string) Settings::get('hacs_repo')],
-            'config' => ['max_devices' => (int) Settings::get('max_devices'), 'interval_min' => (int) Settings::get('interval_min'), 'refresh_sec' => (int) Settings::get('refresh_sec'), 'stale_hours' => (int) Settings::get('stale_hours'), 'base' => rtrim((string) config('app.url'), '/').'/api/plugins/custom-ha_link/in/',
+            'config' => ['max_devices' => (int) Settings::get('max_devices'), 'interval_min' => (int) Settings::get('interval_min'), 'refresh_sec' => (int) Settings::get('refresh_sec'), 'send_mode' => (string) Settings::get('send_mode'), 'change_hum' => (int) Settings::get('change_hum'), 'idle_min' => (int) Settings::get('idle_min'), 'stale_hours' => (int) Settings::get('stale_hours'), 'base' => rtrim((string) config('app.url'), '/').'/api/plugins/custom-ha_link/in/',
                 'printer_link' => $printers !== [] || ((bool) Settings::get('printer_link') && $this->hasTable('mpr_printers')), 'maintenance' => $this->hasTable('mnt_spools')],
         ];
     }
@@ -215,7 +215,7 @@ class HaService
      * 0.1.5 통합에게 알려 줄 것 — 다음에 몇 분 뒤에 보낼지 · 사진을 보낼지.
      *  회원이 사이트 화면을 「자리 비움」 시간 넘게 안 봤으면 느린 주기로. 공개로 둔 사진은 자리 비움이어도 받음 (다른 사람이 보므로).
      *
-     * @return array{next_min: int, snap: bool, away: bool}
+     * @return array<string, mixed> next_min · snap · away · mode · change_hum · change_temp · gap_sec
      */
     public function pace(int $uid, bool $snapPublic = false): array
     {
@@ -229,7 +229,11 @@ class HaService
             }
         }
 
-        return ['next_min' => (int) Settings::get($away ? 'away_interval_min' : 'interval_min'), 'snap' => (bool) Settings::get('snapshot') && (! $away || $snapPublic), 'away' => $away];
+        $change = Settings::get('send_mode') === 'change';
+
+        // 0.1.6 next_min = 정해진 때마다 한 번 보내는 주기 (「변하면」 방식에서는 변화가 없을 때의 신호 주기). gap_sec = 변해서 보낼 때의 최소 간격 (자리 비움이면 길게)
+        return ['next_min' => (int) Settings::get($away ? 'away_interval_min' : ($change ? 'idle_min' : 'interval_min')), 'snap' => (bool) Settings::get('snapshot') && (! $away || $snapPublic), 'away' => $away,
+            'mode' => $change ? 'change' : 'interval', 'change_hum' => (int) Settings::get('change_hum'), 'change_temp' => 0.5, 'gap_sec' => $away ? 600 : 60];
     }
 
     /** 연결 코드 새로 만들기 — 예전 코드로는 통합이 기기를 만들거나 고치지 못함 (이미 만든 기기의 값 보내기는 그대로 됨) @return array{0: bool, 1: string} */
@@ -267,7 +271,8 @@ class HaService
         return ['site' => (string) (config('app.name') ?: 'G7'), 'targets' => $o['targets'], 'locations' => $o['locations'], 'printers' => $o['printers'],
             'equipment' => array_map(fn ($e) => ['id' => $e['id'], 'name' => trim((string) (collect($o['companies'])->firstWhere('id', $e['company_id'])['name'] ?? '').' — '.$e['name'], ' —')], $o['equipment']),
             'devices' => array_map(fn ($d) => ['id' => $d['id'], 'name' => $d['name'], 'target' => $d['target'], 'token' => $d['token'], 'entities' => $d['entities'], 'humidity_max' => $d['humidity_max'], 'temp_max' => $d['temp_max'], 'snap_public' => $d['snap_public']], $o['devices']),
-            'push_url' => $o['config']['base'], 'interval_min' => (int) Settings::get('interval_min'), 'snapshot' => (bool) Settings::get('snapshot'), 'snap_gap_min' => (int) Settings::get('snap_gap_min'), 'snap_max' => self::SNAP_MAX];
+            'push_url' => $o['config']['base'], 'interval_min' => (int) Settings::get('interval_min'), 'send_mode' => (string) Settings::get('send_mode'),
+            'next_min' => (int) Settings::get(Settings::get('send_mode') === 'change' ? 'idle_min' : 'interval_min'), 'change_hum' => (int) Settings::get('change_hum'), 'change_temp' => 0.5, 'gap_sec' => 60, 'snapshot' => (bool) Settings::get('snapshot'), 'snap_gap_min' => (int) Settings::get('snap_gap_min'), 'snap_max' => self::SNAP_MAX];
     }
 
     /** 통합이 기기를 만들거나 고침 — 화면에서 하는 것과 같은 규칙 @return array{0: bool, 1: string, 2?: array<string, mixed>} */

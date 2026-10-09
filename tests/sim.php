@@ -135,15 +135,20 @@ namespace {
     echo "■ 0.1.5 자리 비움 — 회원이 화면을 안 보면 느리게\n";
     $svc->overview(1);   // 화면을 봄
     $r = $svc->ingest($box->token, ['humidity' => 30]);
-    t($r[2]['next_min'] === 10 && $r[2]['away'] === false && $r[2]['snap'] === true, '화면을 보고 있으면 평소 주기');
+    t($r[2]['next_min'] === 30 && $r[2]['mode'] === 'change' && $r[2]['change_hum'] === 1 && $r[2]['gap_sec'] === 60 && $r[2]['away'] === false && $r[2]['snap'] === true, '「변하면」 방식(기본): 변화가 없을 때의 신호 주기 30분 · 변해서 보낼 때 최소 60초');
+    Settings::save(['send_mode' => 'interval']);
+    $r = $svc->ingest($box->token, ['humidity' => 30]);
+    t($r[2]['next_min'] === 10 && $r[2]['mode'] === 'interval' && $svc->hub(1)['send_mode'] === 'interval' && $svc->hub(1)['next_min'] === 10, '「주기적으로」 방식: 정한 주기');
     DB::table('hal_links')->where('user_id', 1)->update(['updated_at' => now()->subMinutes(45)]);
     $r = $svc->ingest($box->token, ['humidity' => 30]);
-    t($r[2]['next_min'] === 60 && $r[2]['away'] === true && $r[2]['snap'] === false && $svc->pace(1, true)['snap'] === true, '30분 넘게 안 보면 느린 주기 · 사진은 안 받음 (공개 사진은 받음)');
+    t($r[2]['next_min'] === 60 && $r[2]['gap_sec'] === 600 && $r[2]['away'] === true && $r[2]['snap'] === false && $svc->pace(1, true)['snap'] === true, '30분 넘게 안 보면 느린 주기 · 사진은 안 받음 (공개 사진은 받음)');
     Settings::save(['away_after_min' => 0]);
     t($svc->ingest($box->token, ['humidity' => 30])[2]['next_min'] === 10, '기능을 끄면 늘 평소 주기');
     Settings::save(['away_after_min' => 30]);
     $svc->overview(1);
     t($svc->pace(1)['away'] === false, '화면을 다시 열면 평소 주기로');
+    Settings::save(['send_mode' => 'change']);
+    t($svc->hub(1)['next_min'] === 30 && $svc->hub(1)['send_mode'] === 'change', '허브: 통합이 켤 때 받아 가는 방식 · 주기');
 
     echo "■ 가동 시간 · 내 프린터\n";
     HaService::$nowOverride = '2026-10-09 12:00:00';

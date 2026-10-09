@@ -14,6 +14,9 @@ final class Settings
         'menu_enabled' => true,        // 헤더 메인 메뉴에 넣기 (홈 디자인 「메인 메뉴 보이기」와 서로 맞춤)
         'menu_label' => 'HA 연결',      // 헤더 메뉴 이름 (12글자까지)
         'max_devices' => 20,           // 회원 한 명이 연결할 수 있는 기기
+        'send_mode' => 'change',       // 0.1.6 전송 방식 — change: 값이 변하면 보냄 (+ 변화가 없어도 idle_min 마다 한 번) · interval: interval_min 마다 보냄
+        'change_hum' => 1,             // 0.1.6 「변하면」: 습도가 이만큼(%) 변하면 보냄 (온도는 0.5°C)
+        'idle_min' => 30,              // 0.1.6 「변하면」: 변화가 없어도 이만큼(분)마다 한 번 (살아 있다는 신호)
         'interval_min' => 10,          // 0.1.3 값 보내는 주기 (분) — 통합이 이 주기로 보냄. 회원은 이보다 길게만 고를 수 있음
         'refresh_sec' => 60,           // 0.1.5 화면이 값을 다시 받는 간격 (초) — 0 = 끔, 5~3600
         'away_after_min' => 30,        // 0.1.5 회원이 사이트의 HA 연결 · 정비 수첩 화면을 이만큼(분) 안 보면 「자리 비움」 — 0 = 이 기능 끔 (늘 같은 주기)
@@ -69,9 +72,12 @@ final class Settings
         }
         $out['max_devices'] = max(1, min(200, $out['max_devices']));
         $out['interval_min'] = max(1, min(60, $out['interval_min']));
+        $out['send_mode'] = in_array($in['send_mode'] ?? '', ['change', 'interval'], true) ? (string) $in['send_mode'] : self::DEFAULTS['send_mode'];
+        $out['change_hum'] = max(1, min(10, $out['change_hum']));
+        $out['idle_min'] = max(5, min(180, $out['idle_min']));
         $out['refresh_sec'] = $out['refresh_sec'] <= 0 ? 0 : max(5, min(3600, $out['refresh_sec']));   // 0 = 끔 · 5초보다 짧게는 안 됨
         $out['away_after_min'] = $out['away_after_min'] <= 0 ? 0 : max(5, min(1440, $out['away_after_min']));
-        $out['away_interval_min'] = max($out['interval_min'], min(1440, $out['away_interval_min']));   // 평소 주기보다 짧을 수 없음
+        $out['away_interval_min'] = max($out['send_mode'] === 'change' ? $out['idle_min'] : $out['interval_min'], min(1440, $out['away_interval_min']));   // 평소 주기보다 짧을 수 없음
         $out['keep_days'] = max(1, min(365, $out['keep_days']));
         $out['stale_hours'] = max(1, min(72, $out['stale_hours']));
         $out['alert_gap_hours'] = max(1, min(168, $out['alert_gap_hours']));
