@@ -1,0 +1,42 @@
+{
+    "version": "0.1.0",
+    "layout_name": "plugin_settings",
+    "permissions": [
+        "core.plugins.read"
+    ],
+    "extends": "_admin_base",
+    "meta": {
+        "title": "$t:custom-ha_link.settings.title",
+        "description": "$t:custom-ha_link.settings.description"
+    },
+    "scripts": [
+        {
+            "id": "hal_admin_js",
+            "src": "/api/plugins/custom-ha_link/assets/ha-link-app.js?v=0.1.0",
+            "async": true,
+            "optional": true,
+            "required": false,
+            "failOnError": false,
+            "onError": {
+                "handler": "suppress"
+            }
+        }
+    ],
+    "slots": {
+        "content": [
+            {
+                "comment": "관리자 화면 — ha-link-app.js 가 data-hal-admin 을 찾아 설정 화면을 그림",
+                "type": "basic",
+                "name": "Div",
+                "id": "hal_admin",
+                "props": {
+                    "data-hal-admin": "1",
+                    "className": "w-full",
+                    "style": {
+                        "minHeight": "60vh"
+                    }
+                }
+            }
+        ]
+    }
+}

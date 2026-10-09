@@ -1,0 +1,162 @@
+<?php
+
+namespace Plugins\Custom\HaLink;
+
+use App\Extension\AbstractPlugin;
+use Plugins\Custom\HaLink\Listeners\IntegrationListener;
+use Plugins\Custom\HaLink\Listeners\MenuListener;
+use Plugins\Custom\HaLink\Listeners\RouteListener;
+use Plugins\Custom\HaLink\Support\Schema;
+use Plugins\Custom\HaLink\Support\Settings;
+
+/**
+ * 🏠 HA 연결 (custom-ha_link) — 회원의 Home Assistant 가 보내는 온습도 · 기기 상태를 받아 정비 수첩 · 내 프린터에 이음
+ *
+ *  - 기기 = 받는 주소 하나. 필라멘트 · 레진 보관함 / 내 프린터 / 업체 장비 / 그 밖의 장비 · 공간에 붙임 (여러 대)
+ *  - 온습도: 지금 값 · 이틀 그래프 · 기준(습도 · 온도)을 넘으면 알림 (그 보관함에 든 필라멘트도 알려 줌)
+ *  - 상태: 가동 시간 기록 → 정비 수첩의 「가동 몇 시간마다」 · 내 프린터에 붙인 기기는 출력 상태를 그 프린터로 넘김
+ *  - 사이트가 회원 집으로 접속하지 않음 (회원 쪽에서 보내오는 값만 받음) · 화면: /ha-link · 관리자: /admin/ha-link
+ */
+class Plugin extends AbstractPlugin
+{
+    public const IDENTIFIER = 'custom-ha_link';
+
+    public const ADMIN_URL = '/admin/ha-link';
+
+    public const USER_LAYOUT = 'custom-ha_link.ha_link';
+
+    public const TABLES = ['hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links'];
+
+    private static bool $autoload = false;
+
+    /** 이 플러그인 클래스를 스스로 불러오게 (확장 autoload 캐시가 늦게 갱신돼도 켜기 · 훅이 되게) */
+    public static function autoload(): void
+    {
+        if (self::$autoload) {
+            return;
+        }
+        $here = __DIR__;
+        spl_autoload_register(static function (string $class) use ($here): void {
+            $p = 'Plugins\\Custom\\HaLink\\';
+            if (! str_starts_with($class, $p)) {
+                return;
+            }
+            $rel = '/src/'.str_replace('\\', '/', substr($class, strlen($p))).'.php';
+            $roots = [];
+            try {
+                if (function_exists('base_path')) {
+                    $roots[] = base_path('plugins/'.self::IDENTIFIER);
+                }
+            } catch (\Throwable) {
+            }
+            $roots[] = $here;
+            foreach ($roots as $r) {
+                if (is_string($r) && is_file($r.$rel)) {
+                    require_once $r.$rel;
+
+                    return;
+                }
+            }
+        });
+        self::$autoload = true;
+    }
+
+    public function install(): bool
+    {
+        self::autoload();
+        try {
+            Schema::ensure();
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return true;
+    }
+
+    public function activate(): bool
+    {
+        self::autoload();
+        try {
+            Schema::ensure();
+            Settings::forget();
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return true;
+    }
+
+    public function deactivate(): bool
+    {
+        self::autoload();
+        try {
+            Settings::forget();
+        } catch (\Throwable) {
+        }
+
+        return true;
+    }
+
+    public function uninstall(): bool
+    {
+        self::autoload();
+
+        return true;
+    }
+
+    /** @return list<string> 「데이터까지 지우기」 때 지울 표 */
+    public function getDynamicTables(): array
+    {
+        return self::TABLES;
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    public function getAdminMenus(): array
+    {
+        return [[
+            'name' => ['ko' => 'HA 연결', 'en' => 'HA Link'],
+            'slug' => self::IDENTIFIER,
+            'url' => self::ADMIN_URL,
+            'icon' => 'fas fa-house-signal',
+            'order' => 17,
+        ]];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    public function getNotificationDefinitions(): array
+    {
+        return [[
+            'type' => 'custom_ha_link_alert',
+            'hook_prefix' => self::IDENTIFIER,
+            'name' => ['ko' => 'HA 연결 경고', 'en' => 'HA Link alert'],
+            'description' => ['ko' => 'Home Assistant 로 연결한 기기의 습도 · 온도가 회원이 정한 기준을 넘으면 보냄.', 'en' => 'Sent when a linked device goes over the humidity / temperature limit.'],
+            'channels' => ['mail', 'database'],
+            'hooks' => [],
+            'variables' => [
+                ['key' => 'subject', 'description' => '완성된 제목'],
+                ['key' => 'body', 'description' => '완성된 본문'],
+                ['key' => 'body_html', 'description' => '완성된 본문 HTML (메일)'],
+                ['key' => 'name', 'description' => '회원 이름'],
+                ['key' => 'drawer_url', 'description' => 'HA 연결 화면 주소'],
+            ],
+            'templates' => [
+                ['channel' => 'mail', 'recipients' => [['type' => 'trigger_user']], 'subject' => ['ko' => '{subject}', 'en' => '{subject}'], 'body' => ['ko' => '{body_html}', 'en' => '{body_html}']],
+                ['channel' => 'database', 'recipients' => [['type' => 'trigger_user']], 'subject' => ['ko' => '{subject}', 'en' => '{subject}'], 'body' => ['ko' => '{body}', 'en' => '{body}'], 'click_url' => '{drawer_url}'],
+            ],
+        ]];
+    }
+
+    /** @return array<int, class-string> */
+    public function getHookListeners(): array
+    {
+        self::autoload();
+
+        return [RouteListener::class, IntegrationListener::class, MenuListener::class];
+    }
+
+    /** @return array<string, mixed> */
+    public function getMetadata(): array
+    {
+        return ['author' => 'keidischoi', 'license' => 'MIT', 'keywords' => ['3d printing', 'home assistant', 'hacs', 'sensor', 'humidity', 'temperature', 'printer', 'iot']];
+    }
+}

@@ -1,0 +1,31 @@
+{
+    "identifier": "custom-ha_link",
+    "vendor": "custom",
+    "name": {
+        "ko": "HA 연결",
+        "en": "HA Link"
+    },
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": {
+        "ko": "🏠 HA 연결 — 회원의 Home Assistant(HACS 통합 포함)가 보내는 온습도 · 프린터 · 장비 상태를 받아, 필라멘트 · 레진 보관함 습도 경고 · 가동 시간(정비 수첩) · 출력 상태(내 프린터)에 이음. 기기 여러 대, 설정 글 자동 만들기. 사이트가 회원 집으로 접속하지 않음.",
+        "en": "Receives temperature / humidity and device state pushed from members' Home Assistant and links it to the maintenance log, filament storage and My Printer."
+    },
+    "g7_version": ">=7.0.5",
+    "dependencies": {
+        "modules": {},
+        "plugins": {}
+    },
+    "github_url": "https://github.com/keidischoi/g7-plugin-custom-ha_link",
+    "github_changelog_url": "https://github.com/keidischoi/g7-plugin-custom-ha_link/blob/main/CHANGELOG.md",
+    "assets": {
+        "js": {
+            "entry": "resources/js/ha_link.js",
+            "output": "dist/js/plugin.iife.js"
+        }
+    },
+    "loading": {
+        "strategy": "global",
+        "priority": 69
+    }
+}

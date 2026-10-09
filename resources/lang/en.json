@@ -1,0 +1,12 @@
+{
+  "name": "HA Link",
+  "description": "Receive sensor and device state from Home Assistant",
+  "menu": "HA Link",
+  "user": {
+    "title": "HA Link"
+  },
+  "settings": {
+    "title": "HA Link",
+    "description": "HA Link settings"
+  }
+}
