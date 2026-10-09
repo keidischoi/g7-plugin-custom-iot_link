@@ -24,6 +24,8 @@ check(R::state('unknown') === null && R::state(true) === 'on' && R::state(' Prin
 $p = R::payload(['temperature' => '24.1', 'humidity' => 'unavailable', 'state' => 'running', 'progress' => '42', 'remaining_min' => '75', 'job' => "benchy.3mf"]);
 check($p['temp'] === 24.1 && $p['humidity'] === null && $p['state'] === 'running' && $p['progress'] === 42.0 && $p['remaining_min'] === 75.0 && $p['job'] === 'benchy.3mf', '받은 내용 정리');
 check(R::payload(['on' => 'true'])['state'] === 'on' && R::payload(['on' => false])['state'] === 'off' && R::payload([])['state'] === null && R::payload(['temp' => 5, 'hum' => 30])['humidity'] === 30.0, '켜짐(on) · 짧은 이름');
+check(R::minutes('75') === 75.0 && R::minutes('1h 04m') === 64.0 && R::minutes('2d 3h') === 3060.0 && R::minutes('01:04:00') === 64.0 && R::minutes('64:30') === 64.5 && R::minutes('unknown') === null && R::minutes('') === null
+    && R::payload(['state' => 'processing', 'remaining' => '1h 30m'])['remaining_min'] === 90.0 && R::isOn('processing') && R::isOn('self-testing') && ! R::isOn('completed') && ! R::isOn('stopped'), '0.1.7 남은 시간 글 읽기 · Creality 상태 글');
 check(R::entity('sensor.DryBox_humidity') === 'sensor.drybox_humidity' && R::entity('switch.dryer') === 'switch.dryer' && R::entity("sensor.x'); drop") === '' && R::entity('nodot') === '', 'HA 엔티티 이름만');
 check(R::loc(' Dry Box ') === 'drybox' && R::loc('드라이 박스') === R::loc('드라이박스') && strlen(R::token()) === 32, '보관 위치 견주기 · 비밀 키');
 $n = S::normalize(['max_devices' => 9999, 'stale_hours' => 0, 'timezone' => 'Mars/Base', 'menu_label' => '<b>집</b>']);
