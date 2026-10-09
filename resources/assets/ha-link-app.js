@@ -1,8 +1,8 @@
-/*! custom-ha_link 0.1.7 — 🏠 HA 연결 (Home Assistant 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-ha_link 0.1.8 — 🏠 HA 연결 (Home Assistant 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-ha_link', BASE = '/ha-link', V = '0.1.7';
+  var API = '/api/plugins/custom-ha_link', BASE = '/ha-link', V = '0.1.8';
   var S = { root: null, key: '', d: null };
 
   // ── 공통 ──
@@ -82,10 +82,11 @@
   function draw() {
     var d = S.d, live = d.devices.filter(function (x) { return !x.stale; }).length, over = d.devices.filter(function (x) { return x.over; }).length;
     wrap('<section class="hal-hero"><div><h1>🏠 HA 연결</h1><p>Home Assistant 의 온습도 센서 · 프린터 · 장비 상태를 받아 정비 수첩과 내 프린터에 이어요.</p></div>' +
-      '<div class="hal-stats"><span>기기 <b>' + d.devices.length + '</b></span><span>🟢 연결됨 <b>' + live + '</b></span>' + (over ? '<span class="hot">⚠️ 기준 넘음 <b>' + over + '</b></span>' : '') + '<button class="hal-btn light" data-new>➕ 기기 연결</button></div></section>' +
+      '<div class="hal-stats"><span>기기 <b>' + d.devices.length + '</b></span><span>🟢 연결됨 <b>' + live + '</b></span>' + (over ? '<span class="hot">⚠️ 기준 넘음 <b>' + over + '</b></span>' : '') + '<button class="hal-btn ghost" data-guide title="연결 방법 보기" aria-label="연결 방법 보기">❓ 연결 방법</button><button class="hal-btn light" data-new>➕ 기기 연결</button></div></section>' +
       (d.devices.length ? '<div class="hal-grid">' + d.devices.map(card).join('') + '</div>' +
         '<p class="hal-note">' + (liveSec() ? '🔄 이 화면은 ' + (liveSec() >= 60 && liveSec() % 60 === 0 ? liveSec() / 60 + '분' : liveSec() + '초') + '마다 스스로 새 값을 받아 와요' : '🔄 새 값을 보려면 화면을 새로 고쳐 주세요') + ' (Home Assistant 는 ' + (d.config.send_mode === 'change' ? '값이 변하면' : (d.config.interval_min || 10) + '분마다') + ' · 상태가 바뀌면 바로 보내요).</p><p class="hal-note">🔒 받는 주소는 비밀번호와 같아요 — 남에게 보이지 마세요. 사이트가 내 집으로 접속하지 않고, 내 Home Assistant 가 보내는 값만 받아요.' + (d.config.maintenance ? ' · <a href="/maintenance?tab=drawer" data-go>🧵 필라멘트 서랍 보기</a>' : '') + '</p>'
-        : '<section class="hal-start"><h2>세 걸음이면 돼요</h2><ol><li><b>① HACS 에서 「3ds」 설치</b><span>단추 한 번으로 저장소가 들어가요</span></li><li><b>② 사이트 주소 · 연결 코드 붙여 넣기</b><span>복사 단추 두 번</span></li><li><b>③ HA 화면에서 센서 고르기</b><span>설정 글(YAML)을 쓸 필요 없어요</span></li></ol><button class="hal-btn pri big" data-new>➕ 첫 기기 연결하기</button></section>'));
+        : '<section class="hal-start"><h2>세 걸음이면 돼요</h2><ol><li><b>① HACS 에서 「3ds」 설치</b><span>단추 한 번으로 저장소가 들어가요</span></li><li><b>② 사이트 주소 · 연결 코드 붙여 넣기</b><span>복사 단추 두 번</span></li><li><b>③ HA 화면에서 센서 고르기</b><span>설정 글(YAML)을 쓸 필요 없어요</span></li></ol><div class="hal-row center"><button class="hal-btn pri big" data-new>➕ 첫 기기 연결하기</button><button class="hal-btn big" data-guide>❓ 그림으로 보는 연결 방법</button></div></section>'));
+    qa('[data-guide]').forEach(function (b) { b.onclick = function () { guideBox(); }; });
     qa('[data-snap]').forEach(function (b) { snapLoad(b); b.onclick = function () { var u = SNAP[b.getAttribute('data-snap')]; if (u && u.url) modal('📷 ' + esc(find(b.getAttribute('data-snap')).name), '<img class="hal-snapbig" src="' + u.url + '" alt="">'); }; });
     qa('[data-new]').forEach(function (b) { b.onclick = function () { connectBox(); }; });
     qa('[data-edit]').forEach(function (b) { b.onclick = function () { form(find(b.getAttribute('data-edit'))); }; });
@@ -97,6 +98,41 @@
     var fallback = function () { var ta = document.createElement('textarea'); ta.value = txt; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (e) { toast('복사하지 못했어요 — 글을 직접 골라 복사해 주세요.', true); } ta.remove(); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, fallback); else fallback();
   }
+  /* 0.1.8 ❓ 연결 방법 — 한 걸음씩, 화면 그림에 누를 곳을 빨갛게.
+   *   그림은 사진이 아니라 화면을 본떠 그린 것 (가볍고 · 다크 테마에도 맞고 · 화면이 조금 바뀌어도 뜻이 통하게). 실제 Home Assistant 화면은 버전에 따라 조금 다를 수 있음 */
+  function shot(bar, html, kind) { return '<div class="hal-shot' + (kind ? ' ' + kind : '') + '" aria-hidden="true"><div class="hal-shot-bar"><i></i><i></i><i></i><span>' + bar + '</span></div><div class="hal-shot-b">' + html + '</div></div>'; }
+  function hl(html, n) { return '<span class="hal-hl">' + html + (n ? '<b class="hal-hl-n">' + n + '</b>' : '') + '</span>'; }
+  function guideBox() {
+    var L = S.d.link, code = String(L.code || '').slice(0, 6) + '…', btn = function (t, cls) { return '<span class="hal-fake-btn ' + (cls || '') + '">' + t + '</span>'; }, row = function (a, b) { return '<div class="hal-fake-row"><span>' + a + '</span>' + b + '</div>'; };
+    var fld = function (label, val) { return '<div class="hal-fake-fld"><small>' + label + '</small><span>' + val + '</span></div>'; }, chk = function (on, t) { return '<div class="hal-fake-chk"><i class="' + (on ? 'on' : '') + '">' + (on ? '✓' : '') + '</i>' + t + '</div>'; };
+    var steps = [
+      ['이 화면에서 「➕ 기기 연결」 누르기', '사이트 주소와 연결 코드가 나와요. 이 두 가지를 Home Assistant 에 붙여 넣을 거예요.',
+        shot('사이트 · HA 연결', '<div class="hal-fake-hero"><b>🏠 HA 연결</b>' + hl(btn('➕ 기기 연결', 'light'), 1) + '</div>' + row('사이트 주소', '<code>' + esc(L.site) + '</code>' + hl(btn('📋 복사', 'pri sm'), 2)) + row('연결 코드', '<code>' + esc(code) + '</code>' + hl(btn('📋 복사', 'pri sm'), 3)))],
+      ['HACS 에서 「3ds」 내려받기 <small>처음 한 번만</small>', '연결 창의 <b>🧩 내 Home Assistant 의 HACS 에서 열기</b>를 누르면 HACS 가 열려요. 오른쪽 아래 <b>다운로드</b>를 누르고, Home Assistant 를 <b>다시 시작</b>해 주세요.',
+        shot('Home Assistant · HACS', '<div class="hal-fake-repo"><span class="hal-fake-logo">3DS</span><div><b>3ds</b><small>keidischoi/ha-3ds-link · 통합</small></div></div><p class="hal-fake-p">온습도 센서 · 프린터 상태 · 카메라 사진을 사이트로 보냅니다.</p><div class="hal-fake-end">' + hl(btn('⬇ 다운로드', 'pri'), 1) + '</div><div class="hal-fake-note">설정 › 시스템 › ' + hl('<u>다시 시작</u>', 2) + '</div>', 'ha')],
+      ['통합을 추가하고 두 가지 붙여 넣기', '연결 창의 <b>⚙️ 「3ds」 통합 추가 열기</b>를 누르거나, 설정 › 기기 및 서비스 › <b>통합 추가</b>에서 「3ds」를 찾으세요. 1번에서 복사한 것을 붙여 넣고 <b>확인</b>.',
+        shot('Home Assistant · 통합 추가', '<b class="hal-fake-t">3ds 사이트에 연결</b>' + hl(fld('사이트 주소', esc(L.site)), 1) + hl(fld('연결 코드', '●●●●●●●●●●●●'), 2) + '<div class="hal-fake-end">' + hl(btn('확인', 'pri'), 3) + '</div>', 'ha')],
+      ['「한꺼번에」를 고르고 습도 센서 체크', '맨 위 <b>✨ 온습도 센서 여러 개를 한꺼번에</b>를 고르고, 다음 화면에서 보관함의 <b>습도 센서</b>들을 체크하세요. 같은 기기의 온도 센서는 알아서 같이 붙어요.',
+        shot('Home Assistant · 3ds', '<b class="hal-fake-t">무엇에 붙일까요?</b>' + hl('<div class="hal-fake-opt on">◉ ✨ 온습도 센서 여러 개를 한꺼번에</div>', 1) + '<div class="hal-fake-opt">○ 내 프린터 — 하나씩</div><div class="hal-fake-opt">○ 업체 장비 — 하나씩</div><hr><b class="hal-fake-t">습도 센서 (여러 개 고르기)</b>' + hl(chk(1, '드라이박스 습도') + chk(1, 'AMS 습도') + chk(0, '거실 습도'), 2) + '<div class="hal-fake-end">' + hl(btn('확인', 'pri'), 3) + '</div>', 'ha')],
+      ['이 화면에 🟢 로 나타나면 끝', '1~2분 안에 보관함이 카드로 나타나요. 이름 · 알림 기준 · 붙일 곳은 카드의 <b>✏️</b>에서 고쳐요.',
+        shot('사이트 · HA 연결', '<div class="hal-fake-card"><div class="hal-fake-row"><span>🧵 <b>드라이박스</b></span>' + hl('<span class="hal-fake-ico">✏️</span>', 2) + '</div><div class="hal-fake-vals"><span>💧 <b>32.5</b>%</span><span>🌡️ <b>23.4</b>°C</span></div>' + hl('<div class="hal-fake-st"><i></i>방금</div>', 1) + '</div>')],
+      ['필라멘트에 붙이기', '정비 수첩에서 필라멘트를 넣거나 고칠 때 <b>보관 위치</b>를 목록에서 고르면, 그 보관함의 습도가 필라멘트 카드에 같이 보여요. 기준을 넘으면 알림도 가요.',
+        shot('사이트 · 정비 수첩 › 필라멘트', fld('이름', 'PETG 검정') + hl('<div class="hal-fake-fld"><small>보관 위치 <em>🏠 온습도 센서가 있는 곳</em></small><span>드라이박스 ▾</span></div>', 1) + '<div class="hal-fake-tags"><span>💧 건조 12일 뒤</span>' + hl('<span class="ha">🏠 💧32.5% 🌡️23.4°C</span>', 2) + '</div>')]
+    ];
+    var more = '<section class="hal-sec hal-tips"><h4>💡 더 알아 두면 좋아요</h4><ul>' +
+      '<li><b>프린터 · 업체 장비</b>는 통합을 한 번 더 추가해 「내 프린터 — 하나씩」 · 「업체 장비 — 하나씩」을 고르세요. Home Assistant 의 기기를 고르면 상태 · 진행률 · 카메라 센서를 찾아 채워 줘요.</li>' +
+      '<li><b>센서를 더 붙이거나 빼려면</b> Home Assistant 의 그 통합에서 <b>구성</b>을 누르세요.</li>' +
+      '<li><b>이미 붙인 센서를 다른 곳으로</b> 옮기려면 이 화면의 카드 ✏️ → 「무엇에 붙일까요?」를 바꾸면 돼요.</li>' +
+      '<li><b>🟢 로 안 바뀌면</b> Home Assistant 를 다시 시작했는지, 사이트 주소가 <code>https://</code> 로 시작하는지 확인하세요. 그래도 안 되면 설정 › 시스템 › 로그에서 <code>g7_link</code> 를 찾아보세요.</li>' +
+      '<li>HACS 를 안 쓰면 연결 창의 <b>📝 HACS 없이 설정 글로</b>를 누르세요.</li></ul>' +
+      '<p class="hal-hint">그림은 화면을 본떠 그린 거예요. Home Assistant 화면은 버전에 따라 조금 다를 수 있어요.</p></section>';
+    var ov = modal('❓ 연결 방법', '<p class="hal-guide-top">처음이라면 <b>5분</b>이면 돼요. 빨간 테두리 <span class="hal-hl sm">이렇게</span> 표시한 곳을 순서대로 누르면 돼요.</p><ol class="hal-guide">' + steps.map(function (s, i) {
+      return '<li><div class="hal-guide-t"><em>' + (i + 1) + '</em><div><b>' + s[0] + '</b><p>' + s[1] + '</p></div></div>' + s[2] + '</li>';
+    }).join('') + '</ol>' + more, { left: '<button type="button" class="hal-btn pri" data-start>➕ 지금 연결하기</button>' });
+    ov.classList.add('wide');
+    ov.addEventListener('click', function (ev) { if (ev.target.closest('[data-start]')) { ov.__close(); connectBox(); } });
+  }
+
   /** ➕ 기기 연결 — HACS 통합으로 (쉬움: HA 화면에서 센서를 고르면 끝) · 아니면 설정 글을 직접 붙여 넣기 */
   function connectBox() {
     var L = S.d.link, rp = String(L.repo).split('/'), my = 'https://my.home-assistant.io/redirect/';
@@ -108,9 +144,10 @@
         '<div class="hal-row"><a class="hal-btn" target="_blank" rel="noopener" href="' + my + 'config_flow_start/?domain=g7_link">⚙️ 「3ds」 통합 추가 열기</a></div>' + row('사이트 주소', L.site, 'site') + row('연결 코드', L.code, 'code') +
         '<p class="hal-hint">🔒 연결 코드는 비밀번호와 같아요. 새어 나갔으면 아래 「코드 새로 만들기」.</p></section>' +
       '<section class="hal-sec"><h4><em>3</em> Home Assistant 화면에서 붙일 곳 · 센서 고르기</h4><p class="hal-hint">필라멘트 보관함 · 내 프린터 · 업체 장비 · 그 밖 중에 고르고, 온도 · 습도 · 상태 센서를 목록에서 고르면 끝이에요. 기기를 더 붙일 때는 통합을 한 번 더 추가하면 돼요 (코드는 그대로). 조금 뒤 이 화면에 🟢 로 나타나요.</p></section>',
-      { left: '<button type="button" class="hal-btn" data-rl>🔑 코드 새로 만들기</button><button type="button" class="hal-btn" data-manual>📝 HACS 없이 설정 글로</button>' });
+      { left: '<button type="button" class="hal-btn" data-guide2>❓ 그림으로 보기</button><button type="button" class="hal-btn" data-rl>🔑 코드 새로 만들기</button><button type="button" class="hal-btn" data-manual>📝 HACS 없이 설정 글로</button>' });
     ov.addEventListener('click', function (ev) {
       var c = ev.target.closest('[data-cp]'); if (c) { copy(c.getAttribute('data-cp') === 'site' ? L.site : L.code, c); return; }
+      if (ev.target.closest('[data-guide2]')) { ov.__close(); guideBox(); return; }
       if (ev.target.closest('[data-manual]')) { ov.__close(); form(null); return; }
       if (ev.target.closest('[data-rl]') && confirm('연결 코드를 새로 만들까요? Home Assistant 의 통합에서 기기를 더 붙이거나 고치려면 새 코드를 넣어야 해요. (이미 붙인 기기는 계속 값이 들어와요)')) api('POST', '/link/rotate', {}).then(function (r) { toast(r.message); S.d = r.data.overview; ov.__close(); connectBox(); }).catch(fail);
     });
