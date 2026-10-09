@@ -14,6 +14,7 @@ final class Settings
         'menu_enabled' => true,        // 헤더 메인 메뉴에 넣기 (홈 디자인 「메인 메뉴 보이기」와 서로 맞춤)
         'menu_label' => 'HA 연결',      // 헤더 메뉴 이름 (12글자까지)
         'max_devices' => 20,           // 회원 한 명이 연결할 수 있는 기기
+        'interval_min' => 10,          // 0.1.3 값 보내는 주기 (분) — 통합이 이 주기로 보냄. 회원은 이보다 길게만 고를 수 있음
         'keep_days' => 30,             // 온습도 기록을 며칠 둘지 (한 시간에 한 줄)
         'stale_hours' => 3,            // 이 시간 넘게 소식이 없으면 「끊김」
         'alert_gap_hours' => 12,       // 같은 기기의 경고를 다시 보내기까지
@@ -64,6 +65,7 @@ final class Settings
             $out[$k] = is_bool($d) ? (is_bool($v) ? $v : (filter_var($v, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? $d)) : (is_string($d) ? self::label($v, $d) : (is_numeric($v) ? (int) $v : $d));
         }
         $out['max_devices'] = max(1, min(200, $out['max_devices']));
+        $out['interval_min'] = max(1, min(60, $out['interval_min']));
         $out['keep_days'] = max(1, min(365, $out['keep_days']));
         $out['stale_hours'] = max(1, min(72, $out['stale_hours']));
         $out['alert_gap_hours'] = max(1, min(168, $out['alert_gap_hours']));
