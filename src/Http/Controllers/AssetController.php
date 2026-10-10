@@ -1,6 +1,6 @@
 <?php
 
-namespace Plugins\Custom\HaLink\Http\Controllers;
+namespace Plugins\Custom\IotLink\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -12,12 +12,19 @@ use Illuminate\Routing\Controller;
 class AssetController extends Controller
 {
     private const FILES = [
-        'ha-link-app.js' => 'application/javascript',
-        'ha-link.css' => 'text/css',
+        'iot-link-app.js' => 'application/javascript',
+        'iot-link.css' => 'text/css',
+    ];
+
+    /** 1.0.0 예전 이름(HA 연결) 때의 파일 이름 → 지금 파일 (예전 화면 · 캐시가 부르는 주소) */
+    public const LEGACY = [
+        'ha-link-app.js' => 'iot-link-app.js',
+        'ha-link.css' => 'iot-link.css',
     ];
 
     public function show(Request $request, string $file): Response
     {
+        $file = self::LEGACY[$file] ?? $file;
         if (! isset(self::FILES[$file])) {
             return response('/* not found */', 404, ['Content-Type' => 'text/plain']);
         }

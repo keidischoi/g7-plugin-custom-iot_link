@@ -1,12 +1,12 @@
 <?php
 
-namespace Plugins\Custom\HaLink\Http\Controllers;
+namespace Plugins\Custom\IotLink\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Plugins\Custom\HaLink\Services\HaService;
-use Plugins\Custom\HaLink\Services\SmartThingsService;
+use Plugins\Custom\IotLink\Services\HaService;
+use Plugins\Custom\IotLink\Services\SmartThingsService;
 
 /**
  * 0.2.0 SmartThings

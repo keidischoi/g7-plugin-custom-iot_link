@@ -1,12 +1,12 @@
 {
-  "name": "HA Link",
-  "description": "Receive sensor and device state from Home Assistant",
-  "menu": "HA Link",
+  "name": "IoT Link",
+  "description": "Receive sensor and device state from Home Assistant and SmartThings",
+  "menu": "IoT Link",
   "user": {
-    "title": "HA Link"
+    "title": "IoT Link"
   },
   "settings": {
-    "title": "HA Link",
-    "description": "HA Link settings"
+    "title": "IoT Link",
+    "description": "IoT Link settings"
   }
 }

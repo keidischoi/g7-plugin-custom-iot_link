@@ -1,6 +1,6 @@
 <?php
 
-namespace Plugins\Custom\HaLink\Support;
+namespace Plugins\Custom\IotLink\Support;
 
 use Illuminate\Support\Facades\DB;
 
@@ -10,16 +10,16 @@ use Illuminate\Support\Facades\DB;
 final class Settings
 {
     public const DEFAULTS = [
-        'enabled' => true,             // HA 연결 쓰기
+        'enabled' => true,             // IoT 연결 쓰기
         'menu_enabled' => true,        // 헤더 메인 메뉴에 넣기 (홈 디자인 「메인 메뉴 보이기」와 서로 맞춤)
-        'menu_label' => 'HA 연결',      // 헤더 메뉴 이름 (12글자까지)
+        'menu_label' => 'IoT 연결',      // 헤더 메뉴 이름 (12글자까지)
         'max_devices' => 20,           // 회원 한 명이 연결할 수 있는 기기
         'send_mode' => 'change',       // 0.1.6 전송 방식 — change: 값이 변하면 보냄 (+ 변화가 없어도 idle_min 마다 한 번) · interval: interval_min 마다 보냄
         'change_hum' => 1,             // 0.1.6 「변하면」: 습도가 이만큼(%) 변하면 보냄 (온도는 0.5°C)
         'idle_min' => 30,              // 0.1.6 「변하면」: 변화가 없어도 이만큼(분)마다 한 번 (살아 있다는 신호)
         'interval_min' => 10,          // 0.1.3 값 보내는 주기 (분) — 통합이 이 주기로 보냄. 회원은 이보다 길게만 고를 수 있음
         'refresh_sec' => 60,           // 0.1.5 화면이 값을 다시 받는 간격 (초) — 0 = 끔, 5~3600
-        'away_after_min' => 30,        // 0.1.5 회원이 사이트의 HA 연결 · 정비 수첩 화면을 이만큼(분) 안 보면 「자리 비움」 — 0 = 이 기능 끔 (늘 같은 주기)
+        'away_after_min' => 30,        // 0.1.5 회원이 사이트의 IoT 연결 · 정비 수첩 화면을 이만큼(분) 안 보면 「자리 비움」 — 0 = 이 기능 끔 (늘 같은 주기)
         'away_interval_min' => 60,     // 0.1.5 자리 비움일 때 값 보내는 주기 (분) — 통합이 스스로 늦춤. 상태 변화(출력 시작 · 끝)는 그대로 바로 보냄
         'keep_days' => 30,             // 온습도 기록을 며칠 둘지 (한 시간에 한 줄)
         'stale_hours' => 3,            // 이 시간 넘게 소식이 없으면 「끊김」
@@ -75,12 +75,18 @@ final class Settings
      * @param  array<string, mixed>  $in
      * @return array<string, mixed>
      */
+    /** 1.0.0 예전 기본 메뉴 이름 (HA 연결 0.x) */
+    public const LEGACY_MENU_LABEL = 'HA 연결';
+
     public static function normalize(array $in): array
     {
         $out = [];
         foreach (self::DEFAULTS as $k => $d) {
             $v = $in[$k] ?? $d;
             $out[$k] = is_bool($d) ? (is_bool($v) ? $v : (filter_var($v, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? $d)) : (in_array($k, self::ST_TEXT, true) ? (is_scalar($v) ? trim((string) $v) : '') : (is_string($d) ? self::label($v, $d) : (is_numeric($v) ? (int) $v : $d)));
+        }
+        if ($out['menu_label'] === self::LEGACY_MENU_LABEL) {
+            $out['menu_label'] = self::DEFAULTS['menu_label'];   // 1.0.0 예전 기본 이름(HA 연결)은 새 이름으로 · 직접 바꾼 이름은 그대로
         }
         // 0.2.0 SmartThings
         foreach (['st_app_id', 'st_client_id'] as $k) {

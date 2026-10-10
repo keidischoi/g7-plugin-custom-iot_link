@@ -1,17 +1,20 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Plugins\Custom\HaLink\Http\Controllers\AdminController;
-use Plugins\Custom\HaLink\Http\Controllers\AssetController;
-use Plugins\Custom\HaLink\Http\Controllers\HaController;
-use Plugins\Custom\HaLink\Http\Controllers\SmartThingsController;
+use Plugins\Custom\IotLink\Http\Controllers\AdminController;
+use Plugins\Custom\IotLink\Http\Controllers\AssetController;
+use Plugins\Custom\IotLink\Http\Controllers\HaController;
+use Plugins\Custom\IotLink\Http\Controllers\SmartThingsController;
+use Plugins\Custom\IotLink\Support\LegacyRoutes;
 
 /*
-| PluginRouteServiceProvider prefix: api/plugins/custom-ha_link
+| PluginRouteServiceProvider prefix: api/plugins/custom-iot_link
+| 1.0.0 예전 이름(custom-ha_link) 주소도 그대로 받음 — 이 파일 끝의 LegacyRoutes::mirror (회원의 Home Assistant rest_command ·
+|       HACS 통합 · SmartThings Target URL 이 예전 주소를 씀)
 */
 
 Route::get('assets/{file}', [AssetController::class, 'show'])
-    ->where('file', 'ha-link-app\.js|ha-link\.css')->middleware('throttle:600,1')->name('assets');
+    ->where('file', 'iot-link-app\.js|iot-link\.css|ha-link-app\.js|ha-link\.css')->middleware('throttle:600,1')->name('assets');
 
 // Home Assistant → 사이트 (로그인 없음, 주소의 비밀 키). 주소 하나가 보내는 곳(IP)마다 1분에 30번까지
 Route::post('in/{token}', [HaController::class, 'ingest'])->where('token', '[a-f0-9]{32}')->middleware('throttle:30,1')->name('in');
@@ -49,3 +52,6 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () {
     Route::get('admin/settings', [AdminController::class, 'show'])->middleware('permission:admin,core.plugins.read')->name('admin.settings.show');
     Route::put('admin/settings', [AdminController::class, 'save'])->middleware('permission:admin,core.plugins.update')->name('admin.settings.save');
 });
+
+// 1.0.0 예전 주소 /api/plugins/custom-ha_link/… → 위와 같은 컨트롤러 (같은 미들웨어 · 제한 · 조건)
+LegacyRoutes::mirror(app('router'));

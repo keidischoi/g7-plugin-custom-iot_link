@@ -1,15 +1,15 @@
 <?php
 
-namespace Plugins\Custom\HaLink\Services;
+namespace Plugins\Custom\IotLink\Services;
 
 use Illuminate\Support\Facades\DB;
-use Plugins\Custom\HaLink\Support\Notify;
-use Plugins\Custom\HaLink\Support\Rules;
-use Plugins\Custom\HaLink\Support\Schema;
-use Plugins\Custom\HaLink\Support\Settings;
+use Plugins\Custom\IotLink\Support\Notify;
+use Plugins\Custom\IotLink\Support\Rules;
+use Plugins\Custom\IotLink\Support\Schema;
+use Plugins\Custom\IotLink\Support\Settings;
 
 /**
- * 🏠 HA 연결 — 회원의 Home Assistant 가 보내는 값(온습도 · 상태)을 받아 둠. 사이트가 회원 집으로 접속하지 않음.
+ * 📡 IoT 연결 — 회원의 Home Assistant 가 보내는 값(온습도 · 상태)을 받아 둠. 사이트가 회원 집으로 접속하지 않음.
  *  - 기기 = 받는 주소 하나 (비밀 키). 필라멘트 · 레진 보관함 / 내 프린터 / 업체 장비 / 그 밖에 붙임
  *  - 온습도: 지금 값 + 한 시간에 한 줄 기록, 기준(습도 · 온도)을 넘으면 알림 (같은 기기는 일정 시간에 한 번)
  *  - 상태: 「가동 중」 구간을 기록 (정비 수첩이 「가동 몇 시간마다」에 씀) · 내 프린터에 붙인 기기는 그 프린터의 자동 연결로 넘김
@@ -70,7 +70,7 @@ class HaService
             'printers' => $printers, 'companies' => $companies, 'equipment' => array_values($equip), 'locations' => $this->locations($uid),
             'targets' => Rules::TARGETS,
             'link' => ['code' => $this->linkCode($uid), 'site' => rtrim((string) config('app.url'), '/'), 'repo' => (string) Settings::get('hacs_repo')],
-            'config' => ['max_devices' => (int) Settings::get('max_devices'), 'interval_min' => (int) Settings::get('interval_min'), 'refresh_sec' => (int) Settings::get('refresh_sec'), 'send_mode' => (string) Settings::get('send_mode'), 'change_hum' => (int) Settings::get('change_hum'), 'idle_min' => (int) Settings::get('idle_min'), 'stale_hours' => (int) Settings::get('stale_hours'), 'base' => rtrim((string) config('app.url'), '/').'/api/plugins/custom-ha_link/in/',
+            'config' => ['max_devices' => (int) Settings::get('max_devices'), 'interval_min' => (int) Settings::get('interval_min'), 'refresh_sec' => (int) Settings::get('refresh_sec'), 'send_mode' => (string) Settings::get('send_mode'), 'change_hum' => (int) Settings::get('change_hum'), 'idle_min' => (int) Settings::get('idle_min'), 'stale_hours' => (int) Settings::get('stale_hours'), 'base' => rtrim((string) config('app.url'), '/').'/api/plugins/custom-iot_link/in/',
                 'printer_link' => $printers !== [] || ((bool) Settings::get('printer_link') && $this->hasTable('mpr_printers')), 'maintenance' => $this->hasTable('mnt_spools')],
         ];
     }
@@ -295,7 +295,7 @@ class HaService
         }
         $d = DB::table(Schema::DEVICES)->where('id', (int) $r[2]['id'])->first();
 
-        return [true, $r[1], ['id' => (int) $d->id, 'name' => (string) $d->name, 'token' => (string) $d->token, 'push_url' => rtrim((string) config('app.url'), '/').'/api/plugins/custom-ha_link/in/'.$d->token]];
+        return [true, $r[1], ['id' => (int) $d->id, 'name' => (string) $d->name, 'token' => (string) $d->token, 'push_url' => rtrim((string) config('app.url'), '/').'/api/plugins/custom-iot_link/in/'.$d->token]];
     }
 
     /* ───────── 받기 (Home Assistant → 사이트) ───────── */
@@ -396,7 +396,7 @@ class HaService
             } catch (\Throwable) {
             }
         }
-        Notify::send((int) $d->user_id, $ch, '[HA 연결] '.$d->name.' '.($hum !== null ? '습도가 높아요 💧' : '온도가 높아요 🌡️'), implode("\n", $lines));
+        Notify::send((int) $d->user_id, $ch, '[IoT 연결] '.$d->name.' '.($hum !== null ? '습도가 높아요 💧' : '온도가 높아요 🌡️'), implode("\n", $lines));
     }
 
     /** 내 프린터에 붙인 기기 — 그 프린터의 자동 연결(custom-my_printer)로 상태를 넘김. 그 플러그인이 없거나 바뀌었으면 조용히 건너뜀 */
@@ -494,7 +494,7 @@ class HaService
     }
 
     /**
-     * 그 「내 프린터」에 붙인 기기의 공개 사진 (다른 확장이 씀 — 필터 custom-ha_link.printer_snapshot)
+     * 그 「내 프린터」에 붙인 기기의 공개 사진 (다른 확장이 씀 — 필터 custom-iot_link.printer_snapshot)
      *
      * @return array{url: string, at: string, device_id: int}|null
      */
@@ -505,7 +505,7 @@ class HaService
         }
         foreach (DB::table(Schema::DEVICES)->where('target', 'printer')->where('printer_id', $printerId)->where('snap_public', true)->whereNotNull('snap_at')->orderByDesc('snap_at')->limit(3)->get(['id']) as $d) {
             if (($s = $this->publicSnap((int) $d->id)) !== null) {
-                return ['url' => '/api/plugins/custom-ha_link/snap/'.$d->id.'.jpg?t='.strtotime($s['at']), 'at' => $s['at'], 'device_id' => (int) $d->id];
+                return ['url' => '/api/plugins/custom-iot_link/snap/'.$d->id.'.jpg?t='.strtotime($s['at']), 'at' => $s['at'], 'device_id' => (int) $d->id];
             }
         }
 

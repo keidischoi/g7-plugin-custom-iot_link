@@ -1,6 +1,6 @@
 <?php
 
-namespace Plugins\Custom\HaLink\Support;
+namespace Plugins\Custom\IotLink\Support;
 
 /**
  * 0.2.0 SmartThings 요청 서명 (HTTP Signatures, rsa-sha256) — DB · Laravel 없이 검사: tests/run.php

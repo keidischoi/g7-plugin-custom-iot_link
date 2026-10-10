@@ -1,6 +1,6 @@
 <?php
 
-namespace Plugins\Custom\HaLink\Support;
+namespace Plugins\Custom\IotLink\Support;
 
 /**
  * 0.2.0 SmartThings (WebHook SmartApp) — 고르는 칸 · 받은 값 바꾸기 · 설정 화면 JSON (DB · Laravel 없이 검사: tests/run.php)
@@ -243,7 +243,7 @@ final class SmartThings
     /** @return array<string, mixed> */
     public static function initialize(string $site): array
     {
-        return ['configurationData' => ['initialize' => ['id' => 'ha_link', 'name' => mb_substr($site.' 연결', 0, 40), 'description' => '센서 값을 사이트의 HA 연결로 보내요', 'permissions' => self::SCOPES, 'firstPageId' => '1']]];
+        return ['configurationData' => ['initialize' => ['id' => 'ha_link', 'name' => mb_substr($site.' 연결', 0, 40), 'description' => '센서 값을 사이트의 IoT 연결로 보내요', 'permissions' => self::SCOPES, 'firstPageId' => '1']]];
     }
 
     /**
@@ -254,7 +254,7 @@ final class SmartThings
     {
         $para = static fn (string $id, string $name, string $desc) => ['id' => $id, 'name' => $name, 'description' => $desc, 'type' => 'PARAGRAPH', 'required' => false];
         if ($pageId !== '2') {
-            $s = [$para('intro', $site.' 의 「HA 연결」과 이어요', '사이트 → HA 연결 → SmartThings 카드에서 「연결 코드 만들기」를 누르고 나온 8글자를 적어 주세요. 코드는 한 번만 · 30분 안에 쓸 수 있어요.'),
+            $s = [$para('intro', $site.' 의 「IoT 연결」과 이어요', '사이트 → IoT 연결 → SmartThings 카드에서 「연결 코드 만들기」를 누르고 나온 8글자를 적어 주세요. 코드는 한 번만 · 30분 안에 쓸 수 있어요.'),
                 ['id' => 'link_code', 'name' => '연결 코드', 'description' => $linked !== null ? '지금 「'.$linked.'」에 이어져 있어요. 다른 기기로 바꿀 때만 새 코드를 적어요.' : '예: ABCD-2345', 'type' => 'TEXT', 'required' => $linked === null, 'maxLength' => 12]];
 
             return ['configurationData' => ['page' => ['pageId' => '1', 'name' => '사이트와 연결', 'nextPageId' => '2', 'previousPageId' => null, 'complete' => false, 'sections' => [['name' => '연결 코드', 'settings' => $s]]]]];

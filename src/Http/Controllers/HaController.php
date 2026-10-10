@@ -1,12 +1,12 @@
 <?php
 
-namespace Plugins\Custom\HaLink\Http\Controllers;
+namespace Plugins\Custom\IotLink\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Plugins\Custom\HaLink\Services\HaService;
-use Plugins\Custom\HaLink\Support\Settings;
+use Plugins\Custom\IotLink\Services\HaService;
+use Plugins\Custom\IotLink\Support\Settings;
 
 /** 회원 화면 API (로그인, 내 기기만) + 받는 주소 (로그인 없음 — 주소의 비밀 키로) */
 class HaController extends Controller
@@ -15,7 +15,7 @@ class HaController extends Controller
 
     private function off(): ?JsonResponse
     {
-        return Settings::get('enabled') ? null : response()->json(['success' => false, 'message' => 'HA 연결이 꺼져 있어요.'], 404);
+        return Settings::get('enabled') ? null : response()->json(['success' => false, 'message' => 'IoT 연결이 꺼져 있어요.'], 404);
     }
 
     private function uid(Request $r): int

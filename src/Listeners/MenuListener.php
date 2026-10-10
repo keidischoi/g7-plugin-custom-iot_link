@@ -1,21 +1,22 @@
 <?php
 
-namespace Plugins\Custom\HaLink\Listeners;
+namespace Plugins\Custom\IotLink\Listeners;
 
 use App\Contracts\Extension\HookListenerInterface;
-use Plugins\Custom\HaLink\Support\Settings;
+use Plugins\Custom\IotLink\Support\Settings;
 
 /**
- * 0.1.0 헤더 메인 메뉴 「HA 연결」 (#hal-nav · #hal-nav-mobile — 그리는 것은 plugin.iife.js)
- *  - core.frontend.filter_app_config: 화면 HTML 에 메뉴 설정을 실음 — G7Config.appConfig.cextNav["custom-ha_link"].cfg (따로 요청 없음)
+ * 0.1.0 헤더 메인 메뉴 「IoT 연결」 (#hal-nav · #hal-nav-mobile — 그리는 것은 plugin.iife.js)
+ *  - core.frontend.filter_app_config: 화면 HTML 에 메뉴 설정을 실음 — G7Config.appConfig.cextNav["custom-iot_link"].cfg (따로 요청 없음)
  *  - 홈 디자인(0.7.67+) 메뉴 맞춤: 「메인 메뉴 보이기」 · 이름을 서로 맞춤 — 값의 원본은 이 플러그인 설정 (menu_enabled · menu_label)
  * CRITICAL: 훅 필터는 예외를 던지지 않음 — 실패하면 받은 그대로.
  */
 class MenuListener implements HookListenerInterface
 {
+    /** 홈 디자인 메뉴 키 — 1.0.0 이름을 바꿔도 그대로 (저장된 순서 · 숨김 · 이름이 이어짐) */
     public const KEY = 'ha_link';
 
-    public const PATH = '/ha-link';
+    public const PATH = '/iot-link';
 
     public static function getSubscribedHooks(): array
     {
@@ -35,7 +36,7 @@ class MenuListener implements HookListenerInterface
         }
         try {
             $nav = is_array($config['cextNav'] ?? null) ? $config['cextNav'] : [];
-            $nav['custom-ha_link'] = ['cfg' => ['enabled' => (bool) Settings::get('enabled'), 'menu_enabled' => (bool) Settings::get('menu_enabled'), 'menu_label' => (string) Settings::get('menu_label'), 'path' => self::PATH]];
+            $nav['custom-iot_link'] = ['cfg' => ['enabled' => (bool) Settings::get('enabled'), 'menu_enabled' => (bool) Settings::get('menu_enabled'), 'menu_label' => (string) Settings::get('menu_label'), 'path' => self::PATH]];
             $config['cextNav'] = $nav;
         } catch (\Throwable) {
         }

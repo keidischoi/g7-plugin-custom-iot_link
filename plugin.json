@@ -1,14 +1,14 @@
 {
-    "identifier": "custom-ha_link",
+    "identifier": "custom-iot_link",
     "vendor": "custom",
     "name": {
-        "ko": "HA 연결",
-        "en": "HA Link"
+        "ko": "IoT 연결",
+        "en": "IoT Link"
     },
-    "version": "0.2.1",
+    "version": "1.0.0",
     "license": "MIT",
     "description": {
-        "ko": "🏠 HA 연결 — 회원의 Home Assistant(HACS 통합 포함) · SmartThings(WebHook SmartApp)가 보내는 온습도 · 프린터 · 장비 상태를 받아, 필라멘트 · 레진 보관함 습도 경고 · 가동 시간(정비 수첩) · 출력 상태(내 프린터)에 이음. 기기 여러 대, 설정 글 자동 만들기. 사이트가 회원 집으로 접속하지 않음.",
+        "ko": "📡 IoT 연결 — 회원의 Home Assistant(HACS 통합 포함) · SmartThings(WebHook SmartApp)가 보내는 온습도 · 프린터 · 장비 상태를 받아, 필라멘트 · 레진 보관함 습도 경고 · 가동 시간(정비 수첩) · 출력 상태(내 프린터)에 이음. 기기 여러 대, 설정 글 자동 만들기. 사이트가 회원 집으로 접속하지 않음.",
         "en": "Receives temperature / humidity and device state pushed from members' Home Assistant or SmartThings (WebHook SmartApp) and links it to the maintenance log, filament storage and My Printer."
     },
     "g7_version": ">=7.0.5",
@@ -16,11 +16,11 @@
         "modules": {},
         "plugins": {}
     },
-    "github_url": "https://github.com/keidischoi/g7-plugin-custom-ha_link",
-    "github_changelog_url": "https://github.com/keidischoi/g7-plugin-custom-ha_link/blob/main/CHANGELOG.md",
+    "github_url": "https://github.com/keidischoi/g7-plugin-custom-iot_link",
+    "github_changelog_url": "https://github.com/keidischoi/g7-plugin-custom-iot_link/blob/main/CHANGELOG.md",
     "assets": {
         "js": {
-            "entry": "resources/js/ha_link.js",
+            "entry": "resources/js/iot_link.js",
             "output": "dist/js/plugin.iife.js"
         }
     },

@@ -3,10 +3,10 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema as S;
-use Plugins\Custom\HaLink\Support\Schema;
+use Plugins\Custom\IotLink\Support\Schema;
 
 /**
- * HA 연결 0.2.0 — SmartThings (WebHook SmartApp): hal_st_installs · hal_st_sensors · hal_st_codes + hal_devices.source
+ * IoT 연결 (예전 HA 연결) 0.2.0 — SmartThings (WebHook SmartApp): hal_st_installs · hal_st_sensors · hal_st_codes + hal_devices.source
  *  표 정의는 src/Support/Schema.php 한 곳 (처음 쓸 때 자동 생성과 같음).
  */
 return new class extends Migration

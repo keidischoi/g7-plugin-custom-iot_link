@@ -1,6 +1,6 @@
 <?php
 
-namespace Plugins\Custom\HaLink\Support;
+namespace Plugins\Custom\IotLink\Support;
 
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema as S;
@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Schema as S;
  *  hal_readings  온습도 기록 (기기마다 한 시간에 한 줄)
  *  hal_runs      가동 기록 (켜짐 · 출력 중이던 구간 — 정비 수첩이 「가동 몇 시간마다」에 씀)
  *  hal_links     회원의 연결 코드 (HACS 통합이 이 코드로 사이트와 이어짐 — 기기를 만들고 고침).
- *                updated_at = 그 회원이 사이트의 HA 연결 · 정비 수첩 화면을 마지막으로 본 때 (0.1.5 「자리 비움」 판단 — 칸을 늘리지 않으려고 이 칸을 씀)
+ *                updated_at = 그 회원이 사이트의 IoT 연결 · 정비 수첩 화면을 마지막으로 본 때 (0.1.5 「자리 비움」 판단 — 칸을 늘리지 않으려고 이 칸을 씀)
  *  hal_settings  관리자 설정
  *  0.2.0 SmartThings (WebHook SmartApp)
  *  hal_st_installs  SmartThings 앱 설치 하나 (installedApp) — 회원 · 사이트 기기와 이음. 토큰은 Laravel Crypt 로 암호화해 둠
@@ -114,7 +114,7 @@ final class Schema
             return self::$ok = true;
         } catch (\Throwable $e) {
             try {
-                \Illuminate\Support\Facades\Log::warning('[custom-ha_link] 표를 만들지 못했습니다.', ['error' => $e->getMessage()]);
+                \Illuminate\Support\Facades\Log::warning('[custom-iot_link] 표를 만들지 못했습니다.', ['error' => $e->getMessage()]);
             } catch (\Throwable) {
             }
 

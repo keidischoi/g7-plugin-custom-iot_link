@@ -1,8 +1,8 @@
-/*! custom-ha_link 0.2.1 — 🏠 HA 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.0.0 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-ha_link', BASE = '/ha-link', V = '0.2.1';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.0.0';
   var S = { root: null, key: '', d: null };
 
   // ── 공통 ──
@@ -88,7 +88,7 @@
   }
   function draw() {
     var d = S.d, live = d.devices.filter(function (x) { return !x.stale; }).length, over = d.devices.filter(function (x) { return x.over; }).length;
-    wrap('<section class="hal-hero"><div><h1>🏠 HA 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 정비 수첩과 내 프린터에 이어요.</p></div>' +
+    wrap('<section class="hal-hero"><div><h1>📡 IoT 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 정비 수첩과 내 프린터에 이어요.</p></div>' +
       '<div class="hal-stats"><span>기기 <b>' + d.devices.length + '</b></span><span>🟢 연결됨 <b>' + live + '</b></span>' + (over ? '<span class="hot">⚠️ 기준 넘음 <b>' + over + '</b></span>' : '') + '<button class="hal-btn ghost" data-guide title="연결 방법 보기" aria-label="연결 방법 보기">❓ 연결 방법</button><button class="hal-btn light" data-new>➕ 기기 연결</button></div></section>' +
       stCard() +
       (d.devices.length ? '<div class="hal-grid">' + d.devices.map(card).join('') + '</div>' +
@@ -169,7 +169,7 @@
       ['못 찾은 프린터 · 장비 붙이기 <small>필요할 때만</small>', '이름이 달라 못 찾았으면 통합을 한 번 더 추가해 <b>내 프린터 — 하나씩</b> · <b>업체 장비 — 하나씩</b>을 고르세요. Home Assistant 의 <b>기기를 고르면</b> 상태 · 진행률 · 카메라 센서를 찾아 채워 줘요.',
         shot('Home Assistant · 3ds — 하나씩', hl(fld('기기 (안 골라도 됨)', 'Bambu Lab P1S'), 1) + '<hr><b class="hal-fake-t">센서 고르기 <small>찾은 것이 채워져 있어요</small></b>' + hl(fld('상태', 'sensor.p1s_print_status') + fld('진행률 (%)', 'sensor.p1s_print_progress') + fld('카메라', 'camera.p1s_camera'), 2) + '<div class="hal-fake-end">' + hl(btn('확인', 'pri'), 3) + '</div>', 'ha')],
       ['사이트에서 마무리', '1~2분 안에 이 화면에 🟢 로 나타나요. 카드의 <b>✏️</b>에서 <b>알림 기준</b> · 이름 · 붙일 곳 · <b>사진 공개</b>를 정하고, 정비 수첩에서 필라멘트의 <b>보관 위치</b>를 목록에서 고르면 습도가 필라멘트에 같이 보여요.',
-        shot('사이트 · HA 연결 · 정비 수첩', '<div class="hal-fake-card"><div class="hal-fake-row"><span>🧵 <b>드라이박스</b></span>' + hl('<span class="hal-fake-ico">✏️</span>', 2) + '</div><div class="hal-fake-vals"><span>💧 <b>32.5</b>%</span><span>🌡️ <b>23.4</b>°C</span></div>' + hl('<div class="hal-fake-st"><i></i>방금</div>', 1) + '</div>' + hl('<div class="hal-fake-fld"><small>보관 위치 <em>🏠 온습도 센서가 있는 곳</em></small><span>드라이박스 ▾</span></div>', 3) + '<div class="hal-fake-tags"><span>💧 건조 12일 뒤</span><span class="ha">🏠 💧32.5% 🌡️23.4°C</span></div>')]
+        shot('사이트 · IoT 연결 · 정비 수첩', '<div class="hal-fake-card"><div class="hal-fake-row"><span>🧵 <b>드라이박스</b></span>' + hl('<span class="hal-fake-ico">✏️</span>', 2) + '</div><div class="hal-fake-vals"><span>💧 <b>32.5</b>%</span><span>🌡️ <b>23.4</b>°C</span></div>' + hl('<div class="hal-fake-st"><i></i>방금</div>', 1) + '</div>' + hl('<div class="hal-fake-fld"><small>보관 위치 <em>🏠 온습도 센서가 있는 곳</em></small><span>드라이박스 ▾</span></div>', 3) + '<div class="hal-fake-tags"><span>💧 건조 12일 뒤</span><span class="ha">🏠 💧32.5% 🌡️23.4°C</span></div>')]
     ];
     var more = '<section class="hal-sec hal-tips"><h4>💡 더 알아 두면 좋아요</h4><ul>' +
       '<li><b>프린터 · 업체 장비</b>는 통합을 한 번 더 추가해 「내 프린터 — 하나씩」 · 「업체 장비 — 하나씩」을 고르세요. Home Assistant 의 기기를 고르면 상태 · 진행률 · 카메라 센서를 찾아 채워 줘요.</li>' +
@@ -304,7 +304,7 @@
   }
 
   // ── 관리자 ──
-  var FIELDS = [['enabled', 'HA 연결 쓰기', 'bool'], ['menu_enabled', '헤더 메인 메뉴에 「HA 연결」 넣기 (홈 디자인 「메인 메뉴 보이기」와 같은 값)', 'bool'], ['menu_label', '헤더 메뉴 이름 (12글자까지)', 'text'],
+  var FIELDS = [['enabled', 'IoT 연결 쓰기', 'bool'], ['menu_enabled', '헤더 메인 메뉴에 「IoT 연결」 넣기 (홈 디자인 「메인 메뉴 보이기」와 같은 값)', 'bool'], ['menu_label', '헤더 메뉴 이름 (12글자까지)', 'text'],
     ['max_devices', '회원 한 명이 연결할 수 있는 기기', 'num'], ['send_mode', '전송 방식 (통합 「3ds」)', 'sel', [['change', '값이 변하면 보내기 (권장)'], ['interval', '주기적으로 보내기']]],
     ['change_hum', '「변하면」: 습도가 이만큼(%) 변하면 보냄 (1~10 · 온도는 0.5°C)', 'num'], ['idle_min', '「변하면」: 변화가 없어도 이만큼(분)마다 한 번 (5~180)', 'num'],
     ['interval_min', '「주기적으로」 · 설정 글(YAML): 값 보내는 주기 (분, 1~60)', 'num'], ['refresh_sec', '화면이 새 값을 다시 받는 간격 (초, 5~3600 · 0 = 끔)', 'num'],
@@ -321,7 +321,7 @@
       ['아래에서 「SmartThings 연결 쓰기」를 켜고 저장', '꺼져 있으면 사이트가 SmartThings 의 확인 요청에 답하지 않아요 (404).'],
       ['Developer Workspace 에 로그인', '<a href="https://developer.smartthings.com/workspace" target="_blank" rel="noopener">developer.smartthings.com/workspace</a> — 삼성 계정 (SmartThings 앱과 같은 계정)으로.'],
       ['New Project → 「Automation for the SmartThings App」 → Continue', '프로젝트 이름(예: <b>' + esc(location.hostname) + ' 연결</b>)을 적고 <b>Create Project</b>.'],
-      ['Register App → 「WebHook Endpoint」 → Target URL 붙여 넣기', '아래 주소를 그대로 붙여 넣어요. <b>https</b> 이고 밖에서 열려야 해요.' + cp(I.target_url || '', 'url')],
+      ['Register App → 「WebHook Endpoint」 → Target URL 붙여 넣기', '아래 주소를 그대로 붙여 넣어요. <b>https</b> 이고 밖에서 열려야 해요.' + cp(I.target_url || '', 'url') + (I.legacy_target_url ? '<span class="hal-hint">이미 예전 주소(<code>' + esc(I.legacy_target_url) + '</code>)로 등록했다면 그대로 둬도 돼요 — 예전 주소도 계속 받아요.</span>' : '')],
       ['앱 이름 · 설명을 적고 권한(Scopes) 두 개 체크 → Save', '회원 SmartThings 앱의 「발견」에 이 이름이 보여요. 권한은 <b>읽기만</b>:' + cp((I.scopes || []).join(' '), 'scopes') + '<span class="hal-hint">r:devices:* (기기 · 값 읽기) · r:locations:* (위치 이름 · 온도 단위 °C/°F)</span>'],
       ['나온 Client ID · Client Secret 을 아래 칸에 붙여 넣고 저장', '<b>Client Secret 은 이때 한 번만 보여요</b> — 바로 복사해 두세요. App ID 는 프로젝트 화면(Overview)의 App ID 를 적어요 (비워도 돼요).'],
       ['「Verify App Registration」(주소 확인) 누르기', 'SmartThings 가 사이트로 CONFIRMATION 을 보내면 사이트가 알아서 확인해요 — 이 화면을 새로 고치면 ✅ 로 바뀌어요.'],
@@ -336,16 +336,16 @@
         if (f[2] === 'area') return '<label class="full">' + esc(f[1]) + '<textarea data-k="' + f[0] + '" rows="3" spellcheck="false" placeholder="-----BEGIN PUBLIC KEY-----">' + esc(s[f[0]] || '') + '</textarea></label>';
         return '<label>' + esc(f[1]) + '<input type="' + (f[2] === 'num' ? 'number' : 'text') + '" data-k="' + f[0] + '" value="' + esc(s[f[0]]) + '" autocomplete="off" spellcheck="false"></label>';
       }).join('') +
-      '<p class="hal-hint full">🔒 모든 요청의 HTTP 서명(rsa-sha256 · Digest · Date)을 확인하고 맞지 않으면 거부해요. 회원 토큰은 암호화해 두고 24시간마다 refresh_token 으로 새로 받아요. 회원은 자기 화면 /ha-link 의 SmartThings 카드에서 일회용 연결 코드를 만들어 SmartThings 앱의 설정 화면에 적으면 이어져요.</p></section>';
+      '<p class="hal-hint full">🔒 모든 요청의 HTTP 서명(rsa-sha256 · Digest · Date)을 확인하고 맞지 않으면 거부해요. 회원 토큰은 암호화해 두고 24시간마다 refresh_token 으로 새로 받아요. 회원은 자기 화면 /iot-link 의 SmartThings 카드에서 일회용 연결 코드를 만들어 SmartThings 앱의 설정 화면에 적으면 이어져요.</p></section>';
   }
   function renderAdmin() {
     api('GET', '/admin/settings').then(function (r) {
       var s = r.data.settings, st = r.data.stats;
-      wrap('<section class="hal-hero"><div><h1>🏠 HA 연결 — 관리자</h1><p>회원 화면: <a href="' + BASE + '" target="_blank">' + BASE + '</a> · 회원 기기의 값 · 받는 주소는 관리자에게도 보이지 않아요</p></div><div class="hal-stats"><span>쓰는 회원 <b>' + n(st.users) + '</b></span><span>기기 <b>' + n(st.devices) + '</b></span><span>🟢 연결됨 <b>' + n(st.live) + '</b></span><span>기록 <b>' + n(st.readings) + '</b>줄</span><span>📡 SmartThings <b>' + n(st.st_installs) + '</b></span></div></section>' +
+      wrap('<section class="hal-hero"><div><h1>📡 IoT 연결 — 관리자</h1><p>회원 화면: <a href="' + BASE + '" target="_blank">' + BASE + '</a> · 회원 기기의 값 · 받는 주소는 관리자에게도 보이지 않아요</p></div><div class="hal-stats"><span>쓰는 회원 <b>' + n(st.users) + '</b></span><span>기기 <b>' + n(st.devices) + '</b></span><span>🟢 연결됨 <b>' + n(st.live) + '</b></span><span>기록 <b>' + n(st.readings) + '</b>줄</span><span>📡 SmartThings <b>' + n(st.st_installs) + '</b></span></div></section>' +
         '<div class="hal-form">' + FIELDS.map(function (f) {
           if (f[2] === 'sel') return '<label>' + esc(f[1]) + '<select data-k="' + f[0] + '">' + f[3].map(function (o) { return '<option value="' + o[0] + '"' + (s[f[0]] === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></label>';
           return f[2] === 'bool' ? '<label class="hal-chk"><input type="checkbox" data-k="' + f[0] + '"' + (s[f[0]] ? ' checked' : '') + '> ' + esc(f[1]) + '</label>' : '<label>' + esc(f[1]) + '<input type="' + (f[2] === 'num' ? 'number' : 'text') + '" data-k="' + f[0] + '" value="' + esc(s[f[0]]) + '"></label>';
-        }).join('') + '<p class="hal-hint full">전송 방식은 여기서 정하고 회원의 통합이 따라요 (회원은 주기를 더 길게만 바꿀 수 있어요). 「값이 변하면」: 습도 · 온도가 정한 만큼 변했을 때만 보내고(잇따라 변해도 1분에 한 번까지), 변화가 없으면 가끔 한 번만 — 값이 안정된 보관함은 요청이 줄고, 뚜껑을 열어 습도가 오르면 더 빨리 알아요. 「주기적으로」: 정한 주기마다 보내요 (기기 100대 · 10분이면 한 시간에 600번). 회원이 사이트의 HA 연결 · 정비 수첩 화면을 한동안 안 보면(자리 비움) 통합이 느린 주기로 바꿔 보내요 — 그동안에도 출력 시작 · 끝 같은 상태 변화는 바로 오고, 습도 경고는 느린 주기만큼 늦어질 수 있어요. 다시 화면을 열면 다음 번 값이 올 때부터 평소 주기로 돌아와요 (설정 글(YAML)로 붙인 기기는 늘 같은 주기) — 요청 하나에 조회 1 · 저장 1~3. 기록은 기기마다 한 시간에 한 줄만 남기고 위 날짜가 지나면 지워요. 받는 주소는 1분에 30번까지만 받아요.</p>' +
+        }).join('') + '<p class="hal-hint full">전송 방식은 여기서 정하고 회원의 통합이 따라요 (회원은 주기를 더 길게만 바꿀 수 있어요). 「값이 변하면」: 습도 · 온도가 정한 만큼 변했을 때만 보내고(잇따라 변해도 1분에 한 번까지), 변화가 없으면 가끔 한 번만 — 값이 안정된 보관함은 요청이 줄고, 뚜껑을 열어 습도가 오르면 더 빨리 알아요. 「주기적으로」: 정한 주기마다 보내요 (기기 100대 · 10분이면 한 시간에 600번). 회원이 사이트의 IoT 연결 · 정비 수첩 화면을 한동안 안 보면(자리 비움) 통합이 느린 주기로 바꿔 보내요 — 그동안에도 출력 시작 · 끝 같은 상태 변화는 바로 오고, 습도 경고는 느린 주기만큼 늦어질 수 있어요. 다시 화면을 열면 다음 번 값이 올 때부터 평소 주기로 돌아와요 (설정 글(YAML)로 붙인 기기는 늘 같은 주기) — 요청 하나에 조회 1 · 저장 1~3. 기록은 기기마다 한 시간에 한 줄만 남기고 위 날짜가 지나면 지워요. 받는 주소는 1분에 30번까지만 받아요.</p>' +
         '</div>' + stAdmin(s, r.data.smartthings) + '<div class="hal-acts hal-acts-end"><button class="hal-btn pri" id="hal-asave">저장</button></div>');
       S.root.onclick = function (ev) { var c = ev.target.closest('[data-acp]'); if (!c) return; var I = r.data.smartthings || {}; copy(c.getAttribute('data-acp') === 'url' ? I.target_url : (I.scopes || []).join(' '), c); };
       q('#hal-asave').onclick = function () {
@@ -360,12 +360,17 @@
     if (S.root.hasAttribute('data-hal-admin')) return renderAdmin();
     wrap('<div class="hal-empty">불러오는 중…</div>');
     api('GET', '/me').then(function (r) { S.d = r.data; draw(); }).catch(function (e) {
-      wrap(e.status === 401 ? '<section class="hal-hero"><div><h1>🏠 HA 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 정비 수첩과 내 프린터에 이어요.</p></div></section><div class="hal-empty">로그인하면 내 기기를 연결할 수 있어요. <a href="/login" data-go>로그인</a></div>' : '<div class="hal-empty">' + esc(e.message) + '</div>');
+      wrap(e.status === 401 ? '<section class="hal-hero"><div><h1>📡 IoT 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 정비 수첩과 내 프린터에 이어요.</p></div></section><div class="hal-empty">로그인하면 내 기기를 연결할 수 있어요. <a href="/login" data-go>로그인</a></div>' : '<div class="hal-empty">' + esc(e.message) + '</div>');
     });
+  }
+  /* 1.0.0 예전 주소(/ha-link · /admin/ha-link — HA 연결 때)로 왔으면 주소 줄만 새 주소로 바꿔 보임 (같은 화면 · 다시 불러오지 않음) */
+  function newPath() {
+    try { var p = location.pathname, q = p.replace(/(^|\/)ha-link(?=\/|$)/, '$1iot-link'); if (q !== p && history.replaceState) history.replaceState(history.state, '', q + location.search + location.hash); } catch (e) {}
   }
   function tick() {
     var root = document.querySelector('[data-hal-app],[data-hal-admin]');
     if (!root) { S.root = null; return; }
+    newPath();
     var key = location.pathname + location.search;
     if (root === S.root && key === S.key) return;
     S.root = root; S.key = key;
