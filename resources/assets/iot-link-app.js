@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.1.1 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.1.2 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.1.1';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.1.2';
   var S = { root: null, key: '', d: null, ret: null };
 
   // ── 공통 ──
@@ -80,7 +80,7 @@
     var sens = all.filter(function (x) { return !((x.capability === 'temperatureMeasurement' && hasTemp && one(x.capability)) || (x.capability === 'relativeHumidityMeasurement' && hasHum && one(x.capability))); });
     var stt = d.never ? '<span class="hal-dot wait"></span>값을 기다리는 중' : d.stale ? '<span class="hal-dot off"></span>끊김 · ' + agoText(d.seen) : '<span class="hal-dot on"></span>' + agoText(d.seen);
     return '<article class="hal-card' + (d.over ? ' over' : '') + (d.stale && !d.never ? ' stale' : '') + '">' +
-      '<header><span class="hal-ico">' + ICON[d.target] + '</span><div><b>' + esc(d.name) + '</b><small>' + (st || (d.sensors && d.sensors.length) ? '<span class="hal-badge">📡 SmartThings</span> ' : '') + esc(S.d.targets[d.target]) + (d.where && d.where !== d.name ? ' · ' + esc(d.where) : '') + '</small></div><button class="hal-icobtn" data-edit="' + d.id + '" title="고치기" aria-label="고치기">✏️</button></header>' +
+      '<header><span class="hal-ico">' + ICON[d.target] + '</span><div><b>' + esc(d.name) + '</b><small>' + (st || (d.sensors && d.sensors.length) ? '<span class="hal-badge">' + stLogo() + ' SmartThings</span> ' : '') + esc(S.d.targets[d.target]) + (d.where && d.where !== d.name ? ' · ' + esc(d.where) : '') + '</small></div><button class="hal-icobtn" data-edit="' + d.id + '" title="고치기" aria-label="고치기">✏️</button></header>' +
       '<div class="hal-vals">' +
         (hasHum ? '<div class="' + (d.humidity_max != null && d.humidity != null && d.humidity > d.humidity_max ? 'hot' : '') + '"><i>💧</i><b>' + (d.humidity == null ? '–' : d.humidity) + '</b><u>%</u>' + (d.humidity_max != null ? '<small>기준 ' + d.humidity_max + '%</small>' : '') + '</div>' : '') +
         (hasTemp ? '<div class="' + (d.temp_max != null && d.temp != null && d.temp > d.temp_max ? 'hot' : '') + '"><i>🌡️</i><b>' + (d.temp == null ? '–' : d.temp) + '</b><u>°C</u>' + (d.temp_max != null ? '<small>기준 ' + d.temp_max + '°C</small>' : '') + '</div>' : '') +
@@ -105,6 +105,11 @@
     qa('[data-yaml]').forEach(function (b) { b.onclick = function () { yamlBox(find(b.getAttribute('data-yaml'))); }; });
   }
 
+  /* 1.1.2 SmartThings 로고 (공식 심볼 — 하늘색 둥근 네모 안의 흰 허브 · 연결점). 그림 파일 없이 SVG 한 줄: 흰 바탕 + 심볼. 상표는 삼성의 것 — 연결 대상을 가리키는 데에만 씀
+   *   심볼 모양 출처: Simple Icons (CC0) — SmartThings press kit */
+  var ST_PATH = 'M11.51 0C8.338 0 5.034.537 2.694 2.694.5 5.174 0 8.464 0 11.525v.942c0 3.165.537 6.499 2.694 8.84C5.188 23.513 8.494 24 11.569 24h.854c3.18 0 6.528-.53 8.883-2.694C23.514 18.811 24 15.5 24 12.423v-.853c0-3.18-.53-6.528-2.694-8.876C18.826.494 15.544 0 12.482 0zM12 3.505c1.244 0 2.256.99 2.256 2.206 0 1.065-.685 1.976-1.715 2.181v1.59c1.48.214 2.528 1.43 2.528 2.934 0 1.654-1.377 3-3.07 3-1.692 0-3.068-1.346-3.068-3 0-.17.017-.335.045-.497l-1.536-.488a2.258 2.258 0 01-1.962 1.12c-.237 0-.471-.037-.698-.11-1.183-.375-1.833-1.622-1.449-2.78a2.246 2.246 0 012.146-1.524c.237 0 .471.036.698.108a2.23 2.23 0 011.313 1.098c.204.391.282.823.232 1.249l1.535.488c.44-.86 1.378-1.453 2.384-1.599V7.892c-1.029-.205-1.896-1.116-1.896-2.181 0-1.217 1.012-2.206 2.257-2.206zm0 .882c-.747 0-1.354.594-1.354 1.324 0 .73.607 1.324 1.354 1.324.746 0 1.354-.594 1.354-1.324 0-.73-.608-1.324-1.354-1.324zm6.522 3.75c.98 0 1.843.613 2.146 1.525.186.56.138 1.158-.135 1.683-.274.526-.74.915-1.314 1.096-.227.073-.461.11-.698.11a2.258 2.258 0 01-1.962-1.12l-.634.201-.278-.838.632-.202a2.21 2.21 0 011.546-2.347c.226-.072.46-.108.697-.108zM5.476 9.02c-.588 0-1.105.368-1.287.915-.23.694.159 1.442.869 1.668.136.043.277.065.419.065.588 0 1.105-.368 1.287-.915a1.29 1.29 0 00-.081-1.01 1.338 1.338 0 00-.788-.658 1.377 1.377 0 00-.42-.065zm13.045 0c-.142 0-.282.021-.419.065a1.32 1.32 0 00-.869 1.668c.182.547.7.915 1.287.915.142 0 .283-.022.42-.065.344-.11.623-.343.787-.659.165-.315.193-.673.082-1.009a1.348 1.348 0 00-1.288-.915zM12 10.474c-1.095 0-1.986.871-1.986 1.942 0 1.07.89 1.941 1.986 1.941 1.094 0 1.985-.87 1.985-1.94 0-1.072-.89-1.943-1.985-1.943zm-2.706 4.831l.73.519-.39.526c.709.757.801 1.925.16 2.787-.423.57-1.106.91-1.827.91-.478 0-.937-.147-1.325-.422a2.177 2.177 0 01-.499-3.082 2.28 2.28 0 012.76-.71zm5.41 0l.392.528a2.285 2.285 0 012.76.71 2.178 2.178 0 01-.499 3.082 2.275 2.275 0 01-1.325.421 2.28 2.28 0 01-1.827-.91 2.172 2.172 0 01.16-2.785l-.39-.527zm-6.734 1.21c-.433 0-.843.205-1.097.547-.44.59-.304 1.42.3 1.849a1.37 1.37 0 001.891-.293c.44-.59.305-1.42-.3-1.85a1.364 1.364 0 00-.794-.252zm8.059 0c-.287 0-.561.088-.795.254a1.307 1.307 0 00-.299 1.849 1.371 1.371 0 001.891.293 1.307 1.307 0 00.3-1.85 1.37 1.37 0 00-1.097-.545Z';
+  function stLogo(cls) { return '<svg class="hal-stl' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="2" y="2" width="20" height="20" rx="5" fill="#fff"/><path fill="#15BFFF" d="' + ST_PATH + '"/></svg>'; }
+
   /* ── 📡 SmartThings 카드 ──
    *  1.1.0 로그인 연결 (API Access App · OAuth): 「🔗 SmartThings 연결하기」 → 삼성 계정 로그인 → 허용 → 돌아와서 「⚙️ 센서 고르기」. 센서 하나가 기기 카드 하나.
    *  0.2.0 예전 방식(연결 코드 · SmartApp)은 관리자가 켰거나 그렇게 이은 것이 있을 때만 접어 둔 칸에 보임 */
@@ -121,7 +126,7 @@
     var ins = T.installs || [], oa = ins.filter(function (x) { return x.mode === 'oauth'; }), old = ins.filter(function (x) { return x.mode !== 'oauth'; });
     var live = ins.filter(function (x) { return x.status === 'active'; }).length, bad = ins.filter(function (x) { return x.status === 'error' || x.last_error; }).length, todo = ins.filter(function (x) { return x.status === 'choose'; }).length;
     var pill = ins.length ? (bad ? '<span class="hal-pill bad">⚠️ 확인 필요</span>' : live ? '<span class="hal-pill on">🟢 연결됨' + (live > 1 ? ' ' + live : '') + '</span>' : todo ? '<span class="hal-pill wait">👉 센서 고르기</span>' : '<span class="hal-pill wait">⏳ 맞추는 중</span>') : '<span class="hal-pill">⚪ 연결 안 됨</span>';
-    var head = '<header class="hal-stc-h"><span class="hal-stc-logo" aria-hidden="true">📡</span><div><h2>SmartThings</h2><p>삼성 SmartThings 의 온습도계 · 플러그 · 문 · 움직임 센서 값이 바뀔 때마다 바로 들어와요.</p></div>' + pill + '</header>';
+    var head = '<header class="hal-stc-h"><span class="hal-stc-logo" aria-hidden="true">' + stLogo() + '</span><div><h2>SmartThings</h2><p>삼성 SmartThings 의 온습도계 · 플러그 · 문 · 움직임 센서 값이 바뀔 때마다 바로 들어와요.</p></div>' + pill + '</header>';
     if (!ins.length && !T.oauth && !(T.ready && T.code_flow)) return '<section class="hal-stc off">' + head + '<p class="hal-hint">관리자가 아직 SmartThings 연결을 준비하지 않았어요.</p></section>';
     // 로그인 연결 — 아직 안 이었으면 큰 단추 하나
     var go = !oa.length && T.oauth ? '<div class="hal-stc-go"><ol class="hal-stc-steps"><li><em>1</em>삼성 계정으로 로그인</li><li><em>2</em>「허용」 누르기</li><li><em>3</em>받을 센서 고르기</li></ol>' +
@@ -259,7 +264,7 @@
   /* 1.1.0 📡 SmartThings 연결 방법 — 로그인 연결 (연결하기 → 삼성 계정 로그인 → 허용 → 센서 고르기 → 카드) */
   function guideSt() {
     var btn = fakeBtn, fld = fakeFld, chk = fakeChk, site = esc(location.hostname || '사이트');
-    var card = '<div class="hal-fake-row"><span class="hal-fake-repo"><span class="hal-fake-logo st">📡</span><span><b>SmartThings</b><small>온습도계 · 플러그 · 문 · 움직임 센서</small></span></span><span class="hal-fake-pill">⚪ 연결 안 됨</span></div>';
+    var card = '<div class="hal-fake-row"><span class="hal-fake-repo"><span class="hal-fake-logo st">' + stLogo() + '</span><span><b>SmartThings</b><small>온습도계 · 플러그 · 문 · 움직임 센서</small></span></span><span class="hal-fake-pill">⚪ 연결 안 됨</span></div>';
     var steps = [
       ['「🔗 SmartThings 연결하기」 누르기', '이 화면 위쪽 <b>SmartThings 카드</b>의 단추예요. 누르면 삼성 SmartThings 의 로그인 화면으로 넘어가요.',
         shot('사이트 · IoT 연결', card + '<div class="hal-fake-end">' + hl(btn('🔗 SmartThings 연결하기', 'pri'), 1) + '</div>')],
@@ -270,7 +275,7 @@
       ['받을 센서 고르기', '사이트로 돌아오면 그 위치의 센서 목록이 떠요. 받을 것을 체크하고 <b>저장</b>. <b>온습도계는 미리 체크</b>되어 있어요. 이름이 같은 기기 카드가 있으면 거기에 붙고, 없으면 새 카드가 생겨요.',
         shot('사이트 · ⚙️ 센서 고르기', hl(chk(1, '🌡️ <b>드라이박스 온습도계</b> <small>온도 23.4°C · 습도 32%</small>') + chk(1, '🔌 <b>건조기 플러그</b> <small>전력 120 W</small>') + chk(0, '🚪 현관문 <small>열림 닫힘</small>'), 1) + '<div class="hal-fake-end">' + hl(btn('저장', 'pri'), 2) + '</div>')],
       ['끝 — 카드에서 알림 기준 · 붙일 곳 정하기', '바로 기기 카드에 값이 보이고, 값이 바뀔 때마다 들어와요. 카드의 <b>✏️</b>에서 <b>알림 기준</b>(예: 습도 40%)과 <b>붙일 곳</b>(필라멘트 보관함 · 내 프린터)을 정하면 정비 수첩 · 내 프린터와 이어져요.',
-        shot('사이트 · IoT 연결', '<div class="hal-fake-card"><div class="hal-fake-row"><span>🧵 <b>드라이박스 온습도계</b> <span class="hal-fake-pill st">📡 SmartThings</span></span>' + hl('<span class="hal-fake-ico">✏️</span>', 2) + '</div><div class="hal-fake-vals"><span>💧 <b>32</b>%</span><span>🌡️ <b>23.4</b>°C</span></div>' + hl('<div class="hal-fake-st"><i></i>방금</div>', 1) + '</div>' + hl(fld('습도가 이보다 높으면 (%)', '40') + fld('무엇에 붙일까요?', '🧵 필라멘트 · 레진 보관함 — 드라이박스'), 3))]
+        shot('사이트 · IoT 연결', '<div class="hal-fake-card"><div class="hal-fake-row"><span>🧵 <b>드라이박스 온습도계</b> <span class="hal-fake-pill st">' + stLogo() + ' SmartThings</span></span>' + hl('<span class="hal-fake-ico">✏️</span>', 2) + '</div><div class="hal-fake-vals"><span>💧 <b>32</b>%</span><span>🌡️ <b>23.4</b>°C</span></div>' + hl('<div class="hal-fake-st"><i></i>방금</div>', 1) + '</div>' + hl(fld('습도가 이보다 높으면 (%)', '40') + fld('무엇에 붙일까요?', '🧵 필라멘트 · 레진 보관함 — 드라이박스'), 3))]
     ];
     var more = '<section class="hal-sec hal-tips"><h4>💡 더 알아 두면 좋아요</h4><ul>' +
       '<li><b>센서를 더하거나 빼려면</b> SmartThings 카드의 <b>⚙️ 센서 고르기</b>에서 체크를 바꾸고 저장하세요. 다시 로그인할 필요는 없어요.</li>' +
@@ -285,7 +290,7 @@
   function guideBox(tab) {
     var T = S.d.smartthings || {}, hasSt = !!(T.oauth || (T.installs || []).some(function (x) { return x.mode === 'oauth'; }));
     tab = tab === 'st' && hasSt ? 'st' : 'ha';
-    var seg = hasSt ? '<div class="hal-seg" role="tablist"><button type="button" role="tab" data-gt="ha">🏠 Home Assistant</button><button type="button" role="tab" data-gt="st">📡 SmartThings</button></div>' : '';
+    var seg = hasSt ? '<div class="hal-seg" role="tablist"><button type="button" role="tab" data-gt="ha">🏠 Home Assistant</button><button type="button" role="tab" data-gt="st">' + stLogo() + ' SmartThings</button></div>' : '';
     var ov = modal('❓ 연결 방법', seg + '<div data-gp="ha">' + guideHa() + '</div>' + (hasSt ? '<div data-gp="st">' + guideSt() + '</div>' : ''), { left: '<button type="button" class="hal-btn pri" data-start></button>' });
     ov.classList.add('wide');
     var show = function (t) {
@@ -358,7 +363,7 @@
         '<div data-for="printer"><label>내 프린터<select name="printer_id">' + D.printers.map(function (p) { return '<option value="' + p.id + '"' + (d.printer_id === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select></label></div>' +
         '<div data-for="equipment"><label>업체 장비<select name="equipment_id">' + D.equipment.map(function (x) { var c = D.companies.filter(function (y) { return y.id === x.company_id; })[0]; return '<option value="' + x.id + '"' + (d.equipment_id === x.id ? ' selected' : '') + '>' + esc((c ? c.name + ' — ' : '') + x.name) + '</option>'; }).join('') + '</select></label></div>' +
         '<label>이름 <small>비우면 위에서 고른 것</small><input name="name" maxlength="60" value="' + esc(d.name || '') + '" placeholder="예: 거실 드라이박스"></label></section>' +
-      (isSt ? '<section class="hal-sec"><h4><em>2</em> 📡 SmartThings 센서</h4><p class="hal-hint">이 기기의 값은 SmartThings 에서 들어와요. 받을 센서는 화면 위쪽 SmartThings 카드의 <b>⚙️ 센서 고르기</b>에서 바꿔요.</p></section>' : '') +
+      (isSt ? '<section class="hal-sec"><h4><em>2</em> ' + stLogo() + ' SmartThings 센서</h4><p class="hal-hint">이 기기의 값은 SmartThings 에서 들어와요. 받을 센서는 화면 위쪽 SmartThings 카드의 <b>⚙️ 센서 고르기</b>에서 바꿔요.</p></section>' : '') +
       (isSt ? '' : '<section class="hal-sec"><h4><em>2</em> Home Assistant 센서 이름</h4><p class="hal-hint">HA 의 <b>개발자 도구 › 상태</b>에서 보이는 이름이에요. 있는 것만 적으면 돼요.</p>' +
         '<div data-for="printer equipment other" class="hal-preset">빠르게 채우기: ' + Object.keys(PRESET).map(function (k) { return '<button type="button" class="hal-chip" data-preset="' + k + '">' + PRESET[k][0] + '</button>'; }).join('') + '</div>' +
         '<div class="hal-two">' + ent('hum', '💧 습도', 'sensor.drybox_humidity') + ent('temp', '🌡️ 온도', 'sensor.drybox_temperature') + '</div>' +
@@ -461,7 +466,7 @@
       ['나온 Client ID · Client Secret 을 아래에 붙여 넣고 저장', '<b>Client Secret 은 이때 한 번만 보여요</b> — 바로 복사해 두세요. 「SmartThings 연결 쓰기」도 같이 켜고 <b>저장</b>.'],
       ['주소 확인', '앱을 등록하면 SmartThings 가 사이트로 확인 요청(CONFIRMATION)을 보내고 사이트가 알아서 답해요 — 이 화면을 새로 고치면 <b>✅ 주소 확인됨</b>. 안 바뀌면 Developer Center 의 <b>Confirm Target URL</b> 을 누르거나 <code>smartthings apps:register</code> 를 한 번 더 쳐요.']
     ];
-    return '<section class="hal-form hal-st-admin"><div class="full hal-st-ah"><h2>📡 SmartThings 연결 <small>API Access App · 로그인(OAuth) 방식</small></h2>' + ok + '<span class="hal-hint">연결한 위치 ' + n(I.installs) + ' · 회원과 이은 것 ' + n(I.linked) + '</span></div>' +
+    return '<section class="hal-form hal-st-admin"><div class="full hal-st-ah"><h2>' + stLogo() + ' SmartThings 연결 <small>API Access App · 로그인(OAuth) 방식</small></h2>' + ok + '<span class="hal-hint">연결한 위치 ' + n(I.installs) + ' · 회원과 이은 것 ' + n(I.linked) + '</span></div>' +
       (I.https === false ? '<p class="hal-warn full">⚠️ 사이트 주소(APP_URL)가 https 가 아니에요 — SmartThings 는 https 주소만 받아요.</p>' : '') +
       '<div class="full hal-st-how"><div class="hal-seg" role="tablist"><button type="button" role="tab" data-rt="auto" class="' + (done ? '' : 'on') + '">⚡ 자동 등록 <small>추천</small></button><button type="button" role="tab" data-rt="manual" class="' + (done ? 'on' : '') + '">📝 직접 등록</button></div>' +
         '<ol class="hal-st-steps" data-rp="auto"' + (done ? ' hidden' : '') + '>' + auto.map(li).join('') + '</ol><ol class="hal-st-steps" data-rp="manual"' + (done ? '' : ' hidden') + '>' + manual.map(li).join('') + '</ol></div>' +
@@ -475,7 +480,7 @@
   function renderAdmin() {
     api('GET', '/admin/settings').then(function (r) {
       var s = r.data.settings, st = r.data.stats;
-      wrap('<section class="hal-hero"><div><h1>📡 IoT 연결 — 관리자</h1><p>회원 화면: <a href="' + BASE + '" target="_blank">' + BASE + '</a> · 회원 기기의 값 · 받는 주소는 관리자에게도 보이지 않아요</p></div><div class="hal-stats"><span>쓰는 회원 <b>' + n(st.users) + '</b></span><span>기기 <b>' + n(st.devices) + '</b></span><span>🟢 연결됨 <b>' + n(st.live) + '</b></span><span>기록 <b>' + n(st.readings) + '</b>줄</span><span>📡 SmartThings <b>' + n(st.st_installs) + '</b></span></div></section>' +
+      wrap('<section class="hal-hero"><div><h1>📡 IoT 연결 — 관리자</h1><p>회원 화면: <a href="' + BASE + '" target="_blank">' + BASE + '</a> · 회원 기기의 값 · 받는 주소는 관리자에게도 보이지 않아요</p></div><div class="hal-stats"><span>쓰는 회원 <b>' + n(st.users) + '</b></span><span>기기 <b>' + n(st.devices) + '</b></span><span>🟢 연결됨 <b>' + n(st.live) + '</b></span><span>기록 <b>' + n(st.readings) + '</b>줄</span><span>' + stLogo() + ' SmartThings <b>' + n(st.st_installs) + '</b></span></div></section>' +
         '<div class="hal-form">' + FIELDS.map(function (f) {
           if (f[2] === 'sel') return '<label>' + esc(f[1]) + '<select data-k="' + f[0] + '">' + f[3].map(function (o) { return '<option value="' + o[0] + '"' + (s[f[0]] === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></label>';
           return f[2] === 'bool' ? '<label class="hal-chk"><input type="checkbox" data-k="' + f[0] + '"' + (s[f[0]] ? ' checked' : '') + '> ' + esc(f[1]) + '</label>' : '<label>' + esc(f[1]) + '<input type="' + (f[2] === 'num' ? 'number' : 'text') + '" data-k="' + f[0] + '" value="' + esc(s[f[0]]) + '"></label>';
@@ -504,7 +509,7 @@
     var ret = S.ret; S.ret = null;
     // 1.1.0 SmartThings 로그인 · 허용을 마치고 돌아옴 (?code=…&state=…) → 로그인 정보와 함께 서버에 넘겨 잇고, 처음이면 센서 고르기를 바로 엶
     if (ret && ret.code) {
-      wrap('<div class="hal-empty">📡 SmartThings 와 연결하는 중…</div>');
+      wrap('<div class="hal-empty">' + stLogo() + ' SmartThings 와 연결하는 중…</div>');
       api('POST', '/smartthings/oauth/finish', { code: ret.code, state: ret.state }).then(function (r) { toast(r.message); S.d = r.data.overview; draw(); if (r.data.choose) stPick(r.data.install_id); })
         .catch(function (e) { toast(e.status === 401 ? '로그인한 뒤 「SmartThings 연결하기」를 다시 눌러 주세요.' : e.message, true); route(); });
       return;
