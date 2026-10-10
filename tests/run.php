@@ -9,10 +9,10 @@ require __DIR__.'/../src/Support/Settings.php';
 require __DIR__.'/../src/Support/SmartThings.php';
 require __DIR__.'/../src/Support/StSignature.php';
 
-use Plugins\Custom\HaLink\Support\Rules as R;
-use Plugins\Custom\HaLink\Support\Settings as S;
-use Plugins\Custom\HaLink\Support\SmartThings as ST;
-use Plugins\Custom\HaLink\Support\StSignature as SIG;
+use Plugins\Custom\IotLink\Support\Rules as R;
+use Plugins\Custom\IotLink\Support\Settings as S;
+use Plugins\Custom\IotLink\Support\SmartThings as ST;
+use Plugins\Custom\IotLink\Support\StSignature as SIG;
 
 $pass = 0;
 $fail = 0;
@@ -37,13 +37,13 @@ check(R::loc(' Dry Box ') === 'drybox' && R::loc('드라이 박스') === R::loc(
 $n = S::normalize(['max_devices' => 9999, 'stale_hours' => 0, 'timezone' => 'Mars/Base', 'menu_label' => '<b>집</b>']);
 check($n['max_devices'] === 200 && S::DEFAULTS['send_mode'] === 'change' && S::normalize(['send_mode' => 'x'])['send_mode'] === 'change' && S::normalize(['send_mode' => 'interval'])['send_mode'] === 'interval'
     && S::normalize(['change_hum' => 0])['change_hum'] === 1 && S::normalize(['idle_min' => 1])['idle_min'] === 5 && S::normalize(['send_mode' => 'change', 'idle_min' => 90, 'away_interval_min' => 60])['away_interval_min'] === 90 && S::DEFAULTS['away_after_min'] === 30 && S::normalize(['away_after_min' => 0])['away_after_min'] === 0 && S::normalize(['away_after_min' => 2])['away_after_min'] === 5
-    && S::normalize(['send_mode' => 'interval', 'interval_min' => 20, 'away_interval_min' => 5])['away_interval_min'] === 20 && S::DEFAULTS['refresh_sec'] === 60 && S::normalize(['refresh_sec' => 3])['refresh_sec'] === 5 && S::normalize(['refresh_sec' => 0])['refresh_sec'] === 0 && S::normalize(['refresh_sec' => 99999])['refresh_sec'] === 3600 && S::DEFAULTS['interval_min'] === 10 && S::normalize(['interval_min' => 0])['interval_min'] === 1 && S::normalize(['interval_min' => 999])['interval_min'] === 60 && $n['stale_hours'] === 1 && $n['timezone'] === 'Asia/Seoul' && $n['menu_label'] === '집' && S::normalize([])['menu_label'] === 'HA 연결' && $n['hacs_repo'] === 'keidischoi/ha-3ds-link'
+    && S::normalize(['send_mode' => 'interval', 'interval_min' => 20, 'away_interval_min' => 5])['away_interval_min'] === 20 && S::DEFAULTS['refresh_sec'] === 60 && S::normalize(['refresh_sec' => 3])['refresh_sec'] === 5 && S::normalize(['refresh_sec' => 0])['refresh_sec'] === 0 && S::normalize(['refresh_sec' => 99999])['refresh_sec'] === 3600 && S::DEFAULTS['interval_min'] === 10 && S::normalize(['interval_min' => 0])['interval_min'] === 1 && S::normalize(['interval_min' => 999])['interval_min'] === 60 && $n['stale_hours'] === 1 && $n['timezone'] === 'Asia/Seoul' && $n['menu_label'] === '집' && S::normalize([])['menu_label'] === 'IoT 연결' && $n['hacs_repo'] === 'keidischoi/ha-3ds-link'
     && S::normalize(['hacs_repo' => 'me/my-repo'])['hacs_repo'] === 'me/my-repo' && S::normalize(['hacs_repo' => 'https://evil/x y'])['hacs_repo'] === 'keidischoi/ha-3ds-link', '설정 정리');
 
 // ── 0.2.0 SmartThings ──
 check(S::DEFAULTS['st_enabled'] === false && S::normalize(['st_client_id' => ' 1a2b-3c '])['st_client_id'] === '1a2b-3c' && S::normalize(['st_client_id' => 'x y/../'])['st_client_id'] === ''
     && S::normalize(['st_client_secret' => 'plain-secret'])['st_client_secret'] === '' && S::normalize(['st_client_secret' => 'enc:abc'])['st_client_secret'] === 'enc:abc'
-    && S::normalize(['st_public_key' => 'evil'])['st_public_key'] === '' && S::normalize(['st_code_min' => 1])['st_code_min'] === 5 && S::normalize([])['menu_label'] === 'HA 연결', '0.2.0 SmartThings 설정 정리 (Secret 은 암호화한 것만 · 메뉴 이름 규칙과 따로)');
+    && S::normalize(['st_public_key' => 'evil'])['st_public_key'] === '' && S::normalize(['st_code_min' => 1])['st_code_min'] === 5 && S::normalize([])['menu_label'] === 'IoT 연결', '0.2.0 SmartThings 설정 정리 (Secret 은 암호화한 것만 · 메뉴 이름 규칙과 따로)');
 $c = ST::newCode();
 check(strlen($c) === 8 && ST::normCode(strtolower(substr($c, 0, 4)).' - '.substr($c, 4)) === $c && ST::normCode('ABCD-EFG') === '' && ST::normCode('ABCD-EFG0') === '' && ST::showCode('ABCDEFGH') === 'ABCD-EFGH', '연결 코드: 8글자 · 소문자 · 줄표 · 빈칸 괜찮음 · 헷갈리는 글자(0 · O · 1 · I) 없음');
 check(ST::celsius(77, 'F') === 25.0 && ST::celsius(86, '°F') === 30.0 && ST::celsius(21.5, 'C') === 21.5 && ST::celsius(21.5, null) === 21.5 && ST::celsius(-40, 'fahrenheit') === -40.0, '°F → °C');
@@ -81,13 +81,13 @@ $body = '{"lifecycle":"EVENT"}';
 $now = 1791600000;
 $date = gmdate('D, d M Y H:i:s \G\M\T', $now);
 $dg = 'SHA-256='.base64_encode(hash('sha256', $body, true));
-$mk = function ($key, string $target = '/api/plugins/custom-ha_link/smartthings', string $list = '(request-target) digest date', string $alg = 'rsa-sha256', string $kid = '/pl/useast2/1b-75-d2') use ($dg, $date) {
+$mk = function ($key, string $target = '/api/plugins/custom-iot_link/smartthings', string $list = '(request-target) digest date', string $alg = 'rsa-sha256', string $kid = '/pl/useast2/1b-75-d2') use ($dg, $date) {
     openssl_sign(SIG::signingString('POST', $target, ['digest' => $dg, 'date' => $date], $list), $sig, $key, OPENSSL_ALGO_SHA256);
 
     return ['authorization' => 'Signature keyId="'.$kid.'",signature="'.base64_encode($sig).'",headers="'.$list.'",algorithm="'.$alg.'"', 'digest' => $dg, 'date' => $date];
 };
 $keys = fn (string $kid) => $kid === '/pl/useast2/1b-75-d2' ? [$pub] : [];
-$T = ['/api/plugins/custom-ha_link/smartthings'];
+$T = ['/api/plugins/custom-iot_link/smartthings'];
 check(SIG::parse($mk($k)['authorization'])['keyId'] === '/pl/useast2/1b-75-d2' && SIG::parse('Bearer abc') === null && SIG::parse('Signature keyId=""') === null, '서명 머리 읽기');
 check(SIG::verify('POST', $T, $mk($k), $body, $keys, $now) === null, '맞는 서명 → 통과');
 check(SIG::verify('POST', $T, [], $body, $keys, $now) === 'unsigned' && SIG::verify('POST', $T, $mk($k2), $body, $keys, $now) === 'signature' && SIG::verify('POST', $T, $mk($k), $body.' ', $keys, $now) === 'digest'
@@ -101,16 +101,16 @@ $root = dirname(__DIR__);
 $pj = json_decode((string) file_get_contents($root.'/plugin.json'), true);
 $cj = json_decode((string) file_get_contents($root.'/composer.json'), true);
 $ver = $pj['version'] ?? '';
-check(($pj['identifier'] ?? '') === 'custom-ha_link' && $ver !== '' && ($cj['version'] ?? '') === $ver, 'plugin.json · composer.json 식별자 · 버전');
-foreach (['plugin.json', 'composer.json', 'resources/routes.json', 'resources/layouts/user/ha_link.json', 'resources/layouts/admin/plugin_settings.json', 'resources/lang/ko.json', 'resources/lang/en.json'] as $f) {
+check(($pj['identifier'] ?? '') === 'custom-iot_link' && $ver !== '' && ($cj['version'] ?? '') === $ver, 'plugin.json · composer.json 식별자 · 버전');
+foreach (['plugin.json', 'composer.json', 'resources/routes.json', 'resources/layouts/user/iot_link.json', 'resources/layouts/admin/plugin_settings.json', 'resources/lang/ko.json', 'resources/lang/en.json'] as $f) {
     check(is_array(json_decode((string) file_get_contents($root.'/'.$f), true)), $f.' JSON');
 }
 check(str_contains((string) file_get_contents($root.'/CHANGELOG.md'), '## '.$ver), 'CHANGELOG 에 지금 버전');
 $dist = (string) @file_get_contents($root.'/dist/js/plugin.iife.js');
-check($dist !== '' && $dist === (string) file_get_contents($root.'/resources/js/ha_link.js') && str_contains($dist, "V = '".$ver."'") && str_contains($dist, "NAV_ID = 'hal-nav', NAV_MOB = 'hal-nav-mobile', NAV_PATH = '/ha-link'"), '번들(dist) = 불러오기 스크립트 · 버전 · 헤더 메뉴');
-$app = (string) file_get_contents($root.'/resources/assets/ha-link-app.js');
-check(str_contains((string) file_get_contents($root.'/resources/layouts/admin/plugin_settings.json'), 'ha-link-app.js?v='.$ver) && str_contains($app, 'custom-ha_link '.$ver)
-    && str_contains((string) file_get_contents($root.'/resources/assets/ha-link.css'), $ver), '관리자 화면 · 앱 · CSS 버전');
+check($dist !== '' && $dist === (string) file_get_contents($root.'/resources/js/iot_link.js') && str_contains($dist, "V = '".$ver."'") && str_contains($dist, "NAV_ID = 'hal-nav', NAV_MOB = 'hal-nav-mobile', NAV_PATH = '/iot-link'"), '번들(dist) = 불러오기 스크립트 · 버전 · 헤더 메뉴');
+$app = (string) file_get_contents($root.'/resources/assets/iot-link-app.js');
+check(str_contains((string) file_get_contents($root.'/resources/layouts/admin/plugin_settings.json'), 'iot-link-app.js?v='.$ver) && str_contains($app, 'custom-iot_link '.$ver)
+    && str_contains((string) file_get_contents($root.'/resources/assets/iot-link.css'), $ver), '관리자 화면 · 앱 · CSS 버전');
 $pp = (string) file_get_contents($root.'/plugin.php');
 check(str_contains($pp, "'custom_ha_link_alert'") && str_contains($pp, "'hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links', 'hal_st_installs', 'hal_st_sensors', 'hal_st_codes'") && ! str_contains($pp, 'getSchedules'), '알림 정의 · 표 목록 · 스케줄 없음');
 $api = (string) file_get_contents($root.'/src/routes/api.php');

@@ -1,22 +1,22 @@
 <?php
 
-namespace Plugins\Custom\HaLink\Services;
+namespace Plugins\Custom\IotLink\Services;
 
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
-use Plugins\Custom\HaLink\Support\Rules;
-use Plugins\Custom\HaLink\Support\Schema;
-use Plugins\Custom\HaLink\Support\Settings;
-use Plugins\Custom\HaLink\Support\SmartThings;
-use Plugins\Custom\HaLink\Support\StSignature;
+use Plugins\Custom\IotLink\Support\Rules;
+use Plugins\Custom\IotLink\Support\Schema;
+use Plugins\Custom\IotLink\Support\Settings;
+use Plugins\Custom\IotLink\Support\SmartThings;
+use Plugins\Custom\IotLink\Support\StSignature;
 
 /**
- * 0.2.0 SmartThings (WebHook SmartApp) — 회원의 SmartThings 센서 값을 받아 HA 연결의 같은 받기(HaService::ingest)로 넘김.
+ * 0.2.0 SmartThings (WebHook SmartApp) — 회원의 SmartThings 센서 값을 받아 IoT 연결의 같은 받기(HaService::ingest)로 넘김.
  *
- *  POST /api/plugins/custom-ha_link/smartthings (로그인 없음) — 모든 요청의 HTTP 서명을 확인 (StSignature)
+ *  POST /api/plugins/custom-iot_link/smartthings (로그인 없음) — 모든 요청의 HTTP 서명을 확인 (StSignature)
  *   PING(예전) · CONFIRMATION(주소 확인 — confirmationUrl 을 받아 봄) · CONFIGURATION(INITIALIZE · PAGE — 연결 코드 → 센서 고르기)
  *   INSTALL · UPDATE(토큰 · installedAppId · locationId 저장, 구독 만들기) · EVENT(DEVICE_EVENT → 받기) · UNINSTALL(정리)
- *  회원과 잇기: 회원이 /ha-link 에서 만든 일회용 코드(8글자)를 SmartThings 앱의 설정 화면에 적음 → INSTALL 때 그 회원 · 기기와 이음.
+ *  회원과 잇기: 회원이 /iot-link 에서 만든 일회용 코드(8글자)를 SmartThings 앱의 설정 화면에 적음 → INSTALL 때 그 회원 · 기기와 이음.
  *  토큰은 Laravel Crypt 로 암호화해 둠 · 로그에 토큰 · 서명 · 코드를 남기지 않음.
  */
 class SmartThingsService
@@ -38,6 +38,12 @@ class SmartThingsService
     }
 
     public static function targetUrl(): string
+    {
+        return rtrim((string) config('app.url'), '/').'/api/plugins/custom-iot_link/smartthings';
+    }
+
+    /** 1.0.0 예전 이름(HA 연결) 때의 Target URL — 이미 등록한 SmartApp 은 이 주소로 계속 받음 (바꾸지 않아도 됨) */
+    public static function legacyTargetUrl(): string
     {
         return rtrim((string) config('app.url'), '/').'/api/plugins/custom-ha_link/smartthings';
     }
@@ -164,7 +170,7 @@ class SmartThingsService
         }
         $name = $i->device_id ? DB::table(Schema::DEVICES)->where('id', $i->device_id)->where('user_id', $i->user_id)->value('name') : null;
 
-        return $name !== null ? (string) $name : 'HA 연결';
+        return $name !== null ? (string) $name : 'IoT 연결';
     }
 
     /** 코드가 맞으면 붙일 곳 이름 (쓰지는 않음 — INSTALL 때 씀) */
@@ -608,7 +614,7 @@ class SmartThingsService
         } catch (\Throwable) {
         }
 
-        return ['target_url' => self::targetUrl(), 'scopes' => SmartThings::SCOPES, 'confirmed_at' => $st['confirmed_at'] ?? null, 'confirm_status' => $st['confirm_status'] ?? null,
+        return ['target_url' => self::targetUrl(), 'legacy_target_url' => self::legacyTargetUrl(), 'scopes' => SmartThings::SCOPES, 'confirmed_at' => $st['confirmed_at'] ?? null, 'confirm_status' => $st['confirm_status'] ?? null,
             'installs' => Schema::ensure() ? DB::table(Schema::ST_INSTALLS)->count() : 0, 'linked' => Schema::ensure() ? DB::table(Schema::ST_INSTALLS)->whereNotNull('user_id')->count() : 0];
     }
 
@@ -735,7 +741,7 @@ class SmartThingsService
     private function log(string $msg, array $ctx = []): void
     {
         try {
-            \Illuminate\Support\Facades\Log::info('[custom-ha_link] SmartThings '.$msg, $ctx);
+            \Illuminate\Support\Facades\Log::info('[custom-iot_link] SmartThings '.$msg, $ctx);
         } catch (\Throwable) {
         }
     }

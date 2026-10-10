@@ -1,6 +1,6 @@
 <?php
 
-namespace Plugins\Custom\HaLink\Support;
+namespace Plugins\Custom\IotLink\Support;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
  */
 final class Notify
 {
+    /** 1.0.0 알림 종류 키는 예전 그대로 — 관리자가 고친 알림 문구가 이어지고, 새 플러그인이 그 정의를 넘겨받음 */
     public const TYPE = 'custom_ha_link_alert';
 
     /** 검사용 — (userId, channels, subject, body) => void */
@@ -38,17 +39,17 @@ final class Notify
             if ($user === null || ! empty($user->withdrawn_at)) {
                 return;
             }
-            $url = rtrim((string) config('app.url'), '/').'/ha-link';
+            $url = rtrim((string) config('app.url'), '/').'/iot-link';
             $data = ['subject' => $subject, 'body' => $body, 'name' => (string) ($user->nickname ?: $user->name ?: ''), 'drawer_url' => $url,
-                'body_html' => '<p>'.nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8')).'</p><p><a href="'.htmlspecialchars($url, ENT_QUOTES, 'UTF-8').'">HA 연결 열기</a></p>'];
+                'body_html' => '<p>'.nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8')).'</p><p><a href="'.htmlspecialchars($url, ENT_QUOTES, 'UTF-8').'">IoT 연결 열기</a></p>'];
             foreach ($channels as $channel) {
                 if ($channel === 'mail' && trim((string) ($user->email ?? '')) === '') {
                     continue;
                 }
                 try {
-                    $user->notify(new $n(type: self::TYPE, hookPrefix: 'custom-ha_link', data: $data, extensionType: 'plugin', extensionIdentifier: 'custom-ha_link', channel: $channel));
+                    $user->notify(new $n(type: self::TYPE, hookPrefix: 'custom-iot_link', data: $data, extensionType: 'plugin', extensionIdentifier: 'custom-iot_link', channel: $channel));
                 } catch (\Throwable $e) {
-                    Log::warning('[custom-ha_link] 알림 실패', ['user_id' => $userId, 'channel' => $channel, 'error' => $e->getMessage()]);
+                    Log::warning('[custom-iot_link] 알림 실패', ['user_id' => $userId, 'channel' => $channel, 'error' => $e->getMessage()]);
                 }
             }
         } catch (\Throwable) {
@@ -68,7 +69,7 @@ final class Notify
                 return $ok = true;
             }
             $manager = app('App\\Extension\\PluginManager');
-            $plugin = method_exists($manager, 'getPlugin') ? $manager->getPlugin('custom-ha_link') : null;
+            $plugin = method_exists($manager, 'getPlugin') ? $manager->getPlugin('custom-iot_link') : null;
             if ($plugin !== null && method_exists($manager, 'syncDeclarativeArtifacts')) {
                 $manager->syncDeclarativeArtifacts($plugin);
             }

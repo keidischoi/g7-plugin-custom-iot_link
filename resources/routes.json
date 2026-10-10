@@ -1,15 +1,27 @@
 {
-    "version": "0.2.0",
+    "version": "1.0.0",
     "routes": [
+        {
+            "path": "*/admin/iot-link",
+            "layout": "plugin_settings",
+            "auth_required": true,
+            "params": {
+                "identifier": "custom-iot_link"
+            },
+            "meta": {
+                "title": "$t:custom-iot_link.settings.title",
+                "permission": "core.plugins.read"
+            }
+        },
         {
             "path": "*/admin/ha-link",
             "layout": "plugin_settings",
             "auth_required": true,
             "params": {
-                "identifier": "custom-ha_link"
+                "identifier": "custom-iot_link"
             },
             "meta": {
-                "title": "$t:custom-ha_link.settings.title",
+                "title": "$t:custom-iot_link.settings.title",
                 "permission": "core.plugins.read"
             }
         }

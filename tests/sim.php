@@ -18,15 +18,15 @@ namespace App\Contracts\Extension {
 namespace {
     use Illuminate\Database\Capsule\Manager as Capsule;
     use Illuminate\Support\Facades\DB;
-    use Plugins\Custom\HaLink\Listeners\IntegrationListener;
-    use Plugins\Custom\HaLink\Services\HaService;
-    use Plugins\Custom\HaLink\Services\SmartThingsService;
-    use Plugins\Custom\HaLink\Support\Notify;
-    use Plugins\Custom\HaLink\Support\Settings;
+    use Plugins\Custom\IotLink\Listeners\IntegrationListener;
+    use Plugins\Custom\IotLink\Services\HaService;
+    use Plugins\Custom\IotLink\Services\SmartThingsService;
+    use Plugins\Custom\IotLink\Support\Notify;
+    use Plugins\Custom\IotLink\Support\Settings;
 
     require (getenv('G7_VENDOR') ?: 'C:/Users/gbook/source/g7-core/vendor').'/autoload.php';
     spl_autoload_register(function (string $c): void {
-        $p = 'Plugins\\Custom\\HaLink\\';
+        $p = 'Plugins\\Custom\\IotLink\\';
         if (str_starts_with($c, $p) && is_file($f = dirname(__DIR__).'/src/'.str_replace('\\', '/', substr($c, strlen($p))).'.php')) {
             require $f;
         }
@@ -117,7 +117,7 @@ namespace {
     [$ok] = $svc->ingest($box->token, ['temperature' => '23.44', 'humidity' => '35.2']);
     $o = $svc->overview(1);
     $d = array_values(array_filter($o['devices'], fn ($v) => $v['id'] === (int) $box->id))[0];
-    t($ok && $d['temp'] === 23.4 && $d['humidity'] === 35.2 && ! $d['stale'] && ! $d['over'] && count($d['history']) === 1 && $sent === [] && $o['config']['base'] === 'https://3ds.test/api/plugins/custom-ha_link/in/' && $o['locations'] === ['AMS', '드라이 박스'], '온습도 받음 · 기준 안 넘음');
+    t($ok && $d['temp'] === 23.4 && $d['humidity'] === 35.2 && ! $d['stale'] && ! $d['over'] && count($d['history']) === 1 && $sent === [] && $o['config']['base'] === 'https://3ds.test/api/plugins/custom-iot_link/in/' && $o['locations'] === ['AMS', '드라이 박스'], '온습도 받음 · 기준 안 넘음');
     HaService::$nowOverride = '2026-10-09 08:20:00';
     $svc->ingest($box->token, ['temperature' => 'unavailable', 'humidity' => 47]);
     t(DB::table('hal_readings')->where('device_id', $box->id)->count() === 1 && (float) DB::table('hal_readings')->where('device_id', $box->id)->value('humidity') === 47.0 && (float) DB::table('hal_readings')->where('device_id', $box->id)->value('temp') === 23.4, '같은 시간은 한 줄 (마지막 값) · unavailable 은 건너뜀');
@@ -186,7 +186,7 @@ namespace {
     t($svc->hub(1)['interval_min'] === 5 && $svc->overview(1)['config']['interval_min'] === 5, '0.1.3 값 보내는 주기 — 관리자 설정이 통합 · 설정 글에 전해짐');
     Settings::save(['interval_min' => 10]);
     $h = $svc->hub(1);
-    t($h['locations'] === ['AMS', '드라이 박스'] && $h['printers'][0]['id'] === 5 && $h['printers'][0]['model'] === 'P1S' && $h['printers'][0]['nickname'] === '거실' && array_key_exists('printer_id', $h['devices'][0]) && $h['equipment'][0]['name'] === '삼디 공방 — Bambu Lab X1C' && count($h['devices']) === 3 && strlen($h['devices'][0]['token']) === 32 && $h['push_url'] === 'https://3ds.test/api/plugins/custom-ha_link/in/', '허브: 붙일 곳 목록 · 내 기기');
+    t($h['locations'] === ['AMS', '드라이 박스'] && $h['printers'][0]['id'] === 5 && $h['printers'][0]['model'] === 'P1S' && $h['printers'][0]['nickname'] === '거실' && array_key_exists('printer_id', $h['devices'][0]) && $h['equipment'][0]['name'] === '삼디 공방 — Bambu Lab X1C' && count($h['devices']) === 3 && strlen($h['devices'][0]['token']) === 32 && $h['push_url'] === 'https://3ds.test/api/plugins/custom-iot_link/in/', '허브: 붙일 곳 목록 · 내 기기');
     [$ok, , $nd] = $svc->hubSave(1, null, ['target' => 'location', 'location' => 'AMS', 'ent_hum' => 'sensor.ams_humidity', 'humidity_max' => 30]);
     t($ok && $nd['name'] === 'AMS' && str_ends_with($nd['push_url'], '/in/'.$nd['token']) && $svc->ingest($nd['token'], ['humidity' => 20])[0], '통합이 기기를 만들고 그 주소로 보냄');
     [$ok, , $ud] = $svc->hubSave(1, $nd['id'], ['target' => 'location', 'location' => 'AMS', 'ent_hum' => 'sensor.ams2_humidity', 'humidity_max' => 35]);
@@ -210,7 +210,7 @@ namespace {
     t($svc->publicSnap($pid) === null && $svc->printerSnapshot(5) === null && $IL->printerSnapshot('x', 5) === 'x', '사진은 기본 비공개');
     $svc->save(1, $pid, ['target' => 'printer', 'printer_id' => 5, 'ent_state' => 'sensor.p1s_print_status', 'snap_public' => true]);
     $ps = $IL->printerSnapshot(null, 5);
-    t($svc->publicSnap($pid) !== null && is_array($ps) && str_starts_with($ps['url'], '/api/plugins/custom-ha_link/snap/'.$pid.'.jpg?t=') && $ps['at'] === '2026-10-10 11:16:00' && $IL->printerSnapshot(null, 7) === null && $svc->hub(1)['devices'] !== [], '회원이 공개로 두면 — 그 프린터의 사진 주소 (훅)');
+    t($svc->publicSnap($pid) !== null && is_array($ps) && str_starts_with($ps['url'], '/api/plugins/custom-iot_link/snap/'.$pid.'.jpg?t=') && $ps['at'] === '2026-10-10 11:16:00' && $IL->printerSnapshot(null, 7) === null && $svc->hub(1)['devices'] !== [], '회원이 공개로 두면 — 그 프린터의 사진 주소 (훅)');
     HaService::$nowOverride = '2026-10-12 11:16:00';
     t($svc->publicSnap($pid) === null, '하루 넘게 오래된 사진은 공개하지 않음');
     HaService::$nowOverride = '2026-10-10 11:16:00';
@@ -248,7 +248,7 @@ namespace {
 
         return [404, '{}'];
     };
-    $path = '/api/plugins/custom-ha_link/smartthings';
+    $path = '/api/plugins/custom-iot_link/smartthings';
     $sign = function (array $body, $key = null, array $over = []) use ($pk, $path): array {
         $raw = json_encode($body);
         $date = gmdate('D, d M Y H:i:s \G\M\T', $over['time'] ?? time());
@@ -276,9 +276,9 @@ namespace {
     t($send($ping, $evil)[0] === 401, '다른 열쇠로 서명하면 거부');
     [$raw, $h] = $sign($ping);
     $req = Illuminate\Http\Request::create($path, 'POST', [], [], [], ['HTTP_AUTHORIZATION' => $h['authorization'], 'HTTP_DIGEST' => $h['digest'], 'HTTP_DATE' => $h['date'], 'CONTENT_TYPE' => 'application/json'], $raw);
-    $res = (new Plugins\Custom\HaLink\Http\Controllers\SmartThingsController($st, $svc))->webhook($req);
-    $req2 = Illuminate\Http\Request::create('/api/plugins/custom-ha_link/smartthingz', 'POST', [], [], [], ['HTTP_AUTHORIZATION' => $h['authorization'], 'HTTP_DIGEST' => $h['digest'], 'HTTP_DATE' => $h['date']], $raw);
-    t($res->getStatusCode() === 200 && $res->getContent() === '{"pingData":{"challenge":"abc"}}' && (new Plugins\Custom\HaLink\Http\Controllers\SmartThingsController($st, $svc))->webhook($req2)->getStatusCode() === 401, '컨트롤러: 실제 요청의 (request-target) 로 확인 · 다른 경로로 보낸 서명은 거부');
+    $res = (new Plugins\Custom\IotLink\Http\Controllers\SmartThingsController($st, $svc))->webhook($req);
+    $req2 = Illuminate\Http\Request::create('/api/plugins/custom-iot_link/smartthingz', 'POST', [], [], [], ['HTTP_AUTHORIZATION' => $h['authorization'], 'HTTP_DIGEST' => $h['digest'], 'HTTP_DATE' => $h['date']], $raw);
+    t($res->getStatusCode() === 200 && $res->getContent() === '{"pingData":{"challenge":"abc"}}' && (new Plugins\Custom\IotLink\Http\Controllers\SmartThingsController($st, $svc))->webhook($req2)->getStatusCode() === 401, '컨트롤러: 실제 요청의 (request-target) 로 확인 · 다른 경로로 보낸 서명은 거부');
     t($send($ping, null, ['raw' => json_encode(['lifecycle' => 'PING', 'pingData' => ['challenge' => 'evil']])])[0] === 401, '본문을 바꾸면 거부 (digest)');
     t($send($ping, null, ['time' => time() - 3600])[0] === 401, '오래된 Date 는 거부 (다시 보내기 공격)');
     t($send($ping, null, ['h' => ['authorization' => str_replace('rsa-sha256', 'hmac-sha256', $sign($ping)[1]['authorization'])]])[0] === 401, '알고리즘이 rsa-sha256 이 아니면 거부');
@@ -295,7 +295,7 @@ namespace {
     $calls = [];
     t($send(['lifecycle' => 'CONFIRMATION', 'appId' => 'app-1111-2222', 'confirmationData' => ['appId' => 'app-1111-2222', 'confirmationUrl' => 'https://evil.example.com/x']])[0] === 400 && $calls === [], 'SmartThings 주소가 아니면 confirmationUrl 을 부르지 않음');
     $r = $send(['lifecycle' => 'CONFIRMATION', 'appId' => 'app-1111-2222', 'confirmationData' => ['appId' => 'app-1111-2222', 'confirmationUrl' => 'https://api.smartthings.com/v1/apps/app-1111-2222/confirm-registration?token=t']]);
-    t($r === [200, ['targetUrl' => 'https://3ds.test/api/plugins/custom-ha_link/smartthings']] && $calls[0][0] === 'GET' && str_contains($calls[0][1], 'confirm-registration') && $st->adminInfo()['confirmed_at'] === '2026-10-10 11:20:00', 'CONFIRMATION → confirmationUrl 을 GET · targetUrl 답');
+    t($r === [200, ['targetUrl' => 'https://3ds.test/api/plugins/custom-iot_link/smartthings']] && $calls[0][0] === 'GET' && str_contains($calls[0][1], 'confirm-registration') && $st->adminInfo()['confirmed_at'] === '2026-10-10 11:20:00', 'CONFIRMATION → confirmationUrl 을 GET · targetUrl 답');
     Settings::save(['st_app_id' => 'app-1111-2222']);
     t($send(['lifecycle' => 'PING', 'appId' => 'other-app-999', 'pingData' => ['challenge' => 'x']])[0] === 403 && $send(['messageType' => 'PING', 'appId' => 'app-1111-2222', 'pingData' => ['challenge' => 'x']])[0] === 200, 'App ID 를 정하면 다른 앱의 요청은 거부 · messageType 도 읽음');
     $r = $send(['lifecycle' => 'CONFIGURATION', 'appId' => 'app-1111-2222', 'configurationData' => ['installedAppId' => 'ia-new-0001', 'phase' => 'INITIALIZE', 'config' => []]])[1];

@@ -1,12 +1,12 @@
 {
-  "name": "HA 연결",
-  "description": "Home Assistant 온습도 · 프린터 · 장비 상태 받기",
-  "menu": "HA 연결",
+  "name": "IoT 연결",
+  "description": "Home Assistant · SmartThings 온습도 · 프린터 · 장비 상태 받기",
+  "menu": "IoT 연결",
   "user": {
-    "title": "🏠 HA 연결"
+    "title": "📡 IoT 연결"
   },
   "settings": {
-    "title": "HA 연결",
-    "description": "HA 연결 설정"
+    "title": "IoT 연결",
+    "description": "IoT 연결 설정"
   }
 }

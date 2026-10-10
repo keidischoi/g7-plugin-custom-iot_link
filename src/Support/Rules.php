@@ -1,6 +1,6 @@
 <?php
 
-namespace Plugins\Custom\HaLink\Support;
+namespace Plugins\Custom\IotLink\Support;
 
 /**
  * 받은 값 정리 (DB · Laravel 없이 검사: tests/run.php)

@@ -1,30 +1,37 @@
 <?php
 
-namespace Plugins\Custom\HaLink;
+namespace Plugins\Custom\IotLink;
 
 use App\Extension\AbstractPlugin;
-use Plugins\Custom\HaLink\Listeners\IntegrationListener;
-use Plugins\Custom\HaLink\Listeners\MenuListener;
-use Plugins\Custom\HaLink\Listeners\RouteListener;
-use Plugins\Custom\HaLink\Support\Schema;
-use Plugins\Custom\HaLink\Support\Settings;
+use Plugins\Custom\IotLink\Listeners\IntegrationListener;
+use Plugins\Custom\IotLink\Listeners\MenuListener;
+use Plugins\Custom\IotLink\Listeners\RouteListener;
+use Plugins\Custom\IotLink\Support\Schema;
+use Plugins\Custom\IotLink\Support\Settings;
 
 /**
- * 🏠 HA 연결 (custom-ha_link) — 회원의 Home Assistant 가 보내는 온습도 · 기기 상태를 받아 정비 수첩 · 내 프린터에 이음
+ * 📡 IoT 연결 (custom-iot_link) — 회원의 Home Assistant · SmartThings 가 보내는 온습도 · 기기 상태를 받아 정비 수첩 · 내 프린터에 이음
+ *
+ *  1.0.0 이름 바꿈: 🏠 HA 연결(custom-ha_link) → 📡 IoT 연결(custom-iot_link). 표(hal_*) · 설정(hal_settings) · 사진 폴더(storage/app/ha_link) ·
+ *  알림 종류(custom_ha_link_alert) · 홈 디자인 메뉴 키(ha_link) · 화면 표시(data-hal-*, #hal-nav)는 예전 그대로라 데이터가 그대로 이어짐.
+ *  예전 주소 /api/plugins/custom-ha_link/… · /ha-link · /admin/ha-link 와 예전 필터 custom-ha_link.printer_snapshot 도 계속 받음.
  *
  *  - 기기 = 받는 주소 하나. 필라멘트 · 레진 보관함 / 내 프린터 / 업체 장비 / 그 밖의 장비 · 공간에 붙임 (여러 대)
  *  - 온습도: 지금 값 · 이틀 그래프 · 기준(습도 · 온도)을 넘으면 알림 (그 보관함에 든 필라멘트도 알려 줌)
  *  - 상태: 가동 시간 기록 → 정비 수첩의 「가동 몇 시간마다」 · 내 프린터에 붙인 기기는 출력 상태를 그 프린터로 넘김
- *  - 사이트가 회원 집으로 접속하지 않음 (회원 쪽에서 보내오는 값만 받음) · 화면: /ha-link · 관리자: /admin/ha-link
+ *  - 사이트가 회원 집으로 접속하지 않음 (회원 쪽에서 보내오는 값만 받음) · 화면: /iot-link · 관리자: /admin/iot-link
  *  - 0.2.0 SmartThings (WebHook SmartApp) — 회원이 SmartThings 앱에서 센서를 고르면 값이 바뀔 때마다 바로 들어옴 (같은 받기로)
  */
 class Plugin extends AbstractPlugin
 {
-    public const IDENTIFIER = 'custom-ha_link';
+    public const IDENTIFIER = 'custom-iot_link';
 
-    public const ADMIN_URL = '/admin/ha-link';
+    /** 1.0.0 예전 식별자 (HA 연결) */
+    public const LEGACY_IDENTIFIER = 'custom-ha_link';
 
-    public const USER_LAYOUT = 'custom-ha_link.ha_link';
+    public const ADMIN_URL = '/admin/iot-link';
+
+    public const USER_LAYOUT = 'custom-iot_link.iot_link';
 
     public const TABLES = ['hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links', 'hal_st_installs', 'hal_st_sensors', 'hal_st_codes'];
 
@@ -38,7 +45,7 @@ class Plugin extends AbstractPlugin
         }
         $here = __DIR__;
         spl_autoload_register(static function (string $class) use ($here): void {
-            $p = 'Plugins\\Custom\\HaLink\\';
+            $p = 'Plugins\\Custom\\IotLink\\';
             if (! str_starts_with($class, $p)) {
                 return;
             }
@@ -115,10 +122,10 @@ class Plugin extends AbstractPlugin
     public function getAdminMenus(): array
     {
         return [[
-            'name' => ['ko' => 'HA 연결', 'en' => 'HA Link'],
+            'name' => ['ko' => 'IoT 연결', 'en' => 'IoT Link'],
             'slug' => self::IDENTIFIER,
             'url' => self::ADMIN_URL,
-            'icon' => 'fas fa-house-signal',
+            'icon' => 'fas fa-satellite-dish',
             'order' => 17,
         ]];
     }
@@ -129,8 +136,8 @@ class Plugin extends AbstractPlugin
         return [[
             'type' => 'custom_ha_link_alert',
             'hook_prefix' => self::IDENTIFIER,
-            'name' => ['ko' => 'HA 연결 경고', 'en' => 'HA Link alert'],
-            'description' => ['ko' => 'Home Assistant 로 연결한 기기의 습도 · 온도가 회원이 정한 기준을 넘으면 보냄.', 'en' => 'Sent when a linked device goes over the humidity / temperature limit.'],
+            'name' => ['ko' => 'IoT 연결 경고', 'en' => 'IoT Link alert'],
+            'description' => ['ko' => 'Home Assistant · SmartThings 로 연결한 기기의 습도 · 온도가 회원이 정한 기준을 넘으면 보냄.', 'en' => 'Sent when a linked device goes over the humidity / temperature limit.'],
             'channels' => ['mail', 'database'],
             'hooks' => [],
             'variables' => [
@@ -138,7 +145,7 @@ class Plugin extends AbstractPlugin
                 ['key' => 'body', 'description' => '완성된 본문'],
                 ['key' => 'body_html', 'description' => '완성된 본문 HTML (메일)'],
                 ['key' => 'name', 'description' => '회원 이름'],
-                ['key' => 'drawer_url', 'description' => 'HA 연결 화면 주소'],
+                ['key' => 'drawer_url', 'description' => 'IoT 연결 화면 주소'],
             ],
             'templates' => [
                 ['channel' => 'mail', 'recipients' => [['type' => 'trigger_user']], 'subject' => ['ko' => '{subject}', 'en' => '{subject}'], 'body' => ['ko' => '{body_html}', 'en' => '{body_html}']],

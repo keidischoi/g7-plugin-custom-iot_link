@@ -2,10 +2,10 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\Schema as S;
-use Plugins\Custom\HaLink\Support\Schema;
+use Plugins\Custom\IotLink\Support\Schema;
 
 /**
- * HA 연결 (custom-ha_link 0.1.0) — 표 정의는 src/Support/Schema.php 한 곳 (처음 쓸 때 자동 생성과 같음).
+ * IoT 연결 (0.1.0 — 예전 이름 HA 연결 custom-ha_link) — 표 정의는 src/Support/Schema.php 한 곳 (처음 쓸 때 자동 생성과 같음).
  */
 return new class extends Migration
 {

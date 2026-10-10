@@ -1,14 +1,14 @@
 <?php
 
-namespace Plugins\Custom\HaLink\Http\Controllers;
+namespace Plugins\Custom\IotLink\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Crypt;
-use Plugins\Custom\HaLink\Services\HaService;
-use Plugins\Custom\HaLink\Services\SmartThingsService;
-use Plugins\Custom\HaLink\Support\Settings;
+use Plugins\Custom\IotLink\Services\HaService;
+use Plugins\Custom\IotLink\Services\SmartThingsService;
+use Plugins\Custom\IotLink\Support\Settings;
 
 /** 관리자 — 설정 · 숫자 (회원 기기의 값 · 주소는 보이지 않음). 0.2.0 SmartThings Client Secret 은 암호화해 두고 내보내지 않음 */
 class AdminController extends Controller

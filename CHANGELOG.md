@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.0 — 2026-10-10
+
+**🔁 이름 바꿈: 🏠 HA 연결(`custom-ha_link`) → 📡 IoT 연결(`custom-iot_link`)** — Home Assistant 에 SmartThings 까지 받으므로 이름을 넓힘. 저장소도 `g7-plugin-custom-iot_link` 로.
+
+- 식별자 `custom-iot_link` · 네임스페이스 `Plugins\Custom\IotLink` · 화면 `/iot-link` · 관리자 `/admin/iot-link` · 받는 주소 `/api/plugins/custom-iot_link/…` · 자산 `iot-link-app.js` · `iot-link.css` · 레이아웃 `custom-iot_link.iot_link` · 이름 「📡 IoT 연결」 / 「IoT Link」
+- **데이터 그대로**: 표(`hal_*`) · 설정(`hal_settings`) · 카메라 사진 폴더(`storage/app/ha_link`) · 알림 종류(`custom_ha_link_alert` — 관리자가 고친 알림 문구가 이어짐) · 홈 디자인 메뉴 키(`ha_link`) · 화면 표시(`data-hal-*`, `#hal-nav`)는 예전 이름 그대로. 새로 설치해도 옮길 것 없음
+- **예전 주소도 계속 받음**: `/api/plugins/custom-ha_link/…` 전부(값 받기 · 사진 · 허브 · SmartThings · 회원 · 관리자 API)를 같은 컨트롤러 · 미들웨어 · 제한으로 (`Support\LegacyRoutes`) — 회원의 Home Assistant `rest_command` · HACS 통합 · SmartThings Target URL 을 고칠 필요 없음. `/ha-link` · `/admin/ha-link` 도 같은 화면(주소 줄만 새 주소로), 예전 필터 `custom-ha_link.printer_snapshot` 도 받음
+- 새로 만드는 설정 글(`push_url`) · 관리자 SmartThings 안내의 Target URL 은 새 주소 (이미 등록한 예전 주소는 그대로 둬도 된다고 안내)
+- 메뉴 이름이 예전 기본값 「HA 연결」이면 「IoT 연결」로 (직접 바꾼 이름은 그대로)
+- 먼저 올릴 것 (두 식별자 모두 받음): 내 프린터 0.1.27 · 정비 수첩 0.3.1 · 재고 관리 0.1.1 · 홈 디자인 0.7.97 · HACS 통합 3ds 0.3.1
+- 검사: 예전 주소 라우트(같은 컨트롤러 · 미들웨어 · 조건 · 이름) · 예전 필터 · 메뉴 이름 바꿈 · 식별자 · 네임스페이스
+
+배포: **새 플러그인으로 설치** (plugin:update 아님) — README 「옮기기」. 예전 플러그인은 비활성화만 (`--delete-data` 금지 — 같은 `hal_*` 표가 지워짐). DB 변경 없음.
+
 ## 0.2.1 — 2026-10-10
 
 - 🐛 SmartThings Developer Workspace 주소를 새 주소 `https://developer.smartthings.com/workspace` 로 고침 (예전 `smartthings.developer.samsung.com` 은 더 이상 열리지 않음) — 관리자 안내 · README
