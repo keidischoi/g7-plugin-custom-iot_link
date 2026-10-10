@@ -309,9 +309,10 @@ class HaService
      * 받는 주소로 들어온 값 반영 — 요청 하나에 조회 1 · 저장 1~3.
      *
      * @param  array<string, mixed>  $payload  temperature · humidity · state(on) · progress · remaining_min · job
+     * @param  string  $via  1.2.0 값을 보낸 곳 — 'ha'(받는 주소) · 'smartthings'(SmartThings 이벤트). 기기 카드 하나에 둘이 같이 붙을 수 있어 카드의 source 가 아니라 이번 값으로 가림
      * @return array{0: bool, 1: string, 2?: array{next_min: int, snap: bool, away: bool}}
      */
-    public function ingest(string $token, array $payload): array
+    public function ingest(string $token, array $payload, string $via = 'ha'): array
     {
         if (! Settings::get('enabled') || ! Schema::ensure() || ! preg_match('/^[a-f0-9]{32}$/', $token)) {
             return [false, 'off'];
@@ -363,7 +364,7 @@ class HaService
         }
         DB::table(Schema::DEVICES)->where('id', $d->id)->update($set);
         if ($d->target === 'printer' && $d->printer_id && $v['state'] !== null) {
-            $this->forwardPrinter((int) $d->printer_id, (int) $d->user_id, $v);
+            $this->forwardPrinter((int) $d->printer_id, (int) $d->user_id, $v, $via);
         }
         if (random_int(1, 200) === 1) {
             $this->tidy();
@@ -405,7 +406,7 @@ class HaService
     }
 
     /** 내 프린터에 붙인 기기 — 그 프린터의 자동 연결(custom-my_printer)로 상태를 넘김. 그 플러그인이 없거나 바뀌었으면 조용히 건너뜀 */
-    private function forwardPrinter(int $printerId, int $uid, array $v): void
+    private function forwardPrinter(int $printerId, int $uid, array $v, string $source = 'ha'): void
     {
         if (! Settings::get('printer_link') || ! $this->hasTable('mpr_printers')) {
             return;
@@ -417,8 +418,16 @@ class HaService
                 return;
             }
             // 0.1.9 상태는 그쪽이 아는 말로 (모르는 글이면 출력이 「그만둠」으로 닫힘) · 내부 온도 · 습도도 같이 (프린터 라운지 0.1.24+ 가 보임 — chamber · humidity)
-            (new $cls())->hook($tok, array_filter(['state' => Rules::printerState($v['state']), 'progress' => $v['progress'], 'remaining_min' => $v['remaining_min'], 'job' => $v['job'],
-                'chamber' => $v['temp'], 'humidity' => $v['humidity']], static fn ($x) => $x !== null));
+            $state = Rules::printerState($v['state']);
+            $st = $source === 'smartthings';
+            // 1.2.0 프린터 라운지 0.1.28+ 가 아는 것 — via_st: SmartThings 로 받았다고 표시 · env: 주변 온습도는 필터(printer_env)로 물어 감
+            $caps = defined($cls.'::IOT_CAPS') && is_array(constant($cls.'::IOT_CAPS')) ? constant($cls.'::IOT_CAPS') : [];
+            if ($st && $state === 'idle') {
+                $state = 'done';   // 1.2.0 SmartThings 플러그는 진행률을 몰라, 꺼지면(전력이 내려가면) 출력 기록이 늘 「그만둠」으로 닫혔을 것 → 「완료」로
+            }
+            $env = $st && in_array('env', $caps, true);   // SmartThings 온습도계는 프린터 안(챔버)이 아니라 주변 값 — 라운지가 「주변」으로 따로 보임
+            (new $cls())->hook($tok, array_filter(['state' => $state, 'progress' => $v['progress'], 'remaining_min' => $v['remaining_min'], 'job' => $v['job'],
+                'chamber' => $env ? null : $v['temp'], 'humidity' => $env ? null : $v['humidity']], static fn ($x) => $x !== null), $st && in_array('via_st', $caps, true) ? 'st' : 'ha');
         } catch (\Throwable) {
         }
     }
@@ -515,6 +524,37 @@ class HaService
         }
 
         return null;
+    }
+
+    /**
+     * 1.2.0 그 「내 프린터」에 붙인 기기의 온습도 (다른 확장이 씀 — 필터 custom-iot_link.printer_env). 끊긴(소식 없는) 기기의 값은 주지 않음.
+     *  프린터 라운지가 카드에 「주변 온도 · 습도」로 보임 — 상태(출력 중)를 보내지 않는 온습도계만 붙여도 보이게.
+     *
+     * @return array{temp: ?float, humidity: ?float, at: string, source: string, name: string}|null
+     */
+    public function printerEnv(int $printerId): ?array
+    {
+        if ($printerId <= 0 || ! Settings::get('enabled') || ! Settings::get('printer_link') || ! Schema::ensure()) {
+            return null;
+        }
+        $out = null;
+        foreach (DB::table(Schema::DEVICES)->where('target', 'printer')->where('printer_id', $printerId)->where('last_seen_at', '>=', self::ago((int) Settings::get('stale_hours') * 3600))
+            ->orderByDesc('last_seen_at')->limit(4)->get() as $d) {
+            if ($d->temp === null && $d->humidity === null) {
+                continue;
+            }
+            $out ??= ['temp' => null, 'humidity' => null, 'at' => (string) $d->last_seen_at, 'source' => (string) ($d->source ?? 'ha'), 'name' => (string) $d->name];
+            $out['temp'] ??= $d->temp !== null ? (float) $d->temp : null;
+            $out['humidity'] ??= $d->humidity !== null ? (float) $d->humidity : null;
+        }
+
+        return $out;
+    }
+
+    /** 1.2.0 쓸 수 있는 「보내는 곳」 (다른 확장이 씀 — 필터 custom-iot_link.sources): 프린터 라운지가 자동 연결에 SmartThings 를 보일지 정함 @return array{ha: bool, smartthings: bool} */
+    public function sources(): array
+    {
+        return ['ha' => (bool) Settings::get('enabled'), 'smartthings' => SmartThingsService::oauthReady()];
     }
 
     /** 오래된 온습도 기록 지우기 */

@@ -271,14 +271,14 @@ class SmartThingsService
     }
 
     /** SmartThings 용 새 기기 (기기 수 한도 안에서). 1.1.0 이름 = SmartThings 기기 이름 · 필라멘트 보관 위치와 이름이 같으면 그 보관함에 붙임 */
-    private function newDevice(int $uid, string $name = 'SmartThings', ?string $location = null): ?int
+    private function newDevice(int $uid, string $name = 'SmartThings', ?string $location = null, ?int $printerId = null): ?int
     {
         if (DB::table(Schema::DEVICES)->where('user_id', $uid)->count() >= (int) Settings::get('max_devices')) {
             return null;
         }
 
-        return (int) DB::table(Schema::DEVICES)->insertGetId(['user_id' => $uid, 'token' => Rules::token(), 'name' => Rules::text($name, 60) ?: 'SmartThings', 'target' => $location !== null ? 'location' : 'other',
-            'location' => $location, 'source' => 'smartthings', 'entities' => json_encode(array_fill_keys(Rules::ENTITIES, '')), 'notify' => true, 'created_at' => now(), 'updated_at' => now()]);
+        return (int) DB::table(Schema::DEVICES)->insertGetId(['user_id' => $uid, 'token' => Rules::token(), 'name' => Rules::text($name, 60) ?: 'SmartThings',
+            'target' => $printerId ? 'printer' : ($location !== null ? 'location' : 'other'), 'location' => $printerId ? null : $location, 'printer_id' => $printerId ?: null, 'source' => 'smartthings', 'entities' => json_encode(array_fill_keys(Rules::ENTITIES, '')), 'notify' => true, 'created_at' => now(), 'updated_at' => now()]);
     }
 
     /**
@@ -441,7 +441,7 @@ class SmartThingsService
         $tokens = DB::table(Schema::DEVICES)->whereIn('id', array_keys($to))->where('user_id', $i->user_id)->pluck('token', 'id');
         foreach ($to as $site => $payload) {
             if (! empty($tokens[$site])) {
-                $this->ha->ingest((string) $tokens[$site], $payload);
+                $this->ha->ingest((string) $tokens[$site], $payload, 'smartthings');
             }
         }
     }
@@ -872,6 +872,15 @@ class SmartThingsService
         foreach ($mine as $did => $name) {
             $byName[Rules::loc($name)] ??= (int) $did;
         }
+        // 1.2.0 SmartThings 이름이 내 프린터의 별명 · 기종 · 이름과 같으면 그 프린터에 붙이기를 권함
+        $prn = [];
+        foreach ($this->ha->printers($uid) as $p) {
+            foreach ([$p['nickname'], $p['model'], $p['brand'].' '.$p['model'], $p['name']] as $nm) {
+                if (Rules::loc($nm) !== '') {
+                    $prn[Rules::loc($nm)] ??= (int) $p['id'];
+                }
+            }
+        }
         $rows = [];
         foreach (SmartThings::candidates($items, $i->temp_scale ?? null) as $c) {
             $site = isset($cfg['map'][$c['id']], $mine[$cfg['map'][$c['id']]]) ? $cfg['map'][$c['id']] : null;
@@ -879,7 +888,8 @@ class SmartThingsService
             foreach (array_keys($c['caps']) as $cap) {
                 $vals[] = ['what' => SmartThings::LABELS[$cap] ?? $cap, 'value' => $c['values'][$cap] ?? ''];
             }
-            $rows[] = ['id' => $c['id'], 'label' => $c['label'], 'kind' => $c['kind'], 'values' => $vals, 'picked' => isset($picked[$c['id']]), 'site_device_id' => $site, 'suggest' => $site ?? ($byName[Rules::loc($c['label'])] ?? null)];
+            $rows[] = ['id' => $c['id'], 'label' => $c['label'], 'kind' => $c['kind'], 'values' => $vals, 'picked' => isset($picked[$c['id']]), 'site_device_id' => $site, 'suggest' => $site ?? ($byName[Rules::loc($c['label'])] ?? null),
+                'suggest_printer' => $site === null ? ($prn[Rules::loc($c['label'])] ?? null) : null];
         }
 
         return [true, 'ok', ['install_id' => (int) $i->id, 'location' => (string) ($i->location_name ?? ''), 'devices' => $rows, 'max' => SmartThings::MAX_PICKS, 'power_on_w' => $cfg['power_on_w'],
@@ -890,7 +900,7 @@ class SmartThingsService
      * 센서 고른 것 저장 — SmartThings 기기 하나가 사이트 기기 하나 (없으면 그 이름으로 새로 · 필라멘트 보관 위치와 이름이 같으면 그 보관함에).
      *  지금 값은 바로 넣고, 구독은 응답을 보낸 뒤에 맞춤. 고른 것에서 뺀 기기의 사이트 기기 · 기록은 남김.
      *
-     * @param  list<mixed>  $picks  [{id: SmartThings 기기 id, site_device_id: 붙일 내 사이트 기기 | null}]
+     * @param  list<mixed>  $picks  [{id: SmartThings 기기 id, site_device_id: 붙일 내 사이트 기기 | null, printer_id: 붙일 내 프린터 | null (1.2.0 — 그 프린터의 카드에, 없으면 새로)}]
      * @return array{0: bool, 1: string}
      */
     public function oauthPick(int $uid, int $id, array $picks, mixed $powerOnW = null): array
@@ -920,6 +930,7 @@ class SmartThingsService
         foreach ($this->ha->locations($uid) as $l) {
             $locs[Rules::loc($l)] = $l;
         }
+        $printers = array_column($this->ha->printers($uid), null, 'id');
         $triples = [];
         $map = [];
         $labels = [];
@@ -932,6 +943,21 @@ class SmartThingsService
             }
             $c = $cand[$sid];
             $site = is_array($p) && is_numeric($p['site_device_id'] ?? null) ? (int) $p['site_device_id'] : 0;
+            // 1.2.0 「🖨️ 내 프린터에 붙이기」 — 그 프린터에 이미 붙인 카드가 있으면 거기에 (온습도계 + 플러그가 한 카드에), 없으면 그 프린터에 붙인 새 카드
+            $pid = is_array($p) && is_numeric($p['printer_id'] ?? null) ? (int) $p['printer_id'] : 0;
+            if ($pid > 0 && isset($printers[$pid])) {
+                $on = DB::table(Schema::DEVICES)->where('user_id', $uid)->where('target', 'printer')->where('printer_id', $pid)->orderByRaw("case when source = 'smartthings' then 0 else 1 end")->orderBy('id')->value('id');
+                $site = $on ? (int) $on : (int) $this->newDevice($uid, $printers[$pid]['name'], null, $pid);
+                if ($site <= 0) {
+                    $skip[] = $c['label'];
+
+                    continue;   // 기기 수 한도
+                }
+                if (! isset($mine[$site])) {
+                    $mine[$site] = $printers[$pid]['name'];
+                    $made++;
+                }
+            }
             if ($site <= 0 || ! isset($mine[$site])) {
                 $site = isset($old['map'][$sid], $mine[$old['map'][$sid]]) ? $old['map'][$sid] : 0;   // 남의 기기 · 없는 기기로는 못 붙임 → 예전에 붙였던 것 · 없으면 새로
             }
