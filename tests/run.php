@@ -73,6 +73,42 @@ $p2bad = ST::page('2', '3DS', null, null, true);
 check($ini['configurationData']['initialize']['permissions'] === ['r:devices:*', 'r:locations:*'] && ST::page('1', '3DS', null, null, false)['configurationData']['page']['nextPageId'] === '2' && $p2['configurationData']['page']['complete'] === true && $p2bad['configurationData']['page']['complete'] === false
     && ST::page('1', '3DS', '드라이박스', null, false)['configurationData']['page']['sections'][0]['settings'][1]['required'] === false, '설정 화면: 권한 · 1쪽 코드 · 2쪽 센서 (틀린 코드면 못 끝냄 · 이미 이었으면 코드 없이)');
 check(ST::confirmUrlOk('https://api.smartthings.com/v1/apps/x/confirm-registration?token=a') && ! ST::confirmUrlOk('http://api.smartthings.com/x') && ! ST::confirmUrlOk('https://api.smartthings.com.evil.io/x') && ! ST::confirmUrlOk('https://evil.io/?smartthings.com') && ! ST::confirmUrlOk('https://u@api.smartthings.com/') && ! ST::confirmUrlOk(['x']), 'confirmationUrl 은 https://*.smartthings.com 만');
+// 1.1.0 로그인 연결 (API Access App · OAuth)
+$au = ST::authorizeUrl('cid-1', 'https://3ds.test/iot-link', str_repeat('a', 40));
+parse_str((string) parse_url($au, PHP_URL_QUERY), $aq);
+check(str_starts_with($au, 'https://api.smartthings.com/v1/oauth/authorize?') && $aq === ['client_id' => 'cid-1', 'response_type' => 'code', 'redirect_uri' => 'https://3ds.test/iot-link', 'scope' => 'r:devices:* r:locations:*', 'state' => str_repeat('a', 40)]
+    && ! str_contains($au, '+') && preg_match('/^[a-f0-9]{40}$/', ST::newState()) === 1 && ST::newState() !== ST::newState(), '로그인 주소: client_id · code · redirect_uri · 읽기 권한(빈칸은 %20) · state — state 는 40글자 hex');
+check(ST::TOKEN_URLS[0] === 'https://api.smartthings.com/v1/oauth/token' && in_array('https://api.smartthings.com/oauth/token', ST::TOKEN_URLS, true), '토큰 받는 곳: 지금 문서의 주소 먼저 · 예전 주소도');
+$cs = static fn (string $id, array $st = []) => ['id' => $id] + ($st ? ['status' => $st] : []);
+$items = [
+    ['deviceId' => 'dev-plug-0001', 'label' => '건조기 플러그', 'components' => [['id' => 'main', 'capabilities' => [$cs('switch', ['switch' => ['value' => 'on']]), $cs('powerMeter', ['power' => ['value' => 120.5, 'unit' => 'W']]), $cs('energyMeter', ['energy' => ['value' => 3, 'unit' => 'kWh']])]]]],
+    ['deviceId' => 'dev-th-00001', 'label' => '<b>드라이박스</b>', 'name' => 'th', 'components' => [['id' => 'sub', 'capabilities' => [$cs('temperatureMeasurement', ['temperature' => ['value' => 1, 'unit' => 'C']]), $cs('battery', ['battery' => ['value' => 80]])]],
+        ['id' => 'main', 'capabilities' => [$cs('temperatureMeasurement', ['temperature' => ['value' => 68, 'unit' => 'F']]), $cs('relativeHumidityMeasurement', ['humidity' => ['value' => 30.4]]), $cs('healthCheck')]]]],
+    ['deviceId' => 'dev-bulb-0001', 'name' => '전구', 'components' => [['id' => 'main', 'capabilities' => [$cs('switch'), $cs('colorControl')]]]],
+    ['deviceId' => 'dev-tv-000001', 'label' => 'TV', 'components' => [['id' => 'main', 'capabilities' => [$cs('audioVolume')]]]], ['deviceId' => 'x', 'label' => '이상한 id'], 'junk',
+];
+$cd = ST::candidates($items, 'F');
+$cm = array_column($cd, null, 'id');
+check(array_column($cd, 'id') === ['dev-th-00001', 'dev-plug-0001', 'dev-bulb-0001'] && $cm['dev-th-00001']['label'] === '드라이박스' && $cm['dev-th-00001']['kind'] === 'env' && $cm['dev-plug-0001']['kind'] === 'power'
+    && $cm['dev-th-00001']['caps'] === ['temperatureMeasurement' => 'main', 'relativeHumidityMeasurement' => 'main', 'battery' => 'sub'] && $cm['dev-bulb-0001']['label'] === '전구' && $cm['dev-bulb-0001']['values'] === [],
+    '고를 기기: 받을 값이 있는 것만 · 온습도계 먼저 · main 칸 먼저(없으면 다른 칸) · 이름의 태그는 뺌');
+check($cm['dev-th-00001']['values'] === ['temperatureMeasurement' => '20°C', 'relativeHumidityMeasurement' => '30.4%', 'battery' => '80%'] && $cm['dev-plug-0001']['values'] === ['switch' => '켜짐', 'powerMeter' => '120.5 W', 'energyMeter' => '3 kWh'], '고를 기기의 지금 값 (68°F → 20°C · 단위)');
+$tp = ST::triples('dev-plug-0001', $cm['dev-plug-0001']['caps']);
+$tb = ST::triples('dev-bulb-0001', $cm['dev-bulb-0001']['caps']);
+check($tp === [['switches', 'dev-plug-0001', 'main'], ['power_meter', 'dev-plug-0001', 'main'], ['energy', 'dev-plug-0001', 'main']] && $tb === [['power_switch', 'dev-bulb-0001', 'main']]
+    && ST::event(['deviceId' => 'dev-plug-0001', 'capability' => 'switch', 'attribute' => 'switch', 'value' => 'on'], $tp)['payload'] === [] && ST::event(['deviceId' => 'dev-plug-0001', 'capability' => 'powerMeter', 'attribute' => 'power', 'value' => 3], $tp)['payload'] === ['state' => 'off']
+    && ST::event(['deviceId' => 'dev-bulb-0001', 'capability' => 'switch', 'attribute' => 'switch', 'value' => 'on'], $tb)['payload'] === ['state' => 'on'], '고른 기기 → 칸: 전력을 재는 플러그는 전력으로 가동 상태(스위치는 값만) · 못 재면 켜짐 = 가동 중');
+check(ST::event(['deviceId' => 'dev-plug-0001', 'capability' => 'powerMeter', 'attribute' => 'power', 'value' => 3.2], $tp)['sensor']['unit'] === 'W' && ST::event(['deviceId' => 'dev-th-00001', 'capability' => 'battery', 'attribute' => 'battery', 'value' => 80], ST::triples('dev-th-00001', $cm['dev-th-00001']['caps']))=== null
+    && ST::event(['deviceId' => 'dev-th-00001', 'componentId' => 'sub', 'capability' => 'battery', 'attribute' => 'battery', 'value' => 80], ST::triples('dev-th-00001', $cm['dev-th-00001']['caps']))['sensor']['unit'] === '%', '이벤트에 단위가 없으면 채움 (3.2 → 3.2 W) · 칸(component)이 다르면 그 값이 아님');
+$ds = ST::deviceSubscription('dev-plug-0001');
+check($ds['sourceType'] === 'DEVICE' && $ds['device'] === ['deviceId' => 'dev-plug-0001', 'componentId' => '*', 'capability' => '*', 'attribute' => '*', 'value' => '*', 'stateChangeOnly' => true, 'subscriptionName' => $ds['device']['subscriptionName']]
+    && preg_match('/^d_[a-f0-9]{24}$/', $ds['device']['subscriptionName']) === 1 && $ds === ST::deviceSubscription('dev-plug-0001') && $ds != ST::deviceSubscription('dev-bulb-0001') && ST::MAX_PICKS <= 40, '구독: 기기 하나에 하나 · 이름은 늘 같음 · 한도(40) 안');
+$ar = ST::appRequest('3DS 놀이터', 'https://3ds.test/t', 'https://3ds.test/iot-link', 'u-u-i-d');
+check($ar['appType'] === 'API_ONLY' && $ar['classifications'] === ['CONNECTED_SERVICE'] && $ar['singleInstance'] === true && $ar['principalType'] === 'LOCATION' && $ar['apiOnly'] === ['targetUrl' => 'https://3ds.test/t'] && $ar['oauth'] === ['clientName' => '3DS 놀이터 IoT 연결', 'scope' => ST::SCOPES, 'redirectUris' => ['https://3ds.test/iot-link']]
+    && $ar['appName'] === 'iotlink-u-u-i-d' && ST::appRequest('My Site', '', '', 'x')['appName'] === 'mysite-x' && json_encode($ar['iconImage']) === '{}' && mb_strlen($ar['displayName']) <= 75 && mb_strlen(ST::appRequest(str_repeat('가', 200), '', '', 'x')['displayName']) <= 75, '앱 등록 본문 (SmartThings CLI 의 OAuth-In App 과 같은 모양 · 이름은 글자로 시작)');
+check(ST::errorText(['requestId' => 'r', 'error' => ['code' => 'X', 'message' => 'Bad <b>thing</b>', 'details' => [['message' => 'scope'], ['message' => 'uri']]]]) === 'Bad thing · scope · uri' && ST::errorText(['error' => 'invalid_grant', 'error_description' => 'Invalid code']) === 'Invalid code' && ST::errorText('x') === '' && ST::errorText([]) === '', 'SmartThings 오류 글 (태그 빼고 · 짧게)');
+check(ST::listStatus(['components' => [['id' => 'main', 'capabilities' => [['id' => 'switch', 'status' => ['switch' => ['value' => 'on']]], ['id' => 'x']]]]]) === ['components' => ['main' => ['switch' => ['switch' => ['value' => 'on']]]]] && ST::listStatus([]) === ['components' => []], '목록의 값 → 기기 상태 모양');
+
 // 서명
 $k = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
 $pub = openssl_pkey_get_details($k)['key'];
@@ -112,7 +148,7 @@ $app = (string) file_get_contents($root.'/resources/assets/iot-link-app.js');
 check(str_contains((string) file_get_contents($root.'/resources/layouts/admin/plugin_settings.json'), 'iot-link-app.js?v='.$ver) && str_contains($app, 'custom-iot_link '.$ver)
     && str_contains((string) file_get_contents($root.'/resources/assets/iot-link.css'), $ver), '관리자 화면 · 앱 · CSS 버전');
 $pp = (string) file_get_contents($root.'/plugin.php');
-check(str_contains($pp, "'custom_ha_link_alert'") && str_contains($pp, "'hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links', 'hal_st_installs', 'hal_st_sensors', 'hal_st_codes'") && ! str_contains($pp, 'getSchedules'), '알림 정의 · 표 목록 · 스케줄 없음');
+check(str_contains($pp, "'custom_ha_link_alert'") && str_contains($pp, "'hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links', 'hal_st_installs', 'hal_st_sensors', 'hal_st_codes', 'hal_st_states']") && ! str_contains($pp, 'getSchedules'), '알림 정의 · 표 목록 · 스케줄 없음');
 $api = (string) file_get_contents($root.'/src/routes/api.php');
 check(is_file($root.'/database/migrations/2026_10_10_000001_add_smartthings_tables.php') && str_contains($api, "Route::post('smartthings', [SmartThingsController::class, 'webhook'])->middleware('throttle:")
     && preg_match("/auth:sanctum.*smartthings\/code.*throttle:10,1/s", $api) && str_contains($app, 'data-st-new') && str_contains($app, 'stAdmin('), '0.2.0 마이그레이션 · 받는 곳(서명 확인) · 회원 API(로그인 · 1분 한도) · 화면');
@@ -124,6 +160,21 @@ foreach (array_keys(S::DEFAULTS) as $k) {
     }
 }
 check(! str_contains($app, 'backdrop-filter') && str_contains($app, "| tojson"), '설정 글: 값은 tojson 으로 (따옴표가 든 작업 이름도 안전)');
+// 1.1.0 로그인 연결
+$open = (string) strstr($api, "Route::middleware(['auth:sanctum'", true);   // 로그인 없이 열린 라우트 부분
+check(is_file($root.'/database/migrations/2026_10_11_000001_add_smartthings_oauth_tables.php') && $open !== '' && ! str_contains($open, 'smartthings/oauth') && ! str_contains($open, 'smartthings/installs') && ! str_contains($open, 'admin/')
+    && preg_match("/smartthings\/oauth\/start'[^;]*throttle:10,1/", $api) === 1 && preg_match("/smartthings\/oauth\/finish'[^;]*throttle:10,1/", $api) === 1 && substr_count($api, "smartthings/installs/{id}/devices'") === 2
+    && preg_match("/admin\/smartthings\/register'[^;]*permission:admin,core\.plugins\.update/", $api) === 1, '1.1.0 마이그레이션 · 로그인 연결 API 는 모두 로그인 뒤 (1분 한도) · 자동 등록은 관리자 권한');
+check(str_contains($app, 'data-st-go') && str_contains($app, "'/smartthings/oauth/start'") && str_contains($app, "'/smartthings/oauth/finish'") && str_contains($app, 'function stReturn()') && str_contains($app, "history.replaceState(history.state, '', location.pathname + location.hash)")
+    && str_contains($app, 'function stPick(') && str_contains($app, 'function guideSt()') && str_contains($app, "guideBox('st')") && str_contains($app, 'data-st-reg') && str_contains($app, 'https://developer.smartthings.com/console') && ! str_contains($app, 'developer.samsung.com'),
+    '화면: 연결하기 단추 · 돌아오면 주소 줄에서 code 를 지우고 이음 · 센서 고르기 · SmartThings 연결 방법(그림) · 관리자 자동 등록 · 예전 Workspace 주소 없음');
+$reg = (string) strstr((string) strstr($svcSrc, 'public function register(string $pat)'), '/* ─────────', true);
+$patUses = preg_match_all('/[^\n]*\$pat\b[^\n]*/', $reg, $pm) ? $pm[0] : [];
+$patOk = $reg !== '' && count($patUses) >= 4;
+foreach ($patUses as $line) {
+    $patOk = $patOk && (bool) preg_match('/^\s*(public function register|\$pat = trim\(\$pat\);|if \(! preg_match\(|\[\$st, \$j\] = \$this->api\(\$pat, |\$this->api\(\$pat, )/', $line);   // 다듬기 · 모양 확인 · SmartThings 요청에만
+}
+check($patOk && ! preg_match('/->log\([^;]*\$(pat|code|state|at|rt|sec)\b/', $svcSrc) && str_contains($svcSrc, "->where('state', \$state)->where('user_id', \$uid)"), '개인 액세스 토큰은 SmartThings 요청에만 쓰임 (저장 · 기록 없음) · state 는 그 회원 것일 때만');
 
 echo "\n".($fail === 0 ? "OK ({$pass} checks)" : "{$fail} FAILED / ".($pass + $fail))."\n";
 exit($fail === 0 ? 0 : 1);

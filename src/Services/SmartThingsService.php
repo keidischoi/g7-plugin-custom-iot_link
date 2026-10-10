@@ -18,6 +18,12 @@ use Plugins\Custom\IotLink\Support\StSignature;
  *   INSTALL · UPDATE(토큰 · installedAppId · locationId 저장, 구독 만들기) · EVENT(DEVICE_EVENT → 받기) · UNINSTALL(정리)
  *  회원과 잇기: 회원이 /iot-link 에서 만든 일회용 코드(8글자)를 SmartThings 앱의 설정 화면에 적음 → INSTALL 때 그 회원 · 기기와 이음.
  *  토큰은 Laravel Crypt 로 암호화해 둠 · 로그에 토큰 · 서명 · 코드를 남기지 않음.
+ *
+ * 1.1.0 로그인 연결 (API Access App · OAuth-In) — 지금 SmartThings 가 권하는 방식. 회원이 할 일은 「연결하기」 → 삼성 계정 로그인 → 허용 → 센서 고르기.
+ *  1) oauthStart: 그 회원의 일회용 state 를 만들고 SmartThings 로그인 주소를 줌
+ *  2) SmartThings 가 /iot-link?code=…&state=… 로 돌려보냄 → 화면이 로그인 정보와 함께 oauthFinish 를 부름 (state 가 그 회원 것일 때만 code 를 토큰으로 바꿈)
+ *  3) oauthDevices · oauthPick: SmartThings 기기 목록에서 고름 — 기기 하나가 사이트 기기 하나 (config.map), 기기마다 구독 하나
+ *  값은 같은 받는 곳(EVENT · HTTP 서명 확인)으로 들어옴. 예전 연결 코드(SmartApp) 방식은 설정 st_code_flow 를 켰을 때만 화면에 보임.
  */
 class SmartThingsService
 {
@@ -48,9 +54,21 @@ class SmartThingsService
         return rtrim((string) config('app.url'), '/').'/api/plugins/custom-ha_link/smartthings';
     }
 
+    /** 1.1.0 로그인 연결에서 SmartThings 가 회원을 돌려보내는 곳 (Redirect URI) — 회원 화면 */
+    public static function redirectUri(): string
+    {
+        return rtrim((string) config('app.url'), '/').'/iot-link';
+    }
+
     public static function ready(): bool
     {
         return (bool) Settings::get('enabled') && (bool) Settings::get('st_enabled');
+    }
+
+    /** 1.1.0 로그인 연결을 쓸 수 있나 (켜짐 · Client ID · Client Secret) */
+    public static function oauthReady(): bool
+    {
+        return self::ready() && Settings::get('st_client_id') !== '' && self::clientSecret() !== '';
     }
 
     private static function now(): string
@@ -74,7 +92,7 @@ class SmartThingsService
      */
     public function handle(string $method, array $targets, array $headers, string $body): array
     {
-        if (! self::ready() || ! Schema::ensure()) {
+        if (! Settings::get('enabled') || ! Schema::ensure()) {
             return [404, ['error' => 'off']];
         }
         if (strlen($body) > 262144) {
@@ -82,6 +100,10 @@ class SmartThingsService
         }
         $json = json_decode($body, true);
         $life = is_array($json) ? strtoupper((string) ($json['lifecycle'] ?? ($json['messageType'] ?? ''))) : '';
+        // 1.1.0 주소 확인(CONFIRMATION)은 「SmartThings 연결 쓰기」를 켜기 전에도 답함 — 앱을 등록하는 바로 그때 오므로 (서명은 똑같이 확인). 그 밖의 것은 켜야 받음
+        if (! self::ready() && $life !== 'CONFIRMATION') {
+            return [404, ['error' => 'off']];
+        }
         // (예전) PING 은 SmartThings 가 서명하지 않던 것 — 관리자가 켰을 때만, challenge 만 돌려줌 (아무것도 바꾸지 않음)
         if ($life === 'PING' && Settings::get('st_ping_unsigned') && ! isset($headers['authorization']) && is_scalar($json['pingData']['challenge'] ?? null)) {
             return [200, ['pingData' => ['challenge' => (string) $json['pingData']['challenge']]]];
@@ -97,7 +119,8 @@ class SmartThingsService
         }
         $app = (string) Settings::get('st_app_id');
         $got = $json['appId'] ?? ($json['confirmationData']['appId'] ?? null);
-        if ($app !== '' && is_string($got) && $got !== '' && ! hash_equals($app, $got)) {
+        // 주소 확인(CONFIRMATION)은 App ID 를 맞춰 보지 않음 — 앱을 새로 등록하면 App ID 가 바뀌는데, 그 확인이 예전 App ID 때문에 막히면 안 됨 (답은 SmartThings 주소를 한 번 받아 보는 것뿐)
+        if ($life !== 'CONFIRMATION' && $app !== '' && is_string($got) && $got !== '' && ! hash_equals($app, $got)) {
             return [403, ['error' => 'app']];
         }
         $empty = new \stdClass();
@@ -244,15 +267,15 @@ class SmartThingsService
         return [$uid, $dev !== null ? (int) $dev : null];
     }
 
-    /** SmartThings 용 새 기기 (기기 수 한도 안에서) */
-    private function newDevice(int $uid): ?int
+    /** SmartThings 용 새 기기 (기기 수 한도 안에서). 1.1.0 이름 = SmartThings 기기 이름 · 필라멘트 보관 위치와 이름이 같으면 그 보관함에 붙임 */
+    private function newDevice(int $uid, string $name = 'SmartThings', ?string $location = null): ?int
     {
         if (DB::table(Schema::DEVICES)->where('user_id', $uid)->count() >= (int) Settings::get('max_devices')) {
             return null;
         }
 
-        return (int) DB::table(Schema::DEVICES)->insertGetId(['user_id' => $uid, 'token' => Rules::token(), 'name' => 'SmartThings', 'target' => 'other', 'source' => 'smartthings',
-            'entities' => json_encode(array_fill_keys(Rules::ENTITIES, '')), 'notify' => true, 'created_at' => now(), 'updated_at' => now()]);
+        return (int) DB::table(Schema::DEVICES)->insertGetId(['user_id' => $uid, 'token' => Rules::token(), 'name' => Rules::text($name, 60) ?: 'SmartThings', 'target' => $location !== null ? 'location' : 'other',
+            'location' => $location, 'source' => 'smartthings', 'entities' => json_encode(array_fill_keys(Rules::ENTITIES, '')), 'notify' => true, 'created_at' => now(), 'updated_at' => now()]);
     }
 
     /**
@@ -265,14 +288,15 @@ class SmartThingsService
         if ($i === null) {
             return;
         }
+        $cfg = self::config($i);
         $tok = $this->token($i);
         if ($tok === null) {
-            DB::table(Schema::ST_INSTALLS)->where('id', $id)->update(['status' => $i->user_id ? 'error' : 'unlinked', 'last_error' => 'SmartThings 토큰이 없어요 — 앱에서 설정을 한 번 더 저장해 주세요.']);
+            DB::table(Schema::ST_INSTALLS)->where('id', $id)->update(['status' => $i->user_id ? 'error' : 'unlinked',
+                'last_error' => 'SmartThings 토큰이 없어요 — '.($cfg['mode'] === 'oauth' ? '「🔗 다시 연결」을 눌러 주세요.' : '앱에서 설정을 한 번 더 저장해 주세요.')]);
 
             return;
         }
         $iid = (string) $i->installed_app_id;
-        $cfg = self::config($i);
         $set = [];
         if ($i->location_id) {
             [$st, $loc] = $this->api($tok, 'GET', '/locations/'.$i->location_id);
@@ -282,21 +306,35 @@ class SmartThingsService
                 $i->temp_scale = $set['temp_scale'];
             }
         }
-        $this->api($tok, 'DELETE', '/installedapps/'.$iid.'/subscriptions');
+        $oauth = $cfg['mode'] === 'oauth';
         $bad = 0;
-        foreach ($cfg['devices'] as $n => [$slot, $dev, $comp]) {
-            $body = SmartThings::subscription($slot, $dev, $comp, $n);
-            [$st] = $body ? $this->api($tok, 'POST', '/installedapps/'.$iid.'/subscriptions', $body) : [0];
-            if ($st < 200 || $st >= 300) {
-                $bad++;
+        if ($oauth) {
+            $bad = $this->subscribeDevices($tok, $iid, array_values(array_unique(array_column($cfg['devices'], 1))));
+        } else {
+            $this->api($tok, 'DELETE', '/installedapps/'.$iid.'/subscriptions');
+            foreach ($cfg['devices'] as $n => [$slot, $dev, $comp]) {
+                $body = SmartThings::subscription($slot, $dev, $comp, $n);
+                [$st] = $body ? $this->api($tok, 'POST', '/installedapps/'.$iid.'/subscriptions', $body) : [0];
+                if ($st < 200 || $st >= 300) {
+                    $bad++;
+                }
             }
         }
-        // 기기 이름 · 지금 값 — 화면에 바로 보이게
+        // 기기 이름 · 지금 값 — 화면에 바로 보이게 (로그인 연결은 목록 한 번으로 · 안 되면 하나씩)
         $labels = [];
         $status = [];
         $events = [];
+        $list = $oauth && $cfg['devices'] !== [] ? $this->listDevices($tok) : null;
+        foreach ($list ?? [] as $it) {
+            $dev = is_array($it) ? SmartThings::id($it['deviceId'] ?? '') : '';
+            $x = $dev !== '' ? SmartThings::listStatus($it) : ['components' => []];
+            if ($dev !== '' && $x['components'] !== []) {
+                $labels[$dev] = Rules::text($it['label'] ?? ($it['name'] ?? ''), 80);
+                $status[$dev] = $x;
+            }
+        }
         foreach ($cfg['devices'] as [$slot, $dev, $comp]) {
-            if (! isset($labels[$dev])) {
+            if (! isset($status[$dev])) {
                 [$st, $d] = $this->api($tok, 'GET', '/devices/'.$dev);
                 $labels[$dev] = $st === 200 ? Rules::text($d['label'] ?? ($d['name'] ?? ''), 80) : '';
                 [$st, $x] = $this->api($tok, 'GET', '/devices/'.$dev.'/status');
@@ -306,7 +344,8 @@ class SmartThingsService
         }
         DB::table(Schema::ST_SENSORS)->where('install_id', $id)->whereNotIn('st_device_id', array_column($cfg['devices'], 1) ?: ['-'])->delete();   // 뺀 기기의 값은 지움
         if ($i->user_id) {
-            $set += $bad ? ['status' => 'error', 'last_error' => '구독 '.$bad.'개를 만들지 못했어요 — 앱에서 설정을 다시 저장해 주세요.'] : ['status' => 'active'];
+            $again = $oauth ? '「⚙️ 센서 고르기」에서 다시 저장해 주세요.' : '앱에서 설정을 다시 저장해 주세요.';
+            $set += $bad ? ['status' => 'error', 'last_error' => '구독 '.$bad.'개를 만들지 못했어요 — 조금 뒤 '.$again] : ['status' => $oauth && $cfg['devices'] === [] ? 'choose' : 'active'];
         }
         DB::table(Schema::ST_INSTALLS)->where('id', $id)->update($set + ['updated_at' => self::now()]);
         $this->absorb(DB::table(Schema::ST_INSTALLS)->where('id', $id)->first(), $events, $labels);
@@ -361,7 +400,7 @@ class SmartThingsService
         }
         $cfg = self::config($i);
         $now = self::now();
-        $payload = [];
+        $byDev = [];
         $n = 0;
         foreach ($events as $ev) {
             $r = SmartThings::event($ev, $cfg['devices'], $i->temp_scale ?? null, (float) $cfg['power_on_w']);
@@ -375,17 +414,31 @@ class SmartThingsService
                 $vals['label'] = $labels[$s['device']];
             }
             DB::table(Schema::ST_SENSORS)->updateOrInsert($key, $vals);
-            $payload = array_merge($payload, $r['payload']);
+            $byDev[$s['device']] = array_merge($byDev[$s['device']] ?? [], $r['payload']);
             $n++;
         }
         if ($n === 0) {
             return;
         }
         DB::table(Schema::ST_INSTALLS)->where('id', $i->id)->update(['last_event_at' => $now]);
-        if ($i->user_id && $i->device_id) {
-            $tok = DB::table(Schema::DEVICES)->where('id', $i->device_id)->where('user_id', $i->user_id)->value('token');
-            if ($tok) {
-                $this->ha->ingest((string) $tok, $payload);
+        if (! $i->user_id) {
+            return;
+        }
+        // 넘길 사이트 기기 — 로그인 연결은 SmartThings 기기마다 (map), 예전 방식은 설치에 이은 기기 하나
+        $to = [];
+        foreach ($byDev as $dev => $payload) {
+            $site = $cfg['mode'] === 'oauth' ? ($cfg['map'][$dev] ?? 0) : (int) ($i->device_id ?? 0);
+            if ($site > 0) {
+                $to[$site] = array_merge($to[$site] ?? [], $payload);
+            }
+        }
+        if ($to === []) {
+            return;
+        }
+        $tokens = DB::table(Schema::DEVICES)->whereIn('id', array_keys($to))->where('user_id', $i->user_id)->pluck('token', 'id');
+        foreach ($to as $site => $payload) {
+            if (! empty($tokens[$site])) {
+                $this->ha->ingest((string) $tokens[$site], $payload);
             }
         }
     }
@@ -403,13 +456,24 @@ class SmartThingsService
 
     /* ───────── 토큰 ───────── */
 
-    /** @return array{devices: list<array{0: string, 1: string, 2: string}>, power_on_w: float} */
+    /**
+     * 저장해 둔 설정 — mode: oauth(1.1.0 로그인 연결) · smartapp(예전 연결 코드). map: SmartThings 기기 → 사이트 기기 (로그인 연결만)
+     *
+     * @return array{mode: string, devices: list<array{0: string, 1: string, 2: string}>, map: array<string, int>, power_on_w: float}
+     */
     private static function config(object $i): array
     {
         $c = json_decode((string) ($i->config ?? ''), true);
+        $map = [];
+        foreach (is_array($c['map'] ?? null) ? $c['map'] : [] as $k => $v) {
+            if (SmartThings::id($k) !== '' && is_numeric($v) && (int) $v > 0) {
+                $map[(string) $k] = (int) $v;
+            }
+        }
 
-        return ['devices' => array_values(array_filter(is_array($c['devices'] ?? null) ? $c['devices'] : [], static fn ($d) => is_array($d) && count($d) === 3 && isset(SmartThings::SLOTS[$d[0]]))),
-            'power_on_w' => is_numeric($c['power_on_w'] ?? null) ? (float) $c['power_on_w'] : 10.0];
+        return ['mode' => ($c['mode'] ?? '') === 'oauth' ? 'oauth' : 'smartapp',
+            'devices' => array_values(array_filter(is_array($c['devices'] ?? null) ? $c['devices'] : [], static fn ($d) => is_array($d) && count($d) === 3 && isset(SmartThings::SLOTS[$d[0]]))),
+            'map' => $map, 'power_on_w' => is_numeric($c['power_on_w'] ?? null) ? (float) $c['power_on_w'] : 10.0];
     }
 
     private static function enc(string $v): string
@@ -473,7 +537,8 @@ class SmartThingsService
                 break;   // 토큰이 안 맞음 — 다른 곳에 물어도 같음
             }
         }
-        DB::table(Schema::ST_INSTALLS)->where('id', $i->id)->update(['refreshing_at' => null, 'token_checked_at' => self::now(), 'last_error' => 'SmartThings 토큰을 새로 받지 못했어요 (HTTP '.$st.') — 앱에서 설정을 한 번 더 저장해 주세요.']);
+        $how = self::config($i)['mode'] === 'oauth' ? '「🔗 다시 연결」을 눌러 주세요.' : '앱에서 설정을 한 번 더 저장해 주세요.';
+        DB::table(Schema::ST_INSTALLS)->where('id', $i->id)->update(['refreshing_at' => null, 'token_checked_at' => self::now(), 'last_error' => 'SmartThings 토큰을 새로 받지 못했어요 (HTTP '.$st.') — '.$how]);
         $this->log('토큰 새로 받기 실패', ['install' => (int) $i->id, 'status' => $st]);
 
         return null;
@@ -505,7 +570,8 @@ class SmartThingsService
     /** @return array<string, mixed> */
     public function forUser(int $uid): array
     {
-        $out = ['ready' => self::ready() && Settings::get('st_client_id') !== '', 'code' => null, 'code_min' => (int) Settings::get('st_code_min'), 'installs' => []];
+        $out = ['ready' => self::ready() && Settings::get('st_client_id') !== '', 'oauth' => self::oauthReady(), 'code_flow' => (bool) Settings::get('st_code_flow'), 'max_picks' => SmartThings::MAX_PICKS,
+            'code' => null, 'code_min' => (int) Settings::get('st_code_min'), 'installs' => []];
         if ($uid <= 0 || ! Schema::ensure()) {
             return $out;
         }
@@ -516,9 +582,14 @@ class SmartThingsService
         $names = DB::table(Schema::DEVICES)->where('user_id', $uid)->pluck('name', 'id');
         $due = false;
         foreach (DB::table(Schema::ST_INSTALLS)->where('user_id', $uid)->orderBy('id')->get() as $i) {
-            $out['installs'][] = ['id' => (int) $i->id, 'location' => (string) ($i->location_name ?? ''), 'device_id' => $i->device_id && isset($names[$i->device_id]) ? (int) $i->device_id : null,
+            $cfg = self::config($i);
+            $oauth = $cfg['mode'] === 'oauth';
+            $map = array_filter($cfg['map'], static fn ($site) => isset($names[$site]));
+            $out['installs'][] = ['id' => (int) $i->id, 'mode' => $cfg['mode'], 'location' => (string) ($i->location_name ?? ''), 'device_id' => $i->device_id && isset($names[$i->device_id]) ? (int) $i->device_id : null,
                 'device_name' => $i->device_id ? (string) ($names[$i->device_id] ?? '') : '', 'status' => (string) $i->status, 'last_error' => (string) ($i->last_error ?? ''),
-                'last_event_at' => $i->last_event_at ? (string) $i->last_event_at : null, 'sensors' => $this->sensors((int) $i->id)];
+                'picked' => count(array_unique(array_column($cfg['devices'], 1))), 'site_devices' => array_values(array_unique(array_values($map))), 'power_on_w' => $cfg['power_on_w'],
+                'last_event_at' => $i->last_event_at ? (string) $i->last_event_at : null,
+                'sensors' => $this->sensors((int) $i->id, $oauth ? $map : null, $i->device_id && isset($names[$i->device_id]) ? (int) $i->device_id : null)];
             $due = $due || $i->token_checked_at === null || (string) $i->token_checked_at < self::at(-6 * 3600);
         }
         if ($due) {
@@ -533,13 +604,19 @@ class SmartThingsService
         return $out;
     }
 
-    /** @return list<array<string, mixed>> */
-    public function sensors(int $installId): array
+    /**
+     * 그 설치의 센서 값. site = 그 값이 보일 사이트 기기 (로그인 연결: SmartThings 기기마다 · 예전 방식: 설치에 이은 기기)
+     *
+     * @param  array<string, int>|null  $map  로그인 연결의 SmartThings 기기 → 사이트 기기 (예전 방식이면 null)
+     * @return list<array<string, mixed>>
+     */
+    public function sensors(int $installId, ?array $map = null, ?int $deviceId = null): array
     {
         $out = [];
-        foreach (DB::table(Schema::ST_SENSORS)->where('install_id', $installId)->orderBy('label')->orderBy('capability')->limit(60)->get() as $s) {
+        foreach (DB::table(Schema::ST_SENSORS)->where('install_id', $installId)->orderBy('label')->orderBy('capability')->limit(240)->get() as $s) {
             $out[] = ['label' => (string) ($s->label ?: 'SmartThings 기기'), 'capability' => (string) $s->capability, 'what' => SmartThings::LABELS[$s->capability] ?? (string) $s->attribute,
-                'attribute' => (string) $s->attribute, 'value' => SmartThings::show((string) $s->capability, (string) $s->value, (string) ($s->unit ?? '')), 'at' => $s->updated_at ? (string) $s->updated_at : null];
+                'attribute' => (string) $s->attribute, 'value' => SmartThings::show((string) $s->capability, (string) $s->value, (string) ($s->unit ?? '')), 'at' => $s->updated_at ? (string) $s->updated_at : null,
+                'site' => $map !== null ? ($map[(string) $s->st_device_id] ?? null) : $deviceId];
         }
 
         return $out;
@@ -591,10 +668,14 @@ class SmartThingsService
             return [false, '연결을 찾을 수 없어요.'];
         }
         $tok = $this->token($i);
+        $oauth = self::config($i)['mode'] === 'oauth';
+        if ($tok !== null && $oauth) {
+            $this->api($tok, 'DELETE', '/installedapps/'.$i->installed_app_id.'/subscriptions');   // 앱을 못 지워도 값은 더 안 오게
+        }
         $st = $tok !== null ? $this->api($tok, 'DELETE', '/installedapps/'.$i->installed_app_id)[0] : 0;
         $this->uninstall((string) $i->installed_app_id);
 
-        return [true, $st >= 200 && $st < 300 ? 'SmartThings 연결을 끊었어요.' : '사이트에서는 끊었어요 — SmartThings 앱의 자동화 › SmartApps 에서도 지워 주세요.'];
+        return [true, $st >= 200 && $st < 300 ? 'SmartThings 연결을 끊었어요.' : ($oauth ? '사이트에서는 끊었어요 — SmartThings 앱의 연결된 서비스에서도 이 사이트를 지워 주세요.' : '사이트에서는 끊었어요 — SmartThings 앱의 자동화 › SmartApps 에서도 지워 주세요.')];
     }
 
     public function removeUser(int $uid): void
@@ -603,6 +684,7 @@ class SmartThingsService
             $this->uninstall((string) $iid);
         }
         DB::table(Schema::ST_CODES)->where('user_id', $uid)->delete();
+        DB::table(Schema::ST_STATES)->where('user_id', $uid)->delete();
     }
 
     /** @return array<string, mixed> 관리자 화면 */
@@ -614,8 +696,382 @@ class SmartThingsService
         } catch (\Throwable) {
         }
 
-        return ['target_url' => self::targetUrl(), 'legacy_target_url' => self::legacyTargetUrl(), 'scopes' => SmartThings::SCOPES, 'confirmed_at' => $st['confirmed_at'] ?? null, 'confirm_status' => $st['confirm_status'] ?? null,
+        // 주소 확인은 지금 쓰는 앱(App ID)의 것일 때만 「확인됨」
+        $app = (string) Settings::get('st_app_id');
+        $ours = $app === '' || ($st['app_id'] ?? '') === '' || $st['app_id'] === $app;
+
+        return ['target_url' => self::targetUrl(), 'legacy_target_url' => self::legacyTargetUrl(), 'redirect_uri' => self::redirectUri(), 'https' => str_starts_with(self::targetUrl(), 'https://'),
+            'app_name' => SmartThings::appRequest(self::siteName(), '', '', '')['displayName'], 'oauth_ready' => self::oauthReady(),
+            'scopes' => SmartThings::SCOPES, 'confirmed_at' => $ours ? ($st['confirmed_at'] ?? null) : null, 'confirm_status' => $ours ? ($st['confirm_status'] ?? null) : null,
             'installs' => Schema::ensure() ? DB::table(Schema::ST_INSTALLS)->count() : 0, 'linked' => Schema::ensure() ? DB::table(Schema::ST_INSTALLS)->whereNotNull('user_id')->count() : 0];
+    }
+
+    /* ───────── 1.1.0 로그인 연결 (API Access App · OAuth) ───────── */
+
+    private static function siteName(): string
+    {
+        return Rules::text(config('app.name') ?: (parse_url((string) config('app.url'), PHP_URL_HOST) ?: '사이트'), 40) ?: '사이트';
+    }
+
+    /** 「SmartThings 연결하기」 — 그 회원의 일회용 state(15분 · 한 번)를 만들고 SmartThings 로그인 주소를 줌 @return array{0: bool, 1: string, 2?: array{url: string}} */
+    public function oauthStart(int $uid): array
+    {
+        if ($uid <= 0 || ! self::oauthReady() || ! Schema::ensure()) {
+            return [false, 'SmartThings 연결이 아직 준비되지 않았어요 — 관리자에게 알려 주세요.'];
+        }
+        DB::table(Schema::ST_STATES)->where('expires_at', '<', self::at(-3600))->delete();
+        $keep = DB::table(Schema::ST_STATES)->where('user_id', $uid)->whereNull('used_at')->orderByDesc('id')->limit(2)->pluck('id')->all();   // 쌓이지 않게 — 안 쓴 것은 최근 것만
+        DB::table(Schema::ST_STATES)->where('user_id', $uid)->whereNull('used_at')->whereNotIn('id', $keep ?: [0])->delete();
+        $state = SmartThings::newState();
+        DB::table(Schema::ST_STATES)->insert(['user_id' => $uid, 'state' => $state, 'expires_at' => self::at(900), 'created_at' => self::now()]);
+
+        return [true, 'ok', ['url' => SmartThings::authorizeUrl((string) Settings::get('st_client_id'), self::redirectUri(), $state)]];
+    }
+
+    /**
+     * SmartThings 에서 돌아옴 — state 가 **이 회원이 방금 만든 것**일 때만 code 를 토큰으로 바꿔 설치를 이음.
+     *  (남이 만든 주소로 허용하게 속여도 그 state 는 남의 것이라 이어지지 않음)
+     *
+     * @return array{0: bool, 1: string, 2?: array{install_id: int, choose: bool}}
+     */
+    public function oauthFinish(int $uid, string $code, string $state): array
+    {
+        if ($uid <= 0 || ! self::oauthReady() || ! Schema::ensure()) {
+            return [false, 'SmartThings 연결이 아직 준비되지 않았어요 — 관리자에게 알려 주세요.'];
+        }
+        if (! preg_match('/^[a-f0-9]{40}$/', $state) || ! preg_match('/^[A-Za-z0-9._~+\/=-]{1,512}$/', $code)) {
+            return [false, '연결 정보가 올바르지 않아요 — 「SmartThings 연결하기」를 다시 눌러 주세요.'];
+        }
+        $s = DB::table(Schema::ST_STATES)->where('state', $state)->where('user_id', $uid)->whereNull('used_at')->where('expires_at', '>', self::now())->first();
+        if ($s === null || ! DB::table(Schema::ST_STATES)->where('id', $s->id)->whereNull('used_at')->update(['used_at' => self::now()])) {
+            return [false, '연결 시간이 지났거나 이미 쓴 연결이에요 — 「SmartThings 연결하기」를 다시 눌러 주세요.'];
+        }
+        [$st, $j] = $this->redeem($code);
+        $at = is_string($j['access_token'] ?? null) ? $j['access_token'] : '';
+        $iid = SmartThings::id($j['installed_app_id'] ?? '');
+        if ($st !== 200 || $at === '' || $iid === '') {
+            $this->log('로그인 연결: 토큰 받기 실패', ['status' => $st]);
+            $why = SmartThings::errorText($j);
+
+            return [false, 'SmartThings 가 연결을 받아 주지 않았어요 (HTTP '.$st.($why !== '' ? ' · '.$why : '').') — 다시 연결해 주세요.'];
+        }
+        [$st2, $isa] = $this->api($at, 'GET', '/installedapps/'.$iid);
+        $loc = $st2 === 200 ? SmartThings::id($isa['locationId'] ?? '') : '';
+        $appId = $st2 === 200 ? SmartThings::id($isa['appId'] ?? '') : '';
+        if ($appId !== '' && Settings::get('st_app_id') !== $appId) {
+            Settings::save(['st_app_id' => $appId]);   // 우리 Client 로 받은 설치이므로 그 앱이 우리 앱 — App ID 를 안 적었거나 잘못 적었어도 맞춤 (틀리면 값 받기가 403)
+        }
+        $row = DB::table(Schema::ST_INSTALLS)->where('installed_app_id', $iid)->first();
+        $mine = $row !== null && (int) $row->user_id === $uid && self::config($row)['mode'] === 'oauth';
+        $cfg = $mine ? self::config($row) : ['mode' => 'oauth', 'devices' => [], 'map' => [], 'power_on_w' => 10.0];
+        // 같은 위치를 예전에 연결했던 것 (SmartThings 쪽에서 끊고 다시 연결하면 설치 id 가 바뀜) → 고른 센서를 물려받고 예전 줄은 지움
+        if (! $mine && $loc !== '') {
+            foreach (DB::table(Schema::ST_INSTALLS)->where('user_id', $uid)->where('location_id', $loc)->where('installed_app_id', '!=', $iid)->get() as $old) {
+                $oc = self::config($old);
+                if ($oc['mode'] === 'oauth') {
+                    $cfg = $cfg['devices'] === [] ? $oc : $cfg;
+                    DB::table(Schema::ST_SENSORS)->where('install_id', $old->id)->delete();
+                    DB::table(Schema::ST_INSTALLS)->where('id', $old->id)->delete();
+                }
+            }
+        }
+        $rt = is_string($j['refresh_token'] ?? null) && $j['refresh_token'] !== '' ? self::enc($j['refresh_token']) : null;
+        $set = ['user_id' => $uid, 'device_id' => null, 'location_id' => $loc !== '' ? $loc : ($row->location_id ?? null), 'app_id' => $appId !== '' ? $appId : null, 'auth_token' => self::enc($at), 'refresh_token' => $rt,
+            'token_expires_at' => self::at(max(600, (int) ($j['expires_in'] ?? 86400)) - 300), 'refreshing_at' => null, 'token_checked_at' => self::now(), 'config' => json_encode($cfg),
+            'status' => $cfg['devices'] === [] ? 'choose' : 'syncing', 'last_error' => null, 'updated_at' => self::now()];
+        if ($row !== null) {
+            if (! $mine) {
+                DB::table(Schema::ST_SENSORS)->where('install_id', $row->id)->delete();   // 다른 회원이 연결했던 위치 — 지금 로그인한 사람의 것으로
+            }
+            DB::table(Schema::ST_INSTALLS)->where('id', $row->id)->update($set);
+            $id = (int) $row->id;
+        } else {
+            $id = (int) DB::table(Schema::ST_INSTALLS)->insertGetId($set + ['installed_app_id' => $iid, 'created_at' => self::now()]);
+        }
+        $this->sync($id);   // 위치 이름 · 온도 단위 (+ 다시 연결이면 구독 · 지금 값)
+
+        return [true, $cfg['devices'] === [] ? 'SmartThings 와 연결했어요 — 받을 센서를 골라 주세요.' : 'SmartThings 를 다시 연결했어요.', ['install_id' => $id, 'choose' => $cfg['devices'] === []]];
+    }
+
+    /**
+     * code → 토큰 (POST …/oauth/token · Basic base64(clientId:clientSecret) · grant_type=authorization_code)
+     *  code 는 한 번만 쓸 수 있으므로 「그런 주소 없음」(404 · 405 · 연결 실패)일 때만 다음 곳에 물음
+     *
+     * @return array{0: int, 1: array<string, mixed>}
+     */
+    private function redeem(string $code): array
+    {
+        $cid = (string) Settings::get('st_client_id');
+        $hdr = ['Authorization: Basic '.base64_encode($cid.':'.self::clientSecret()), 'Content-Type: application/x-www-form-urlencoded', 'Accept: application/json'];
+        $body = http_build_query(['grant_type' => 'authorization_code', 'code' => $code, 'client_id' => $cid, 'redirect_uri' => self::redirectUri()]);
+        $st = 0;
+        $j = [];
+        foreach (SmartThings::TOKEN_URLS as $url) {
+            [$st, $res] = $this->http('POST', $url, $hdr, $body);
+            $j = json_decode((string) $res, true);
+            if (! in_array($st, [0, 404, 405], true)) {
+                break;
+            }
+        }
+
+        return [$st, is_array($j) ? $j : []];
+    }
+
+    /** 내 로그인 연결 설치 (남의 것 · 예전 방식이면 null) */
+    private function ownOauth(int $uid, int $id): ?object
+    {
+        $i = $uid > 0 && Schema::ensure() ? DB::table(Schema::ST_INSTALLS)->where('id', $id)->where('user_id', $uid)->first() : null;
+
+        return $i !== null && self::config($i)['mode'] === 'oauth' ? $i : null;
+    }
+
+    /** 그 설치(위치)의 SmartThings 기기 — 지금 값과 함께 (5쪽까지). 못 받으면 null @return list<mixed>|null */
+    private function listDevices(string $tok): ?array
+    {
+        $out = [];
+        $path = '/devices?includeStatus=true';
+        for ($n = 0; $n < 5 && $path !== null; $n++) {
+            [$st, $j] = $this->api($tok, 'GET', $path);
+            if ($st !== 200) {
+                return $n === 0 ? null : $out;
+            }
+            array_push($out, ...array_values(is_array($j['items'] ?? null) ? $j['items'] : []));
+            $next = $j['_links']['next']['href'] ?? null;
+            $path = is_string($next) && str_starts_with($next, SmartThings::API.'/') ? substr($next, strlen(SmartThings::API)) : null;
+        }
+
+        return $out;
+    }
+
+    /**
+     * 「⚙️ 센서 고르기」 목록 — 받을 수 있는 값이 있는 SmartThings 기기 · 지금 값 · 고른 것 · 붙은 사이트 기기 (이름이 같은 사이트 기기가 있으면 권함)
+     *
+     * @return array{0: bool, 1: string, 2?: array<string, mixed>}
+     */
+    public function oauthDevices(int $uid, int $id): array
+    {
+        $i = $this->ownOauth($uid, $id);
+        if ($i === null) {
+            return [false, '연결을 찾을 수 없어요.'];
+        }
+        $tok = $this->token($i);
+        if ($tok === null) {
+            return [false, 'SmartThings 로그인이 끝났어요 — 「🔗 다시 연결」을 눌러 주세요.'];
+        }
+        $items = $this->listDevices($tok);
+        if ($items === null) {
+            return [false, 'SmartThings 에서 기기 목록을 받지 못했어요 — 조금 뒤 다시 해 주세요.'];
+        }
+        $cfg = self::config($i);
+        $picked = array_flip(array_column($cfg['devices'], 1));
+        $mine = DB::table(Schema::DEVICES)->where('user_id', $uid)->orderBy('id')->pluck('name', 'id');
+        $byName = [];
+        foreach ($mine as $did => $name) {
+            $byName[Rules::loc($name)] ??= (int) $did;
+        }
+        $rows = [];
+        foreach (SmartThings::candidates($items, $i->temp_scale ?? null) as $c) {
+            $site = isset($cfg['map'][$c['id']], $mine[$cfg['map'][$c['id']]]) ? $cfg['map'][$c['id']] : null;
+            $vals = [];
+            foreach (array_keys($c['caps']) as $cap) {
+                $vals[] = ['what' => SmartThings::LABELS[$cap] ?? $cap, 'value' => $c['values'][$cap] ?? ''];
+            }
+            $rows[] = ['id' => $c['id'], 'label' => $c['label'], 'kind' => $c['kind'], 'values' => $vals, 'picked' => isset($picked[$c['id']]), 'site_device_id' => $site, 'suggest' => $site ?? ($byName[Rules::loc($c['label'])] ?? null)];
+        }
+
+        return [true, 'ok', ['install_id' => (int) $i->id, 'location' => (string) ($i->location_name ?? ''), 'devices' => $rows, 'max' => SmartThings::MAX_PICKS, 'power_on_w' => $cfg['power_on_w'],
+            'room' => max(0, (int) Settings::get('max_devices') - count($mine))]];
+    }
+
+    /**
+     * 센서 고른 것 저장 — SmartThings 기기 하나가 사이트 기기 하나 (없으면 그 이름으로 새로 · 필라멘트 보관 위치와 이름이 같으면 그 보관함에).
+     *  지금 값은 바로 넣고, 구독은 응답을 보낸 뒤에 맞춤. 고른 것에서 뺀 기기의 사이트 기기 · 기록은 남김.
+     *
+     * @param  list<mixed>  $picks  [{id: SmartThings 기기 id, site_device_id: 붙일 내 사이트 기기 | null}]
+     * @return array{0: bool, 1: string}
+     */
+    public function oauthPick(int $uid, int $id, array $picks, mixed $powerOnW = null): array
+    {
+        $i = $this->ownOauth($uid, $id);
+        if ($i === null) {
+            return [false, '연결을 찾을 수 없어요.'];
+        }
+        if (count($picks) > SmartThings::MAX_PICKS) {
+            return [false, '센서는 '.SmartThings::MAX_PICKS.'개까지 고를 수 있어요.'];
+        }
+        $tok = $this->token($i);
+        $items = $tok !== null ? $this->listDevices($tok) : null;
+        if ($items === null) {
+            return [false, $tok === null ? 'SmartThings 로그인이 끝났어요 — 「🔗 다시 연결」을 눌러 주세요.' : 'SmartThings 에서 기기 목록을 받지 못했어요 — 조금 뒤 다시 해 주세요.'];
+        }
+        $raw = [];
+        foreach ($items as $it) {
+            if (is_array($it) && ($x = SmartThings::id($it['deviceId'] ?? '')) !== '') {
+                $raw[$x] = $it;
+            }
+        }
+        $cand = array_column(SmartThings::candidates($items, $i->temp_scale ?? null), null, 'id');
+        $old = self::config($i);
+        $mine = DB::table(Schema::DEVICES)->where('user_id', $uid)->pluck('name', 'id')->all();
+        $locs = [];
+        foreach ($this->ha->locations($uid) as $l) {
+            $locs[Rules::loc($l)] = $l;
+        }
+        $triples = [];
+        $map = [];
+        $labels = [];
+        $made = 0;
+        $skip = [];
+        foreach ($picks as $p) {
+            $sid = is_array($p) ? SmartThings::id($p['id'] ?? '') : '';
+            if ($sid === '' || ! isset($cand[$sid]) || isset($map[$sid])) {
+                continue;   // SmartThings 에 (더는) 없는 기기 · 두 번 온 것
+            }
+            $c = $cand[$sid];
+            $site = is_array($p) && is_numeric($p['site_device_id'] ?? null) ? (int) $p['site_device_id'] : 0;
+            if ($site <= 0 || ! isset($mine[$site])) {
+                $site = isset($old['map'][$sid], $mine[$old['map'][$sid]]) ? $old['map'][$sid] : 0;   // 남의 기기 · 없는 기기로는 못 붙임 → 예전에 붙였던 것 · 없으면 새로
+            }
+            if ($site <= 0) {
+                $site = (int) $this->newDevice($uid, $c['label'], $locs[Rules::loc($c['label'])] ?? null);
+                if ($site <= 0) {
+                    $skip[] = $c['label'];
+
+                    continue;   // 기기 수 한도
+                }
+                $mine[$site] = $c['label'];
+                $made++;
+            }
+            $map[$sid] = $site;
+            $labels[$sid] = $c['label'];
+            array_push($triples, ...SmartThings::triples($sid, $c['caps']));
+        }
+        $w = is_numeric($powerOnW) ? max(0.5, min(5000.0, (float) $powerOnW)) : $old['power_on_w'];
+        DB::table(Schema::ST_INSTALLS)->where('id', $i->id)->update(['config' => json_encode(['mode' => 'oauth', 'devices' => $triples, 'map' => $map, 'power_on_w' => $w]),
+            'status' => $triples === [] ? 'choose' : 'syncing', 'last_error' => null, 'updated_at' => self::now()]);
+        DB::table(Schema::ST_SENSORS)->where('install_id', $i->id)->whereNotIn('st_device_id', array_keys($map) ?: ['-'])->delete();
+        // 지금 값 — 방금 받은 목록의 값으로 바로 (화면에 곧바로 보이게)
+        $events = [];
+        foreach ($triples as [$slot, $dev, $comp]) {
+            array_push($events, ...SmartThings::statusEvents(SmartThings::listStatus($raw[$dev] ?? []), $dev, $comp, SmartThings::SLOTS[$slot][0]));
+        }
+        $this->absorb(DB::table(Schema::ST_INSTALLS)->where('id', $i->id)->first(), $events, $labels);
+        $iid = (int) $i->id;
+        $this->later(fn () => $this->sync($iid));
+        $n = count($map);
+        $msg = $n === 0 ? '고른 센서가 없어요 — 값을 받지 않아요.' : '센서 '.$n.'개를 이었어요'.($made > 0 ? ' (새 기기 '.$made.'개)' : '').' — 값이 바뀔 때마다 바로 들어와요.';
+
+        return [true, $msg.($skip !== [] ? ' 기기 수 한도('.Settings::get('max_devices').'개)라 못 만든 것: '.implode(' · ', array_slice($skip, 0, 5)) : '')];
+    }
+
+    /**
+     * 구독 맞추기 (로그인 연결) — 고른 기기마다 하나. 이미 있는 것은 두고, 뺀 것만 지우고, 새 것만 만듦 (구독 만들기는 15분에 40번쯤까지라서 다시 만들지 않음). 못 만든 수.
+     *
+     * @param  list<string>  $want  SmartThings 기기 id
+     */
+    private function subscribeDevices(string $tok, string $iid, array $want): int
+    {
+        $base = '/installedapps/'.$iid.'/subscriptions';
+        [$st, $j] = $this->api($tok, 'GET', $base);
+        $have = [];
+        $stale = [];
+        foreach ($st === 200 && is_array($j['items'] ?? null) ? $j['items'] : [] as $sub) {
+            $sid = is_array($sub) ? SmartThings::id($sub['id'] ?? '') : '';
+            $dev = is_array($sub) ? SmartThings::id($sub['device']['deviceId'] ?? '') : '';
+            if (is_array($sub) && ($sub['sourceType'] ?? '') === 'DEVICE' && $sid !== '' && $dev !== '' && in_array($dev, $want, true) && ! isset($have[$dev]) && ($sub['device']['capability'] ?? '*') === '*') {
+                $have[$dev] = $sid;
+            } else {
+                $stale[] = $sid;
+            }
+        }
+        if ($st !== 200 || count($stale) > 5 || in_array('', $stale, true)) {
+            $this->api($tok, 'DELETE', $base);   // 목록을 못 받았거나 지울 것이 많음 — 모두 지우고 새로
+            $have = [];
+        } else {
+            foreach ($stale as $sid) {
+                $this->api($tok, 'DELETE', $base.'/'.$sid);
+            }
+        }
+        $bad = 0;
+        foreach ($want as $dev) {
+            if (isset($have[$dev])) {
+                continue;
+            }
+            [$s2] = $this->api($tok, 'POST', $base, SmartThings::deviceSubscription($dev));
+            if ($s2 < 200 || $s2 >= 300) {
+                $bad++;
+            }
+        }
+
+        return $bad;
+    }
+
+    /**
+     * 사이트 기기를 지웠을 때 — 예전 방식: 설치에 이은 기기를 비움 (연결은 남김) · 로그인 연결: 그 기기에 붙인 SmartThings 센서를 고른 것에서 빼고 구독도 지움
+     */
+    public function deviceDeleted(int $uid, int $deviceId): void
+    {
+        DB::table(Schema::ST_INSTALLS)->where('device_id', $deviceId)->update(['device_id' => null, 'last_error' => '이은 기기를 지웠어요 — 값을 넘길 기기를 골라 주세요.']);
+        foreach (DB::table(Schema::ST_INSTALLS)->where('user_id', $uid)->get() as $i) {
+            $cfg = self::config($i);
+            $gone = $cfg['mode'] === 'oauth' ? array_map('strval', array_keys($cfg['map'], $deviceId, true)) : [];
+            if ($gone === []) {
+                continue;
+            }
+            $cfg['map'] = array_diff_key($cfg['map'], array_flip($gone));
+            $cfg['devices'] = array_values(array_filter($cfg['devices'], static fn ($d) => ! in_array($d[1], $gone, true)));
+            DB::table(Schema::ST_INSTALLS)->where('id', $i->id)->update(['config' => json_encode($cfg), 'status' => $cfg['devices'] === [] ? 'choose' : $i->status, 'updated_at' => self::now()]);
+            DB::table(Schema::ST_SENSORS)->where('install_id', $i->id)->whereIn('st_device_id', $gone)->delete();
+            $id = (int) $i->id;
+            $this->later(fn () => $this->sync($id));
+        }
+    }
+
+    /**
+     * 관리자 「⚡ 자동 등록」 — 관리자의 개인 액세스 토큰(PAT)으로 SmartThings 에 API Access App(OAuth-In)을 만들고 Client ID · Client Secret 을 저장.
+     *  SmartThings CLI 의 `smartthings apps:create` 와 같은 요청 (POST /v1/apps). 토큰은 이 요청에만 쓰고 저장 · 기록하지 않음.
+     *  주소 확인(CONFIRMATION)은 SmartThings 가 받는 곳으로 보내면 사이트가 알아서 답함.
+     *
+     * @return array{0: bool, 1: string}
+     */
+    public function register(string $pat): array
+    {
+        $pat = trim($pat);
+        if (! preg_match('/^[A-Za-z0-9._-]{20,200}$/', $pat)) {
+            return [false, '토큰 모양이 아니에요 — account.smartthings.com/tokens 에서 만든 토큰을 그대로 붙여 넣어 주세요.'];
+        }
+        if (! str_starts_with(self::targetUrl(), 'https://')) {
+            return [false, '사이트 주소(APP_URL)가 https 여야 SmartThings 에 등록할 수 있어요.'];
+        }
+        if (! Schema::ensure()) {
+            return [false, '잠시 뒤 다시 해 주세요.'];
+        }
+        $b = bin2hex(random_bytes(16));
+        $uuid = substr($b, 0, 8).'-'.substr($b, 8, 4).'-4'.substr($b, 13, 3).'-a'.substr($b, 17, 3).'-'.substr($b, 20, 12);
+        [$st, $j] = $this->api($pat, 'POST', '/apps', SmartThings::appRequest(self::siteName(), self::targetUrl(), self::redirectUri(), $uuid));
+        $cid = SmartThings::id($j['oauthClientId'] ?? '');
+        $sec = is_string($j['oauthClientSecret'] ?? null) ? trim($j['oauthClientSecret']) : '';
+        $appId = SmartThings::id($j['app']['appId'] ?? '');
+        if ($st < 200 || $st >= 300 || $cid === '' || $sec === '') {
+            $this->log('앱 자동 등록 실패', ['status' => $st]);
+            $why = SmartThings::errorText($j);
+            $hint = match (true) {
+                $st === 401 => '토큰이 틀렸거나 시간이 지났어요 (토큰은 24시간만 살아 있어요).',
+                $st === 403 => '이 토큰으로는 앱을 만들 수 없어요 — 토큰을 만들 때 「애플리케이션(Applications)」 권한을 체크했는지, SmartThings API 플랜(유료)이 필요한 계정은 아닌지 확인해 주세요.',
+                $st === 422 || $st === 400 => 'SmartThings 가 등록 내용을 받아 주지 않았어요.',
+                $st === 0 => 'SmartThings 에 연결하지 못했어요 — 서버에서 api.smartthings.com 으로 나갈 수 있는지 확인해 주세요.',
+                default => '아래 「📝 직접 등록」으로 해 주세요.',
+            };
+
+            return [false, '자동 등록을 못 했어요 (HTTP '.$st.($why !== '' ? ' · '.$why : '').') — '.$hint];
+        }
+        Settings::save(['st_enabled' => true, 'st_app_id' => $appId, 'st_client_id' => $cid, 'st_client_secret' => 'enc:'.self::enc($sec)]);
+        if ($appId !== '') {
+            $this->api($pat, 'PUT', '/apps/'.$appId.'/register');   // 주소 확인 요청을 (다시) 보내 달라고 — 사이트가 알아서 답함
+        }
+        $this->log('앱 자동 등록', ['status' => $st]);
+
+        return [true, 'SmartThings 에 등록했어요 — Client ID · Client Secret 을 저장하고 연결을 켰어요. 주소 확인(✅)은 잠시 뒤 화면을 새로 고치면 보여요.'];
     }
 
     /* ───────── 바깥 요청 ───────── */

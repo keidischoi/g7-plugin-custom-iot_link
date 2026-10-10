@@ -64,7 +64,7 @@ namespace {
     check(str_contains($admin, '/api/plugins/custom-iot_link/assets/iot-link-app.js?v='.$pj['version']) && str_contains($admin, '$t:custom-iot_link.settings.title') && ! str_contains($admin, 'custom-ha_link'), '관리자 레이아웃 — 새 식별자 · 새 자산');
 
     echo "■ 그대로 둔 것 (데이터가 이어짐)\n";
-    check(Plugin::TABLES === ['hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links', 'hal_st_installs', 'hal_st_sensors', 'hal_st_codes'], '표 이름 hal_* 그대로');
+    check(Plugin::TABLES === ['hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links', 'hal_st_installs', 'hal_st_sensors', 'hal_st_codes', 'hal_st_states'] && Plugin::TABLES === \Plugins\Custom\IotLink\Support\Schema::TABLES, '표 이름 hal_* 그대로 (1.1.0 hal_st_states 더함) · 플러그인 = 표 정의');
     $defs = (new Plugin())->getNotificationDefinitions();
     check(Notify::TYPE === 'custom_ha_link_alert' && $defs[0]['type'] === Notify::TYPE && $defs[0]['hook_prefix'] === 'custom-iot_link', '알림 종류 키 그대로 (관리자가 고친 문구가 이어짐) · hook_prefix 는 새 식별자');
     check(MenuListener::KEY === 'ha_link' && MenuListener::PATH === '/iot-link', '홈 디자인 메뉴 키 ha_link 그대로 · 메뉴 주소 /iot-link');
@@ -125,6 +125,13 @@ namespace {
     check($match('GET', '/api/plugins/custom-ha_link/hub/'.$tok) === $C.'HaController@hub' && $match('DELETE', '/api/plugins/custom-ha_link/hub/'.$tok.'/devices/3') === $C.'HaController@hubDelete', 'HACS 허브: 예전 주소');
     check($match('POST', '/api/plugins/custom-ha_link/smartthings') === $C.'SmartThingsController@webhook' && $match('POST', '/api/plugins/custom-iot_link/smartthings') === $C.'SmartThingsController@webhook', 'SmartThings Target URL: 예전 · 새 주소');
     check($match('GET', '/api/plugins/custom-ha_link/assets/ha-link-app.js') === $C.'AssetController@show' && $match('GET', '/api/plugins/custom-iot_link/assets/iot-link.css') === $C.'AssetController@show' && $match('GET', '/api/plugins/custom-iot_link/assets/other.js') === null, '자산: 예전 이름 · 새 이름 · 그 밖은 없음');
+    // 1.1.0 SmartThings 로그인 연결 — 새 주소 · 예전 주소 모두 · 로그인(auth:sanctum) 뒤
+    $om = $router->getRoutes()->match(Request::create('/api/plugins/custom-iot_link/smartthings/oauth/finish', 'POST'));
+    $rm = $router->getRoutes()->match(Request::create('/api/plugins/custom-iot_link/admin/smartthings/register', 'POST'));
+    check($match('POST', '/api/plugins/custom-iot_link/smartthings/oauth/start') === $C.'SmartThingsController@oauthStart' && $om->getActionName() === $C.'SmartThingsController@oauthFinish' && in_array('auth:sanctum', $om->gatherMiddleware(), true) && in_array('throttle:10,1', $om->gatherMiddleware(), true)
+        && $match('GET', '/api/plugins/custom-iot_link/smartthings/installs/3/devices') === $C.'SmartThingsController@devices' && $match('PUT', '/api/plugins/custom-ha_link/smartthings/installs/3/devices') === $C.'SmartThingsController@pick' && $match('GET', '/api/plugins/custom-iot_link/smartthings/installs/x/devices') === null
+        && $match('GET', '/api/plugins/custom-iot_link/smartthings/oauth/finish') === null && $rm->getActionName() === $C.'AdminController@register' && in_array('permission:admin,core.plugins.update', $rm->gatherMiddleware(), true) && in_array('auth:sanctum', $rm->gatherMiddleware(), true),
+        '1.1.0 SmartThings 로그인 연결 · 센서 고르기 · 자동 등록 라우트 (로그인 · 권한 · 1분 한도)');
     check($match('POST', '/api/plugins/custom-ha_link/in/nothex') === null && $match('GET', '/api/plugins/custom-ha_link/in/'.$tok) === null, '예전 주소도 조건 그대로 (32자 hex · POST 만)');
     $sm = $router->getRoutes()->match(Request::create('/api/plugins/custom-ha_link/smartthings', 'POST'));
     check(in_array('throttle:600,1', $sm->gatherMiddleware(), true) && in_array('api', $sm->gatherMiddleware(), true), '예전 SmartThings 주소도 api · 1분 600번 제한');
@@ -144,7 +151,7 @@ namespace {
 
     echo "■ 새 주소로 안내\n";
     check(str_contains($read('src/Services/HaService.php'), "'/api/plugins/custom-iot_link/in/'") && str_contains($read('src/Services/SmartThingsService.php'), "'/api/plugins/custom-iot_link/smartthings'")
-        && \Plugins\Custom\IotLink\Services\SmartThingsService::legacyTargetUrl() === 'https://3ds.test/api/plugins/custom-ha_link/smartthings' && \Plugins\Custom\IotLink\Services\SmartThingsService::targetUrl() === 'https://3ds.test/api/plugins/custom-iot_link/smartthings', '설정 글 push_url · SmartThings Target URL 은 새 주소 (예전 주소도 알려 줌)');
+        && \Plugins\Custom\IotLink\Services\SmartThingsService::legacyTargetUrl() === 'https://3ds.test/api/plugins/custom-ha_link/smartthings' && \Plugins\Custom\IotLink\Services\SmartThingsService::targetUrl() === 'https://3ds.test/api/plugins/custom-iot_link/smartthings' && \Plugins\Custom\IotLink\Services\SmartThingsService::redirectUri() === 'https://3ds.test/iot-link', '설정 글 push_url · SmartThings Target URL 은 새 주소 (예전 주소도 알려 줌)');
     check(str_contains($read('README.md'), 'plugin:install custom-iot_link') && str_contains($read('README.md'), 'plugin:deactivate custom-ha_link') && str_contains($read('CHANGELOG.md'), '## '.$pj['version']), 'README 옮기기 순서 · CHANGELOG');
 
     echo "\n".($fail === 0 ? "OK ({$pass} checks)" : "{$fail} FAILED / ".($pass + $fail))."\n";

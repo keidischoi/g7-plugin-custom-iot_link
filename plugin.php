@@ -21,6 +21,8 @@ use Plugins\Custom\IotLink\Support\Settings;
  *  - 상태: 가동 시간 기록 → 정비 수첩의 「가동 몇 시간마다」 · 내 프린터에 붙인 기기는 출력 상태를 그 프린터로 넘김
  *  - 사이트가 회원 집으로 접속하지 않음 (회원 쪽에서 보내오는 값만 받음) · 화면: /iot-link · 관리자: /admin/iot-link
  *  - 0.2.0 SmartThings (WebHook SmartApp) — 회원이 SmartThings 앱에서 센서를 고르면 값이 바뀔 때마다 바로 들어옴 (같은 받기로)
+ *  - 1.1.0 SmartThings 로그인 연결 (API Access App · OAuth) — 회원은 「SmartThings 연결하기」 → 삼성 계정 로그인 → 허용 → 사이트에서 센서 고르기.
+ *    센서 하나가 사이트 기기 하나. 예전 연결 코드(SmartApp) 방식은 설정으로 켰을 때만.
  */
 class Plugin extends AbstractPlugin
 {
@@ -33,7 +35,7 @@ class Plugin extends AbstractPlugin
 
     public const USER_LAYOUT = 'custom-iot_link.iot_link';
 
-    public const TABLES = ['hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links', 'hal_st_installs', 'hal_st_sensors', 'hal_st_codes'];
+    public const TABLES = ['hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links', 'hal_st_installs', 'hal_st_sensors', 'hal_st_codes', 'hal_st_states'];
 
     private static bool $autoload = false;
 

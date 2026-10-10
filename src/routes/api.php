@@ -48,9 +48,16 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () {
     Route::post('smartthings/code', [SmartThingsController::class, 'code'])->middleware('throttle:10,1')->name('smartthings.code');
     Route::put('smartthings/installs/{id}', [SmartThingsController::class, 'relink'])->whereNumber('id')->name('smartthings.relink');
     Route::delete('smartthings/installs/{id}', [SmartThingsController::class, 'disconnect'])->whereNumber('id')->name('smartthings.disconnect');
+    // 1.1.0 SmartThings 로그인 연결 (API Access App · OAuth) — 로그인 주소 받기 · 돌아와서 잇기(state 가 그 회원 것일 때만) · 센서 목록 · 고른 것 저장
+    Route::post('smartthings/oauth/start', [SmartThingsController::class, 'oauthStart'])->middleware('throttle:10,1')->name('smartthings.oauth.start');
+    Route::post('smartthings/oauth/finish', [SmartThingsController::class, 'oauthFinish'])->middleware('throttle:10,1')->name('smartthings.oauth.finish');
+    Route::get('smartthings/installs/{id}/devices', [SmartThingsController::class, 'devices'])->whereNumber('id')->middleware('throttle:20,1')->name('smartthings.devices');
+    Route::put('smartthings/installs/{id}/devices', [SmartThingsController::class, 'pick'])->whereNumber('id')->middleware('throttle:20,1')->name('smartthings.devices.pick');
 
     Route::get('admin/settings', [AdminController::class, 'show'])->middleware('permission:admin,core.plugins.read')->name('admin.settings.show');
     Route::put('admin/settings', [AdminController::class, 'save'])->middleware('permission:admin,core.plugins.update')->name('admin.settings.save');
+    // 1.1.0 SmartThings 앱 자동 등록 (관리자의 개인 액세스 토큰으로 — 저장하지 않음)
+    Route::post('admin/smartthings/register', [AdminController::class, 'register'])->middleware(['permission:admin,core.plugins.update', 'throttle:6,1'])->name('admin.smartthings.register');
 });
 
 // 1.0.0 예전 주소 /api/plugins/custom-ha_link/… → 위와 같은 컨트롤러 (같은 미들웨어 · 제한 · 조건)
