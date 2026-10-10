@@ -94,17 +94,59 @@ namespace {
     $sb = DB::connection()->getSchemaBuilder();
     $sb->create('mpr_printers', function ($t) { $t->id(); $t->integer('user_id'); $t->string('brand'); $t->string('model'); $t->string('nickname')->nullable(); $t->string('hook_token'); $t->integer('sort')->default(0); });
     DB::table('mpr_printers')->insert([['id' => 5, 'user_id' => 1, 'brand' => 'Bambu Lab', 'model' => 'P1S', 'nickname' => '거실', 'hook_token' => str_repeat('a', 32)], ['id' => 7, 'user_id' => 2, 'brand' => 'X', 'model' => 'Y', 'nickname' => null, 'hook_token' => str_repeat('b', 32)]]);
-    $sb->create('cmp_companies', function ($t) { $t->id(); $t->string('name'); $t->timestamp('deleted_at')->nullable(); });
-    $sb->create('cmp_members', function ($t) { $t->id(); $t->integer('company_id'); $t->integer('user_id'); $t->string('role'); $t->string('status')->default('active'); });
-    $sb->create('cmp_equipment', function ($t) { $t->id(); $t->integer('company_id'); $t->string('kind'); $t->string('brand')->nullable(); $t->string('model')->nullable(); $t->integer('sort')->default(0); $t->timestamp('deleted_at')->nullable(); });
-    DB::table('cmp_companies')->insert([['id' => 10, 'name' => '삼디 공방'], ['id' => 11, 'name' => '남의 업체']]);
-    DB::table('cmp_members')->insert([['company_id' => 10, 'user_id' => 1, 'role' => 'owner', 'status' => 'active'], ['company_id' => 11, 'user_id' => 2, 'role' => 'owner', 'status' => 'active']]);
-    DB::table('cmp_equipment')->insert([['id' => 100, 'company_id' => 10, 'kind' => 'fdm', 'brand' => 'Bambu Lab', 'model' => 'X1C'], ['id' => 102, 'company_id' => 11, 'kind' => 'sla', 'brand' => 'Elegoo', 'model' => 'Mars']]);
-    $sb->create('cmp_spools', function ($t) { $t->id(); $t->integer('company_id'); $t->string('material'); $t->string('color')->nullable(); $t->string('brand')->nullable(); $t->string('status'); $t->string('location')->nullable(); $t->timestamp('deleted_at')->nullable(); });
-    DB::table('cmp_spools')->insert([['company_id' => 10, 'material' => 'PETG', 'color' => '빨강', 'brand' => 'eSun', 'status' => 'in_use', 'location' => '드라이박스'], ['company_id' => 11, 'material' => 'PA', 'color' => null, 'brand' => null, 'status' => 'in_use', 'location' => '드라이박스'],
-        ['company_id' => 10, 'material' => 'PLA', 'color' => null, 'brand' => null, 'status' => 'new', 'location' => '드라이박스']]);
-    $sb->create('mnt_spools', function ($t) { $t->id(); $t->integer('user_id'); $t->string('name'); $t->string('material'); $t->string('location')->nullable(); $t->string('status')->default('open'); });
-    DB::table('mnt_spools')->insert([['user_id' => 1, 'name' => 'PETG 검정', 'material' => 'PETG', 'location' => '드라이 박스', 'status' => 'open'], ['user_id' => 1, 'name' => 'PLA 흰색', 'material' => 'PLA', 'location' => 'AMS', 'status' => 'open'], ['user_id' => 2, 'name' => '남의 것', 'material' => 'PA', 'location' => '드라이박스', 'status' => 'open']]);
+    // 1.4.0 업체검색 · 재고 관리는 가짜 Api 로 (그 표를 만들지 않음 — 직접 읽지 않는지 함께 봄)
+    final class FakeCompanies
+    {
+        public static function active(): bool
+        {
+            return true;
+        }
+
+        public static function companiesOf(int $uid, array $roles = ['owner', 'manager']): array
+        {
+            return ['1' => [['id' => 10, 'name' => '삼디 공방', 'kind' => 'shop', 'role' => 'owner']], '2' => [['id' => 11, 'name' => '남의 업체', 'kind' => 'shop', 'role' => 'owner']]][(string) $uid] ?? [];
+        }
+    }
+    final class FakeInventory
+    {
+        public static bool $on = true;
+
+        /** 개인 것: [회원, 이름, 재료, 위치, 상태] · 업체 것: [업체, 이름, 위치, 상태] */
+        public static array $mine = [[1, 'PETG 검정', 'PETG', '드라이 박스', 'open'], [1, 'PLA 흰색', 'PLA', 'AMS', 'open'], [2, '남의 것', 'PA', '드라이박스', 'open']];
+
+        public static array $company = [[10, 'eSun PETG 빨강', '드라이박스', 'in_use'], [11, 'PA', '드라이박스', 'in_use'], [10, 'PLA', '드라이박스', 'new']];
+
+        public static function active(): bool
+        {
+            return self::$on;
+        }
+
+        public static function equipmentFor(array $cids, bool $publicOnly = false): array
+        {
+            $all = [10 => [['id' => 100, 'company_id' => 10, 'name' => 'Bambu Lab X1C', 'kind' => 'fdm', 'status' => 'ok']], 11 => [['id' => 102, 'company_id' => 11, 'name' => 'Elegoo Mars', 'kind' => 'sla', 'status' => 'ok']]];
+
+            return array_intersect_key($all, array_flip($cids));
+        }
+
+        public static function spoolLocations(int $uid): array
+        {
+            $l = array_values(array_unique(array_map(fn ($s) => $s[3], array_filter(self::$mine, fn ($s) => $s[0] === $uid))));
+            sort($l);
+
+            return $l;
+        }
+
+        public static function spoolsAt(int $uid, string $location): array
+        {
+            $k = fn ($v) => mb_strtolower((string) preg_replace('/\s+/u', '', (string) $v));
+            $cids = array_column(FakeCompanies::companiesOf($uid), 'id');
+
+            return ['mine' => array_values(array_map(fn ($s) => $s[1].' ('.$s[2].')', array_filter(self::$mine, fn ($s) => $s[0] === $uid && $s[4] !== 'empty' && $k($s[3]) === $k($location)))),
+                'company' => array_values(array_map(fn ($s) => $s[1], array_filter(self::$company, fn ($s) => in_array($s[0], $cids, true) && in_array($s[3], ['in_use', 'low'], true) && $k($s[2]) === $k($location))))];
+        }
+    }
+    \Plugins\Custom\IotLink\Support\Links::$override = ['companies' => FakeCompanies::class, 'inventory' => FakeInventory::class];
+
 
     $svc = new HaService();
     HaService::$printerService = FakePrinter::class;
@@ -767,6 +809,38 @@ namespace {
     t(DB::table('hal_st_installs')->where('user_id', 1)->count() === 0 && DB::table('hal_st_codes')->where('user_id', 1)->count() === 0 && DB::table('hal_st_states')->where('user_id', 1)->count() === 0, '회원 삭제 → SmartThings 연결 · 코드 · state 도 정리');
     Settings::save(['enabled' => false]);
     t(! $svc->ingest(str_repeat('a', 32), [])[0], '꺼 두면 안 받음');
+
+    echo "■ 1.4.0 Api\Ha — 다른 확장이 묻는 것\n";
+    $H = \Plugins\Custom\IotLink\Api\Ha::class;
+    $tables = array_map(fn ($r) => $r->name, DB::select("SELECT name FROM sqlite_master WHERE type = 'table'"));
+    t(! array_filter($tables, fn ($n) => str_starts_with($n, 'cmp_') || str_starts_with($n, 'mnt_') || str_starts_with($n, 'inv_')), '업체검색 · 정비 수첩 · 재고 관리 표 없이 돎');
+    Settings::save(['enabled' => true]);
+    HaService::$nowOverride = '2026-10-20 10:00:00';
+    [$ok, , $b1] = $svc->save(3, null, ['target' => 'location', 'location' => '드라이 박스', 'ent_hum' => 'sensor.a', 'humidity_max' => 40]);
+    [$ok2, , $b2] = $svc->save(4, null, ['target' => 'location', 'location' => '드라이박스', 'ent_hum' => 'sensor.b', 'humidity_max' => 30]);
+    $t1 = (string) DB::table('hal_devices')->where('id', $b1['id'])->value('token');
+    $t2 = (string) DB::table('hal_devices')->where('id', $b2['id'])->value('token');
+    $svc->ingest($t1, ['humidity' => 33, 'temperature' => 21]);
+    $svc->ingest($t2, ['humidity' => 55]);
+    $ls = $H::locationSensors([4, 3, 0]);
+    t($H::active() && count($ls) === 2 && $ls[0]['user_id'] === 4 && $ls[0]['humidity'] === 55.0 && $ls[0]['humidity_max'] === 30 && $ls[1]['location'] === '드라이 박스' && $ls[1]['temp'] === 21.0 && $ls[1]['last_seen_at'] !== null && $H::locationSensors([]) === [], 'locationSensors — 그 회원들 보관함 센서 (첫 회원 것 먼저)');
+    $hh = $H::humidityHistory([3, 4]);
+    t(array_keys($hh) === ['드라이박스'] && $hh['드라이박스']['limit'] === 40 && $hh['드라이박스']['rows'][0][1] === 33.0 && $H::humidityHistory([4])['드라이박스']['limit'] === 30, 'humidityHistory — 보관 위치(빈칸 · 대소문자 무시)마다 한 센서 · 첫 회원 것');
+    [$okE, , $e9] = $svc->save(1, null, ['target' => 'equipment', 'equipment_id' => 100, 'ent_state' => 'switch.e9']);
+    DB::table('hal_runs')->insert([['device_id' => $e9['id'], 'started_at' => '2026-10-19 00:00:00', 'ended_at' => '2026-10-19 10:00:00'], ['device_id' => $e9['id'], 'started_at' => '2026-10-20 08:00:00', 'ended_at' => null]]);
+    DB::table('hal_devices')->where('id', $e9['id'])->update(['last_seen_at' => '2026-10-20 09:30:00']);
+    $rh = $H::runHours('equipment_id', 100, '2026-10-19 05:00:00');
+    t($okE && $rh === 6.5 && $H::runHours('equipment_id', 999, '2026-10-01 00:00:00') === null && $H::runHours('user_id', 1, '2026-10-01 00:00:00') === null, 'runHours — 붙인 기기의 가동 시간 (켜져 있는 것은 마지막 소식까지) · 없으면 null · 아무 칸이나 안 받음');
+    DB::table('hal_links')->where('user_id', 3)->update(['updated_at' => '2020-01-01 00:00:00']);
+    $H::touch(3);
+    t((string) DB::table('hal_links')->where('user_id', 3)->value('updated_at') > '2020-01-01 00:00:00', 'touch — 「화면 보고 있음」 적음');
+    FakeInventory::$on = false;
+    $o9 = $svc->overview(1);
+    t($o9['equipment'] === [] && $o9['locations'] === [] && $o9['config']['inventory'] === false && ! $svc->save(1, null, ['target' => 'equipment', 'equipment_id' => 100, 'ent_state' => 'switch.z'])[0], '재고 관리가 꺼지면 장비 · 보관 위치 목록은 비고 장비에 못 붙임');
+    FakeInventory::$on = true;
+    Settings::save(['enabled' => false]);
+    t(! $H::active() && $H::locationSensors([3]) === [] && $H::runHours('equipment_id', 100, '2026-10-19 05:00:00') === null, 'HA 연결을 끄면 빈 값');
+    Settings::save(['enabled' => true]);
 
     echo "\n통과 {$pass} · 실패 {$fail}\n";
     exit($fail ? 1 : 0);

@@ -215,5 +215,14 @@ foreach ($patUses as $line) {
 }
 check($patOk && ! preg_match('/->log\([^;]*\$(pat|code|state|at|rt|sec)\b/', $svcSrc) && str_contains($svcSrc, "->where('state', \$state)->where('user_id', \$uid)"), '개인 액세스 토큰은 SmartThings 요청에만 쓰임 (저장 · 기록 없음) · state 는 그 회원 것일 때만');
 
+// 1.4.0 다른 확장 표를 직접 읽지 않음 · 다른 확장이 묻는 Api
+$svcSrc = (string) file_get_contents(dirname(__DIR__).'/src/Services/HaService.php');
+$apiSrc = (string) file_get_contents(dirname(__DIR__).'/src/Api/Ha.php');
+check(! preg_match("#DB::table\\('(cmp_|mnt_|inv_)#", $svcSrc) && ! str_contains($svcSrc, "hasTable('mnt_") && ! str_contains($svcSrc, "hasTable('cmp_"), '업체검색 · 정비 수첩 · 재고 관리 표를 직접 읽지 않음');
+foreach (['active', 'locationSensors', 'humidityHistory', 'touch', 'runHours'] as $fn) {
+    check(str_contains($apiSrc, 'public static function '.$fn.'('), 'Api\\Ha::'.$fn);
+}
+check(str_contains($apiSrc, "VERSION = '".$ver."'"), 'Api 버전');
+
 echo "\n".($fail === 0 ? "OK ({$pass} checks)" : "{$fail} FAILED / ".($pass + $fail))."\n";
 exit($fail === 0 ? 0 : 1);

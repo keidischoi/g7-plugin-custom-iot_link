@@ -29,7 +29,7 @@ final class Settings
         'snapshot' => true,            // 카메라 사진 받기 (기기마다 최신 한 장, 주인만 봄)
         'snap_gap_min' => 5,           // 사진을 받는 가장 짧은 간격 (분)
         'printer_link' => true,        // 내 프린터(custom-my_printer)로 프린터 상태 넘기기
-        'company_link' => true,        // 업체검색(custom-companies) 보유 장비에 연결
+        'company_link' => true,        // 업체 보유 장비에 연결 (1.4.0 업체는 업체검색 · 장비는 재고 관리 Api 에 물어봄)
         'timezone' => 'Asia/Seoul',    // 날짜 기준 시간대
         'hacs_repo' => 'keidischoi/ha-3ds-link',   // HACS 에 넣을 통합 저장소 (GitHub 주인/이름)
         // 0.2.0 SmartThings — 앱을 등록하고 받은 값 (1.1.0 API Access App · OAuth-In. 예전: Developer Workspace 의 WebHook SmartApp)
