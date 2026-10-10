@@ -109,6 +109,12 @@
    *  1.1.0 로그인 연결 (API Access App · OAuth): 「🔗 SmartThings 연결하기」 → 삼성 계정 로그인 → 허용 → 돌아와서 「⚙️ 센서 고르기」. 센서 하나가 기기 카드 하나.
    *  0.2.0 예전 방식(연결 코드 · SmartApp)은 관리자가 켰거나 그렇게 이은 것이 있을 때만 접어 둔 칸에 보임 */
   var ST_STATUS = { active: ['on', '연결됨'], syncing: ['wait', '센서 맞추는 중'], choose: ['wait', '센서를 골라 주세요'], unlinked: ['off', '회원과 안 이어짐'], error: ['bad', '확인이 필요해요'] };
+  /* 1.1.0 💳 고지 — 삼성이 SmartThings API 를 유료 플랜으로 바꾸는 중이라 무료 이용이 중지될 수 있음. 연결하기 전 · 연결한 뒤 · 연결 방법 · 센서 고르기에 늘 보임 */
+  var ST_PAY_URL = 'https://blog.smartthings.com/smartthings-updates/a-new-enhanced-smartthings-api-experience/';
+  function stPay() {
+    return '<p class="hal-note-pay" role="note">💳 <b>미리 알려 드려요</b> — 삼성이 2026년 10월부터 SmartThings 연동(API)을 <b>유료 이용제</b>로 바꾸고 있어요. 그래서 이 연결은 삼성의 정책에 따라 <b>무료 이용이 중지되어 값이 더 들어오지 않게 될 수 있어요</b>. ' +
+      '값이 멈추면 기기 카드에 「끊김」으로 보이고, 기기 카드와 그동안의 기록은 그대로 남아요. <a href="' + ST_PAY_URL + '" target="_blank" rel="noopener">삼성 SmartThings 의 안내 글</a></p>';
+  }
   function minsLeft(at) { return Math.max(0, Math.ceil((new Date(at.replace(' ', 'T')) - new Date(S.d.now.replace(' ', 'T'))) / 60000)); }
   function stCard() {
     var T = S.d.smartthings; if (!T) return '';
@@ -120,7 +126,7 @@
     // 로그인 연결 — 아직 안 이었으면 큰 단추 하나
     var go = !oa.length && T.oauth ? '<div class="hal-stc-go"><ol class="hal-stc-steps"><li><em>1</em>삼성 계정으로 로그인</li><li><em>2</em>「허용」 누르기</li><li><em>3</em>받을 센서 고르기</li></ol>' +
       '<div class="hal-row"><button type="button" class="hal-btn pri big" data-st-go>🔗 SmartThings 연결하기</button><button type="button" class="hal-btn big" data-st-guide>❓ 그림으로 보기</button></div>' +
-      '<p class="hal-hint">🔒 사이트는 값을 읽기만 해요 (기기를 켜거나 끄지 않아요). 삼성 계정 비밀번호는 삼성 화면에만 적어요.</p></div>' : '';
+      '<p class="hal-hint">🔒 사이트는 값을 읽기만 해요 (기기를 켜거나 끄지 않아요). 삼성 계정 비밀번호는 삼성 화면에만 적어요.</p>' + stPay() + '</div>' : '';
     var list = oa.map(function (x) {
       var s = ST_STATUS[x.status] || ['', x.status], names = (x.site_devices || []).map(find).filter(Boolean);
       return '<article class="hal-stc-i"><div class="hal-stc-ih"><div><b>📍 ' + esc(x.location || 'SmartThings 위치') + '</b><small><span class="hal-dot ' + s[0] + '"></span>' + s[1] + ' · 센서 ' + (x.picked || 0) + '개' + (x.last_event_at ? ' · 마지막 값 ' + esc(agoText(x.last_event_at)) : '') + '</small></div>' +
@@ -130,7 +136,7 @@
           : '<p class="hal-hint">' + (x.status === 'choose' ? '아직 고른 센서가 없어요 — <b>⚙️ 센서 고르기</b>를 눌러 받을 센서를 체크해 주세요.' : '센서 값을 기다리는 중이에요.') + '</p>') + '</article>';
     }).join('');
     var more = oa.length ? '<div class="hal-row hal-stc-more">' + (T.oauth ? '<button type="button" class="hal-btn sm" data-st-go>➕ 다른 위치 연결</button>' : '') + '<button type="button" class="hal-btn sm" data-st-guide>❓ 연결 방법</button></div>' : '';
-    return '<section class="hal-stc">' + head + go + (list ? '<div class="hal-stc-list rows">' + list + '</div>' : '') + more + stOld(T, old) + '</section>';
+    return '<section class="hal-stc">' + head + go + (list ? '<div class="hal-stc-list rows">' + list + '</div>' : '') + more + (go ? '' : stPay()) + stOld(T, old) + '</section>';
   }
   /* 0.2.0 예전 방식 — 연결 코드를 SmartThings 앱의 설정 화면에 적음 (SmartApp). 관리자가 켰거나(code_flow) 그렇게 이은 것이 있을 때만 */
   function stOld(T, ins) {
@@ -198,7 +204,7 @@
             '<label class="hal-pk-to">붙일 기기 카드<select data-pk-to="' + esc(x.id) + '">' + opts(x) + '</select></label></li>';
         }).join('') + '</ul>' +
         (D.some(function (x) { return x.values.some(function (v) { return v.what === '전력'; }); }) ? '<section class="hal-sec"><label>🔌 플러그가 이 전력(W)보다 많이 쓰면 「가동 중」 <small>프린터 · 건조기의 대기 전력보다 조금 높게 — 가동 시간(정비 수첩)을 세요</small><input type="number" min="0.5" max="5000" step="0.5" inputmode="decimal" data-pk-w value="' + esc(data.power_on_w) + '"></label></section>' : '') +
-        '<p class="hal-hint">🔒 사이트는 값을 읽기만 해요. 체크를 풀어도 이미 만든 기기 카드와 기록은 남아요 (카드의 ✏️ 에서 지울 수 있어요). 카드의 ✏️ 에서 알림 기준 · 필라멘트 보관함 · 내 프린터에 붙일 수 있어요.' + (data.room < 3 ? ' 새 기기 카드는 ' + data.room + '개 더 만들 수 있어요.' : '') + '</p>';
+        '<p class="hal-hint">🔒 사이트는 값을 읽기만 해요. 체크를 풀어도 이미 만든 기기 카드와 기록은 남아요 (카드의 ✏️ 에서 지울 수 있어요). 카드의 ✏️ 에서 알림 기준 · 필라멘트 보관함 · 내 프린터에 붙일 수 있어요.' + (data.room < 3 ? ' 새 기기 카드는 ' + data.room + '개 더 만들 수 있어요.' : '') + '</p>' + stPay();
       ok.disabled = false; sync();
     }).catch(function (e) { body.innerHTML = '<div class="hal-empty sm">' + esc(e.message) + '</div>'; });
     ov.addEventListener('change', sync);
@@ -274,7 +280,7 @@
       '<li><b>카드에 ⚠️ 가 보이면</b> 안내 글 옆의 <b>🔗 다시 연결</b>을 눌러 한 번 더 로그인하세요. 고른 센서는 그대로 있어요.</li>' +
       '<li><b>그만 쓰려면</b> <b>연결 끊기</b> — 기기 카드와 기록은 남아요. SmartThings 앱의 「연결된 서비스」에서 지워도 끊겨요.</li></ul>' +
       '<p class="hal-hint">그림은 화면을 본떠 그린 거예요. 삼성 계정 · SmartThings 화면은 조금 다를 수 있어요.</p></section>';
-    return '<p class="hal-guide-top">앱을 깔거나 코드를 적을 필요 없이 <b>1분</b>이면 돼요. 삼성 화면에서 할 일(②③)과 사이트에서 할 일(①④⑤)을 순서대로 보여 드려요. 빨간 테두리 <span class="hal-hl sm">이렇게</span> 표시한 곳을 순서대로 누르면 돼요.</p>' + guideSteps(steps) + more;
+    return '<p class="hal-guide-top">앱을 깔거나 코드를 적을 필요 없이 <b>1분</b>이면 돼요. 삼성 화면에서 할 일(②③)과 사이트에서 할 일(①④⑤)을 순서대로 보여 드려요. 빨간 테두리 <span class="hal-hl sm">이렇게</span> 표시한 곳을 순서대로 누르면 돼요.</p>' + stPay() + guideSteps(steps) + more;
   }
   function guideBox(tab) {
     var T = S.d.smartthings || {}, hasSt = !!(T.oauth || (T.installs || []).some(function (x) { return x.mode === 'oauth'; }));
@@ -460,7 +466,8 @@
       '<div class="full hal-st-how"><div class="hal-seg" role="tablist"><button type="button" role="tab" data-rt="auto" class="' + (done ? '' : 'on') + '">⚡ 자동 등록 <small>추천</small></button><button type="button" role="tab" data-rt="manual" class="' + (done ? 'on' : '') + '">📝 직접 등록</button></div>' +
         '<ol class="hal-st-steps" data-rp="auto"' + (done ? ' hidden' : '') + '>' + auto.map(li).join('') + '</ol><ol class="hal-st-steps" data-rp="manual"' + (done ? '' : ' hidden') + '>' + manual.map(li).join('') + '</ol></div>' +
       ST_FIELDS.map(function (f) { return stField(s, f); }).join('') +
-      '<p class="hal-note-pay full">💳 SmartThings 는 2026년 10월부터 API 를 유료 플랜으로 바꾸는 중이에요 (개인 월 $4.99 · 상업용은 따로). 앱 등록이나 회원 연결이 거부되면 Developer Center 에서 플랜을 확인해 주세요. <a href="https://blog.smartthings.com/smartthings-updates/a-new-enhanced-smartthings-api-experience/" target="_blank" rel="noopener">SmartThings 의 안내 글</a></p>' +
+      '<p class="hal-note-pay full" role="note">💳 <b>유료 이용제 안내</b> — 삼성이 2026년 10월부터 SmartThings API 를 유료 플랜으로 바꾸고 있어요 (개인 월 $4.99 · 상업용은 따로). <b>무료 이용이 중지되면 앱 등록 · 회원 연결 · 값 받기가 멈출 수 있어요</b> — 거부되면 Developer Center 에서 플랜을 확인해 주세요. ' +
+      '회원 화면의 SmartThings 카드 · 연결 방법 · 센서 고르기에도 「무료 이용이 중지될 수 있다」는 안내가 늘 보여요. <a href="' + ST_PAY_URL + '" target="_blank" rel="noopener">삼성 SmartThings 의 안내 글</a></p>' +
       '<details class="full hal-st-more"><summary>고급 · 예전 방식 (연결 코드)</summary><div class="hal-form-in">' + ST_MORE.map(function (f) { return stField(s, f); }).join('') +
         '<p class="hal-hint full">예전 방식: Developer Workspace 에서 <b>WebHook SmartApp</b>(Automation)으로 등록했다면 Target URL 은 위와 같고' + (I.legacy_target_url ? ' (예전 주소 <code>' + esc(I.legacy_target_url) + '</code> 로 등록했어도 계속 받아요)' : '') + ', 「연결 코드로 잇기도 보이기」를 켜면 회원 화면에 연결 코드 칸이 나와요. 이 방식은 삼성의 배포 승인을 받기 전에는 등록한 계정만 설치할 수 있어요.</p></div></details>' +
       '<p class="hal-hint full">🔒 SmartThings 가 보내는 모든 요청의 HTTP 서명(rsa-sha256 · Digest · Date)을 확인하고 맞지 않으면 거부해요. 사이트가 받는 권한은 읽기뿐(' + esc((I.scopes || []).join(' · ')) + ')이고, 회원 토큰은 암호화해 두고 끝나기 전에 새로 받아요.</p></section>';

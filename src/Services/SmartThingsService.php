@@ -27,6 +27,9 @@ use Plugins\Custom\IotLink\Support\StSignature;
  */
 class SmartThingsService
 {
+    /** 1.1.0 고지 — SmartThings 가 받아 주지 않을 때의 오류 글 끝에 붙임 (삼성이 API 를 유료 이용제로 바꾸는 중 — 무료 이용이 중지됐을 수 있음) */
+    public const PAY_HINT = ' 계속 안 되면 삼성의 유료 이용제 전환으로 무료 이용이 중지된 것일 수 있어요.';
+
     /** 검사용 — (method, url, headers, body) => [status, body] */
     public static $http = null;
 
@@ -345,7 +348,7 @@ class SmartThingsService
         DB::table(Schema::ST_SENSORS)->where('install_id', $id)->whereNotIn('st_device_id', array_column($cfg['devices'], 1) ?: ['-'])->delete();   // 뺀 기기의 값은 지움
         if ($i->user_id) {
             $again = $oauth ? '「⚙️ 센서 고르기」에서 다시 저장해 주세요.' : '앱에서 설정을 다시 저장해 주세요.';
-            $set += $bad ? ['status' => 'error', 'last_error' => '구독 '.$bad.'개를 만들지 못했어요 — 조금 뒤 '.$again] : ['status' => $oauth && $cfg['devices'] === [] ? 'choose' : 'active'];
+            $set += $bad ? ['status' => 'error', 'last_error' => '구독 '.$bad.'개를 만들지 못했어요 — 조금 뒤 '.$again.self::PAY_HINT] : ['status' => $oauth && $cfg['devices'] === [] ? 'choose' : 'active'];
         }
         DB::table(Schema::ST_INSTALLS)->where('id', $id)->update($set + ['updated_at' => self::now()]);
         $this->absorb(DB::table(Schema::ST_INSTALLS)->where('id', $id)->first(), $events, $labels);
@@ -537,7 +540,7 @@ class SmartThingsService
                 break;   // 토큰이 안 맞음 — 다른 곳에 물어도 같음
             }
         }
-        $how = self::config($i)['mode'] === 'oauth' ? '「🔗 다시 연결」을 눌러 주세요.' : '앱에서 설정을 한 번 더 저장해 주세요.';
+        $how = (self::config($i)['mode'] === 'oauth' ? '「🔗 다시 연결」을 눌러 주세요.' : '앱에서 설정을 한 번 더 저장해 주세요.').self::PAY_HINT;
         DB::table(Schema::ST_INSTALLS)->where('id', $i->id)->update(['refreshing_at' => null, 'token_checked_at' => self::now(), 'last_error' => 'SmartThings 토큰을 새로 받지 못했어요 (HTTP '.$st.') — '.$how]);
         $this->log('토큰 새로 받기 실패', ['install' => (int) $i->id, 'status' => $st]);
 
@@ -753,7 +756,7 @@ class SmartThingsService
             $this->log('로그인 연결: 토큰 받기 실패', ['status' => $st]);
             $why = SmartThings::errorText($j);
 
-            return [false, 'SmartThings 가 연결을 받아 주지 않았어요 (HTTP '.$st.($why !== '' ? ' · '.$why : '').') — 다시 연결해 주세요.'];
+            return [false, 'SmartThings 가 연결을 받아 주지 않았어요 (HTTP '.$st.($why !== '' ? ' · '.$why : '').') — 다시 연결해 주세요.'.self::PAY_HINT];
         }
         [$st2, $isa] = $this->api($at, 'GET', '/installedapps/'.$iid);
         $loc = $st2 === 200 ? SmartThings::id($isa['locationId'] ?? '') : '';

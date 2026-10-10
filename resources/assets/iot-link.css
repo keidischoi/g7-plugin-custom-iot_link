@@ -210,8 +210,9 @@ html.dark .hal-fake-tags span.ha, .dark .hal-fake-tags span.ha { background:#0c4
 .hal-st-how { display:flex; flex-direction:column; gap:10px; }
 .hal-st-steps .hal-copy span { width:96px; } .hal-st-steps .hal-copy + .hal-copy { margin-top:6px; }
 .hal .hal-st-reg input { flex:1; min-width:0; background:var(--card); }
-.hal-note-pay { margin:0; padding:9px 12px; border-radius:12px; background:#fef3c7; color:#92400e; font-size:12.5px; } .hal .hal-note-pay a { color:inherit; font-weight:700; }
-html.dark .hal-note-pay, .dark .hal-note-pay { background:#451a03; color:#fde68a; }
+.hal-note-pay { margin:0; padding:9px 12px; border:1px solid #fcd34d; border-radius:12px; background:#fef3c7; color:#92400e; font-size:12.5px; text-align:left; } .hal .hal-note-pay a { color:inherit; font-weight:700; white-space:nowrap; }
+.hal-stc-go .hal-note-pay { align-self:stretch; }
+html.dark .hal-note-pay, .dark .hal-note-pay { background:#451a03; border-color:#92400e; color:#fde68a; }
 .hal-st-more summary { cursor:pointer; font-weight:700; font-size:13.5px; }
 .hal-form-in { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:10px 16px; margin-top:12px; } .hal-form-in .full { grid-column:1/-1; }
 @media (max-width:640px) {

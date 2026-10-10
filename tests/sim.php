@@ -464,6 +464,10 @@ namespace {
     t(Settings::get('st_app_id') === 'app-9999-0000', 'App ID 를 안 적었거나 틀려도 우리 Client 로 받은 설치의 앱으로 맞춤 (틀리면 값 받기가 403)');
     $calls = [];
     t(! $st->oauthFinish(1, 'CODE2', $state)[0] && $calls === [], 'state 는 한 번만');
+    [, , $d] = $st->oauthStart(1);
+    parse_str((string) parse_url($d['url'], PHP_URL_QUERY), $q);
+    [$ok, $msg] = $st->oauthFinish(1, 'NOPE', $q['state']);
+    t(! $ok && str_contains($msg, 'HTTP 400') && str_contains($msg, 'Invalid authorization code') && str_contains($msg, '무료 이용이 중지'), 'SmartThings 가 받아 주지 않으면 그 답 + 유료 이용제 전환 때문일 수 있다고 알림');
     $o = $svc->overview(1);
     $me = array_values(array_filter($o['smartthings']['installs'], fn ($x) => $x['id'] === (int) $oi->id))[0];
     t($o['smartthings']['oauth'] === true && $o['smartthings']['code_flow'] === false && $me['mode'] === 'oauth' && $me['status'] === 'choose' && $me['picked'] === 0 && $me['location'] === '우리집', '화면 값: 로그인 연결 쓸 수 있음 · 예전 코드 방식은 꺼짐 · 설치(위치)');
@@ -559,7 +563,7 @@ namespace {
     $st->oauthPick(1, (int) $oi->id, [['id' => 'dev-th-0001'], ['id' => 'dev-door-001', 'site_device_id' => (int) $box->id]]);
     $stFail['subs'] = false;
     $x = DB::table('hal_st_installs')->where('id', $oi->id)->first();
-    t($x->status === 'error' && str_contains((string) $x->last_error, '구독 1개') && str_contains((string) $x->last_error, '센서 고르기'), '구독을 못 만들면(429) 화면에 오류로 — 다시 저장하라고');
+    t($x->status === 'error' && str_contains((string) $x->last_error, '구독 1개') && str_contains((string) $x->last_error, '센서 고르기') && str_contains((string) $x->last_error, '무료 이용이 중지') && mb_strlen((string) $x->last_error) <= 160, '구독을 못 만들면(429) 화면에 오류로 — 다시 저장하라고 · 유료 전환 때문일 수 있다고 (160자 안)');
     $st->oauthPick(1, (int) $oi->id, [['id' => 'dev-th-0001'], ['id' => 'dev-door-001']]);
     t(DB::table('hal_st_installs')->where('id', $oi->id)->value('status') === 'active' && DB::table('hal_st_installs')->where('id', $oi->id)->value('last_error') === null, '다시 저장하면 풀림');
     // SmartThings 쪽에서 끊고 다시 연결 → 설치 id 가 바뀜: 고른 센서를 물려받음
