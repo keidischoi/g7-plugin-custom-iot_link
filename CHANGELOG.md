@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.2 — 2026-10-11
+
+- 🎨 **SmartThings 아이콘을 실제 로고로** — 📡 이모지 대신 SmartThings 공식 심볼(하늘색 둥근 네모 안의 허브 · 연결점): 회원 화면의 SmartThings 카드 · 기기 카드의 배지 · ❓ 연결 방법의 탭과 그림 · 기기 고치기 창 · 관리자 화면. 그림 파일 없이 SVG 로 넣어 밝게 · 어둡게 모두 같은 모양 (메뉴 · 화면 제목의 📡 IoT 연결은 그대로)
+
+배포: `plugin:update` (README 「업데이트」). DB 변경 없음.
+
 ## 1.1.1 — 2026-10-11
 
 - 🐛 **「🔗 SmartThings 연결하기」를 누르고 삼성에 로그인하면 `Resource representation is only available with these types: text/html` 만 나오던 것** — 회원을 보내는 주소를 SmartThings 새 문서의 `/v1/oauth/authorize` 로 했는데, 이 길은 로그인한 뒤 허용 화면(HTML)을 주지 못함 (406). 공식 예제 · Home Assistant 가 쓰는 `https://api.smartthings.com/oauth/authorize` 로 고침

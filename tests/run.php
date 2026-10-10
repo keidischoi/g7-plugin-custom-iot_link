@@ -168,6 +168,9 @@ check(is_file($root.'/database/migrations/2026_10_11_000001_add_smartthings_oaut
 check(str_contains($app, 'data-st-go') && str_contains($app, "'/smartthings/oauth/start'") && str_contains($app, "'/smartthings/oauth/finish'") && str_contains($app, 'function stReturn()') && str_contains($app, "history.replaceState(history.state, '', location.pathname + location.hash)")
     && str_contains($app, 'function stPick(') && str_contains($app, 'function guideSt()') && str_contains($app, "guideBox('st')") && str_contains($app, 'data-st-reg') && str_contains($app, 'https://developer.smartthings.com/console') && ! str_contains($app, 'developer.samsung.com'),
     '화면: 연결하기 단추 · 돌아오면 주소 줄에서 code 를 지우고 이음 · 센서 고르기 · SmartThings 연결 방법(그림) · 관리자 자동 등록 · 예전 Workspace 주소 없음');
+// 1.1.2 SmartThings 로고 — 이모지 대신 공식 심볼(SVG). 카드 · 배지 · 연결 방법 · 관리자
+check(preg_match("/var ST_PATH = 'M[0-9a-zA-Z .\\-]+Z';/", $app) === 1 && substr_count($app, 'stLogo()') >= 9 && str_contains($app, 'fill="#15BFFF"') && ! str_contains($app, '>📡</span>') && ! preg_match('/[>\'"]\s*📡 SmartThings/u', $app)
+    && str_contains((string) file_get_contents($root.'/resources/assets/iot-link.css'), '.hal-stl {'), 'SmartThings 로고: 공식 심볼(SVG) — 카드 · 배지 · 연결 방법 · 관리자 (이모지 없음)');
 // 1.1.0 💳 고지 — 삼성의 유료 이용제 전환으로 무료 이용이 중지될 수 있음: 연결하기 전(큰 단추 칸) · 연결한 뒤(카드) · 연결 방법 · 센서 고르기 · 관리자 화면 · 오류 글
 check(substr_count($app, 'stPay()') >= 5 && str_contains($app, '무료 이용이 중지되어 값이 더 들어오지 않게 될 수 있어요') && str_contains($app, '유료 이용제') && str_contains($app, "+ stPay() + '</div>' : '';") && str_contains($app, "(go ? '' : stPay())")
     && str_contains($app, "+ stPay() + guideSteps(steps) + more;") && str_contains($app, '무료 이용이 중지되면 앱 등록 · 회원 연결 · 값 받기가 멈출 수 있어요') && str_contains($app, 'blog.smartthings.com/smartthings-updates/a-new-enhanced-smartthings-api-experience'),
