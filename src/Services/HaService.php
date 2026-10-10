@@ -3,6 +3,7 @@
 namespace Plugins\Custom\IotLink\Services;
 
 use Illuminate\Support\Facades\DB;
+use Plugins\Custom\IotLink\Support\Links;
 use Plugins\Custom\IotLink\Support\Notify;
 use Plugins\Custom\IotLink\Support\Rules;
 use Plugins\Custom\IotLink\Support\Schema;
@@ -76,7 +77,7 @@ class HaService
             'targets' => Rules::TARGETS,
             'link' => ['code' => $this->linkCode($uid), 'site' => rtrim((string) config('app.url'), '/'), 'repo' => (string) Settings::get('hacs_repo')],
             'config' => ['max_devices' => (int) Settings::get('max_devices'), 'interval_min' => (int) Settings::get('interval_min'), 'refresh_sec' => (int) Settings::get('refresh_sec'), 'send_mode' => (string) Settings::get('send_mode'), 'change_hum' => (int) Settings::get('change_hum'), 'idle_min' => (int) Settings::get('idle_min'), 'stale_hours' => (int) Settings::get('stale_hours'), 'base' => rtrim((string) config('app.url'), '/').'/api/plugins/custom-iot_link/in/',
-                'printer_link' => $printers !== [] || ((bool) Settings::get('printer_link') && $this->hasTable('mpr_printers')), 'maintenance' => $this->hasTable('mnt_spools')],
+                'printer_link' => $printers !== [] || ((bool) Settings::get('printer_link') && $this->hasTable('mpr_printers')), 'inventory' => Links::inventoryOn()],
         ];
     }
 
@@ -378,28 +379,14 @@ class HaService
         $ch = array_keys(array_filter(['database' => (bool) Settings::get('notify_site'), 'mail' => (bool) Settings::get('notify_mail')]));
         $what = array_filter([$hum !== null ? '습도 '.$hum.'% (기준 '.$d->humidity_max.'%)' : null, $temp !== null ? '온도 '.$temp.'°C (기준 '.$d->temp_max.'°C)' : null]);
         $lines = ['🏠 '.$d->name.' — '.implode(' · ', $what)];
-        if ($d->target === 'location' && $d->location && $hum !== null && $this->hasTable('mnt_spools')) {
-            try {
-                $loc = Rules::loc($d->location);
-                $names = DB::table('mnt_spools')->where('user_id', $d->user_id)->where('status', '!=', 'empty')->whereNotNull('location')->get(['name', 'material', 'location'])
-                    ->filter(fn ($s) => Rules::loc($s->location) === $loc)->map(fn ($s) => $s->name.' ('.$s->material.')')->take(8)->all();
-                if ($names) {
-                    $lines[] = '🧵 여기 있는 것: '.implode(' · ', $names).' — 건조를 챙겨 주세요.';
-                }
-            } catch (\Throwable) {
+        // 1.4.0 그 보관 위치에 있는 필라멘트 · 레진 — 재고 관리에 물어봄 (내 것 + 내가 대표 · 관리자인 업체의 개봉한 것)
+        if ($d->target === 'location' && $d->location && $hum !== null) {
+            $at = Links::spoolsAt((int) $d->user_id, (string) $d->location);
+            if ($at['mine']) {
+                $lines[] = '🧵 여기 있는 것: '.implode(' · ', $at['mine']).' — 건조를 챙겨 주세요.';
             }
-        }
-        // 0.1.1 업체검색 재고 — 내가 관리하는 업체의 개봉한 필라멘트 중 같은 보관 위치
-        if ($d->target === 'location' && $d->location && $hum !== null && $this->hasTable('cmp_spools')) {
-            try {
-                $cids = array_column($this->companies((int) $d->user_id), 'id');
-                $loc = Rules::loc($d->location);
-                $names = $cids === [] ? [] : DB::table('cmp_spools')->whereIn('company_id', $cids)->whereIn('status', ['in_use', 'low'])->whereNotNull('location')->get()
-                    ->filter(fn ($s) => empty($s->deleted_at) && Rules::loc($s->location) === $loc)->map(fn ($s) => trim(($s->brand ? $s->brand.' ' : '').$s->material.($s->color ? ' '.$s->color : '')))->take(8)->all();
-                if ($names) {
-                    $lines[] = '🏢 업체 재고: '.implode(' · ', $names).' — 건조를 챙겨 주세요.';
-                }
-            } catch (\Throwable) {
+            if ($at['company']) {
+                $lines[] = '🏢 업체 재고: '.implode(' · ', $at['company']).' — 건조를 챙겨 주세요.';
             }
         }
         Notify::send((int) $d->user_id, $ch, '[IoT 연결] '.$d->name.' '.($hum !== null ? '습도가 높아요 💧' : '온도가 높아요 🌡️'), implode("\n", $lines));
@@ -617,59 +604,22 @@ class HaService
         }
     }
 
-    /** 내가 관리하는 업체 (대표 · 관리자) @return list<array{id: int, name: string}> */
+    /** 내가 관리하는 업체 (대표 · 관리자 — 업체검색에 물어봄) @return list<array{id: int, name: string}> */
     public function companies(int $uid): array
     {
-        if ($uid <= 0 || ! Settings::get('company_link') || ! $this->hasTable('cmp_members') || ! $this->hasTable('cmp_companies')) {
-            return [];
-        }
-        try {
-            $ids = DB::table('cmp_members')->where('user_id', $uid)->where('status', 'active')->whereIn('role', ['owner', 'manager'])->pluck('company_id')->all();
-            $out = [];
-            foreach (DB::table('cmp_companies')->whereIn('id', $ids ?: [0])->orderBy('name')->get() as $c) {
-                if (empty($c->deleted_at)) {
-                    $out[] = ['id' => (int) $c->id, 'name' => (string) $c->name];
-                }
-            }
-
-            return $out;
-        } catch (\Throwable) {
-            return [];
-        }
+        return $uid <= 0 || ! Settings::get('company_link') ? [] : Links::companiesOf($uid);
     }
 
-    /** @param list<int> $cids @return array<int, array{id: int, company_id: int, name: string}> */
+    /** 업체 보유 장비 (재고 관리에 물어봄 — 기기의 equipment_id 는 재고 관리 장비 번호) @param list<int> $cids @return array<int, array{id: int, company_id: int, name: string}> */
     public function equipment(array $cids): array
     {
-        if ($cids === [] || ! $this->hasTable('cmp_equipment')) {
-            return [];
-        }
-        try {
-            $out = [];
-            foreach (DB::table('cmp_equipment')->whereIn('company_id', $cids)->orderBy('company_id')->orderBy('sort')->orderBy('id')->get() as $e) {
-                if (empty($e->deleted_at)) {
-                    $name = trim(($e->brand ?? '').' '.($e->model ?? ''));
-                    $out[(int) $e->id] = ['id' => (int) $e->id, 'company_id' => (int) $e->company_id, 'name' => $name !== '' ? $name : strtoupper((string) $e->kind).' 장비'];
-                }
-            }
-
-            return $out;
-        } catch (\Throwable) {
-            return [];
-        }
+        return $cids === [] || ! Settings::get('company_link') ? [] : Links::equipment($cids);
     }
 
-    /** 정비 수첩에 적어 둔 필라멘트 보관 위치 (고르기 도움말) @return list<string> */
+    /** 재고 관리에 적어 둔 필라멘트 보관 위치 (고르기 도움말) @return list<string> */
     public function locations(int $uid): array
     {
-        if (! $this->hasTable('mnt_spools')) {
-            return [];
-        }
-        try {
-            return DB::table('mnt_spools')->where('user_id', $uid)->whereNotNull('location')->where('location', '!=', '')->distinct()->orderBy('location')->limit(40)->pluck('location')->map(fn ($v) => (string) $v)->all();
-        } catch (\Throwable) {
-            return [];
-        }
+        return Links::spoolLocations($uid);
     }
 
     public function removeUser(int $uid): void

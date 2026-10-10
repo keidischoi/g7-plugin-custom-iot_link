@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.3.1 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.4.0 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.3.1';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.4.0';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -100,11 +100,11 @@
   }
   function draw() {
     var d = S.d, live = d.devices.filter(function (x) { return !x.stale; }).length, over = d.devices.filter(function (x) { return x.over; }).length;
-    wrap('<section class="hal-hero"><div><h1>📡 IoT 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 정비 수첩과 내 프린터에 이어요.</p></div>' +
+    wrap('<section class="hal-hero"><div><h1>📡 IoT 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 재고 관리 · 정비 수첩 · 내 프린터에 이어요.</p></div>' +
       '<div class="hal-stats"><span>기기 <b>' + d.devices.length + '</b></span><span>🟢 연결됨 <b>' + live + '</b></span>' + (over ? '<span class="hot">⚠️ 기준 넘음 <b>' + over + '</b></span>' : '') + '<button class="hal-btn ghost" data-guide title="연결 방법 보기" aria-label="연결 방법 보기">❓ 연결 방법</button><button class="hal-btn light" data-new>➕ 기기 연결</button></div></section>' +
       stCard() +
       (d.devices.length ? '<div class="hal-grid">' + d.devices.map(card).join('') + '</div>' +
-        '<p class="hal-note">' + (liveSec() ? '🔄 이 화면은 ' + (liveSec() >= 60 && liveSec() % 60 === 0 ? liveSec() / 60 + '분' : liveSec() + '초') + '마다 스스로 새 값을 받아 와요' : '🔄 새 값을 보려면 화면을 새로 고쳐 주세요') + ' (Home Assistant 는 ' + (d.config.send_mode === 'change' ? '값이 변하면' : (d.config.interval_min || 10) + '분마다') + ' · 상태가 바뀌면 바로 보내요).</p><p class="hal-note">🔒 받는 주소는 비밀번호와 같아요 — 남에게 보이지 마세요. 사이트가 내 집으로 접속하지 않고, 내 Home Assistant 가 보내는 값만 받아요.' + (d.config.maintenance ? ' · <a href="/maintenance?tab=drawer" data-go>🧵 필라멘트 서랍 보기</a>' : '') + '</p>'
+        '<p class="hal-note">' + (liveSec() ? '🔄 이 화면은 ' + (liveSec() >= 60 && liveSec() % 60 === 0 ? liveSec() / 60 + '분' : liveSec() + '초') + '마다 스스로 새 값을 받아 와요' : '🔄 새 값을 보려면 화면을 새로 고쳐 주세요') + ' (Home Assistant 는 ' + (d.config.send_mode === 'change' ? '값이 변하면' : (d.config.interval_min || 10) + '분마다') + ' · 상태가 바뀌면 바로 보내요).</p><p class="hal-note">🔒 받는 주소는 비밀번호와 같아요 — 남에게 보이지 마세요. 사이트가 내 집으로 접속하지 않고, 내 Home Assistant 가 보내는 값만 받아요.' + (d.config.inventory ? ' · <a href="/inventory?tab=drawer" data-go>🧵 필라멘트 서랍 보기 (재고 관리)</a>' : '') + '</p>'
         : '<section class="hal-start"><h2>🏠 Home Assistant 는 세 걸음이면 돼요</h2><ol><li><b>① HACS 에서 「3ds」 설치</b><span>단추 한 번으로 저장소가 들어가요</span></li><li><b>② 사이트 주소 · 연결 코드 붙여 넣기</b><span>복사 단추 두 번</span></li><li><b>③ 「⚡ 알아서 찾아 연결」 → 확인</b><span>내 프린터 · 필라멘트 보관 위치와 이름이 맞는 것을 찾아 줘요</span></li></ol><div class="hal-row center"><button class="hal-btn pri big" data-new>➕ 첫 기기 연결하기</button><button class="hal-btn big" data-guide>❓ 그림으로 보는 연결 방법</button></div></section>'));
     qa('[data-guide]').forEach(function (b) { b.onclick = function () { guideBox(); }; });
     stBind();
@@ -271,8 +271,8 @@
         shot('Home Assistant · 3ds', '<b class="hal-fake-t">무엇에 붙일까요?</b>' + hl('<div class="hal-fake-opt on">◉ ⚡ 알아서 찾아 연결 (추천)</div>', 1) + '<div class="hal-fake-opt">○ 내 프린터 — 하나씩</div><hr><b class="hal-fake-t">연결할 것</b>' + hl(chk(1, '🖨️ 거실 · Bambu Lab P1S ← P1S') + chk(1, '🧵 드라이박스 ← 드라이박스 습도') + chk(0, '🧵 거실 습도 (새 보관함)'), 2) + '<div class="hal-fake-end">' + hl(btn('확인', 'pri'), 3) + '</div>', 'ha')],
       ['못 찾은 프린터 · 장비 붙이기 <small>필요할 때만</small>', '이름이 달라 못 찾았으면 통합을 한 번 더 추가해 <b>내 프린터 — 하나씩</b> · <b>업체 장비 — 하나씩</b>을 고르세요. Home Assistant 의 <b>기기를 고르면</b> 상태 · 진행률 · 카메라 센서를 찾아 채워 줘요.',
         shot('Home Assistant · 3ds — 하나씩', hl(fld('기기 (안 골라도 됨)', 'Bambu Lab P1S'), 1) + '<hr><b class="hal-fake-t">센서 고르기 <small>찾은 것이 채워져 있어요</small></b>' + hl(fld('상태', 'sensor.p1s_print_status') + fld('진행률 (%)', 'sensor.p1s_print_progress') + fld('카메라', 'camera.p1s_camera'), 2) + '<div class="hal-fake-end">' + hl(btn('확인', 'pri'), 3) + '</div>', 'ha')],
-      ['사이트에서 마무리', '1~2분 안에 이 화면에 🟢 로 나타나요. 카드의 <b>✏️</b>에서 <b>알림 기준</b> · 이름 · 붙일 곳 · <b>사진 공개</b>를 정하고, 정비 수첩에서 필라멘트의 <b>보관 위치</b>를 목록에서 고르면 습도가 필라멘트에 같이 보여요.',
-        shot('사이트 · IoT 연결 · 정비 수첩', '<div class="hal-fake-card"><div class="hal-fake-row"><span>🧵 <b>드라이박스</b></span>' + hl('<span class="hal-fake-ico">✏️</span>', 2) + '</div><div class="hal-fake-vals"><span>💧 <b>32.5</b>%</span><span>🌡️ <b>23.4</b>°C</span></div>' + hl('<div class="hal-fake-st"><i></i>방금</div>', 1) + '</div>' + hl('<div class="hal-fake-fld"><small>보관 위치 <em>🏠 온습도 센서가 있는 곳</em></small><span>드라이박스 ▾</span></div>', 3) + '<div class="hal-fake-tags"><span>💧 건조 12일 뒤</span><span class="ha">🏠 💧32.5% 🌡️23.4°C</span></div>')]
+      ['사이트에서 마무리', '1~2분 안에 이 화면에 🟢 로 나타나요. 카드의 <b>✏️</b>에서 <b>알림 기준</b> · 이름 · 붙일 곳 · <b>사진 공개</b>를 정하고, 재고 관리에서 필라멘트의 <b>보관 위치</b>를 목록에서 고르면 습도가 필라멘트에 같이 보여요.',
+        shot('사이트 · IoT 연결 · 재고 관리', '<div class="hal-fake-card"><div class="hal-fake-row"><span>🧵 <b>드라이박스</b></span>' + hl('<span class="hal-fake-ico">✏️</span>', 2) + '</div><div class="hal-fake-vals"><span>💧 <b>32.5</b>%</span><span>🌡️ <b>23.4</b>°C</span></div>' + hl('<div class="hal-fake-st"><i></i>방금</div>', 1) + '</div>' + hl('<div class="hal-fake-fld"><small>보관 위치 <em>🏠 온습도 센서가 있는 곳</em></small><span>드라이박스 ▾</span></div>', 3) + '<div class="hal-fake-tags"><span>💧 건조 12일 뒤</span><span class="ha">🏠 💧32.5% 🌡️23.4°C</span></div>')]
     ];
     var more = '<section class="hal-sec hal-tips"><h4>💡 더 알아 두면 좋아요</h4><ul>' +
       '<li><b>프린터 · 업체 장비</b>는 통합을 한 번 더 추가해 「내 프린터 — 하나씩」 · 「업체 장비 — 하나씩」을 고르세요. Home Assistant 의 기기를 고르면 상태 · 진행률 · 카메라 센서를 찾아 채워 줘요.</li>' +
@@ -296,7 +296,7 @@
         shot('SmartThings · 권한 허용', '<b class="hal-fake-t">「' + site + '」 이(가) 요청하는 권한</b>' + chk(1, '기기 보기 <small>(값 읽기)</small>') + chk(1, '위치 보기 <small>(이름 · 온도 단위)</small>') + hl(fld('위치', '우리집 ▾'), 1) + '<div class="hal-fake-end">' + btn('취소') + ' ' + hl(btn('허용', 'pri'), 2) + '</div>', 'st')],
       ['받을 센서 고르기', '사이트로 돌아오면 그 위치의 센서 목록이 떠요. 받을 것을 체크하고 <b>저장</b>. <b>온습도계는 미리 체크</b>되어 있어요. 이름이 같은 기기 카드가 있으면 거기에 붙고, 없으면 새 카드가 생겨요.',
         shot('사이트 · ⚙️ 센서 고르기', hl(chk(1, '🌡️ <b>드라이박스 온습도계</b> <small>온도 23.4°C · 습도 32%</small>') + chk(1, '🔌 <b>건조기 플러그</b> <small>전력 120 W</small>') + chk(0, '🚪 현관문 <small>열림 닫힘</small>'), 1) + '<div class="hal-fake-end">' + hl(btn('저장', 'pri'), 2) + '</div>')],
-      ['끝 — 카드에서 알림 기준 · 붙일 곳 정하기', '바로 기기 카드에 값이 보이고, 값이 바뀔 때마다 들어와요. 카드의 <b>✏️</b>에서 <b>알림 기준</b>(예: 습도 40%)과 <b>붙일 곳</b>(필라멘트 보관함 · 내 프린터)을 정하면 정비 수첩 · 내 프린터와 이어져요.',
+      ['끝 — 카드에서 알림 기준 · 붙일 곳 정하기', '바로 기기 카드에 값이 보이고, 값이 바뀔 때마다 들어와요. 카드의 <b>✏️</b>에서 <b>알림 기준</b>(예: 습도 40%)과 <b>붙일 곳</b>(필라멘트 보관함 · 내 프린터)을 정하면 재고 관리 · 정비 수첩 · 내 프린터와 이어져요.',
         shot('사이트 · IoT 연결', '<div class="hal-fake-card"><div class="hal-fake-row"><span>🧵 <b>드라이박스 온습도계</b> <span class="hal-fake-pill st">' + stLogo() + ' SmartThings</span></span>' + hl('<span class="hal-fake-ico">✏️</span>', 2) + '</div><div class="hal-fake-vals"><span>💧 <b>32</b>%</span><span>🌡️ <b>23.4</b>°C</span></div>' + hl('<div class="hal-fake-st"><i></i>방금</div>', 1) + '</div>' + hl(fld('습도가 이보다 높으면 (%)', '40') + fld('무엇에 붙일까요?', '🧵 필라멘트 · 레진 보관함 — 드라이박스'), 3))]
     ];
     /* 1.3.0 🖨️ 프린터에 쓸 수 있는 것 — SmartThings 의 무엇을 붙이면 프린터 라운지에 무엇이 보이나 (지원 표 · 받는 상태 목록) */
@@ -593,7 +593,7 @@
     if (ret && ret.error) toast(ret.error === 'access_denied' ? 'SmartThings 연결을 취소했어요.' : 'SmartThings 가 연결을 받아 주지 않았어요 (' + ret.error + ').', true);
     wrap('<div class="hal-empty">불러오는 중…</div>');
     api('GET', '/me').then(function (r) { S.d = r.data; draw(); if (S.deep) { S.deep = false; stDeepOpen(); } }).catch(function (e) {
-      wrap(e.status === 401 ? '<section class="hal-hero"><div><h1>📡 IoT 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 정비 수첩과 내 프린터에 이어요.</p></div></section><div class="hal-empty">로그인하면 내 기기를 연결할 수 있어요. <a href="/login" data-go>로그인</a></div>' : '<div class="hal-empty">' + esc(e.message) + '</div>');
+      wrap(e.status === 401 ? '<section class="hal-hero"><div><h1>📡 IoT 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 재고 관리 · 정비 수첩 · 내 프린터에 이어요.</p></div></section><div class="hal-empty">로그인하면 내 기기를 연결할 수 있어요. <a href="/login" data-go>로그인</a></div>' : '<div class="hal-empty">' + esc(e.message) + '</div>');
     });
   }
   /* 1.0.0 예전 주소(/ha-link · /admin/ha-link — HA 연결 때)로 왔으면 주소 줄만 새 주소로 바꿔 보임 (같은 화면 · 다시 불러오지 않음) */

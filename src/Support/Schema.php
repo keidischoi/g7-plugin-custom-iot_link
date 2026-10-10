@@ -62,7 +62,7 @@ final class Schema
                     $t->string('location', 40)->nullable()->index()->comment('정비 수첩 필라멘트의 보관 위치와 같은 글');
                     $t->unsignedBigInteger('printer_id')->nullable()->index()->comment('내 프린터 mpr_printers.id');
                     $t->unsignedBigInteger('company_id')->nullable()->index();
-                    $t->unsignedBigInteger('equipment_id')->nullable()->index()->comment('업체 보유 장비 cmp_equipment.id');
+                    $t->unsignedBigInteger('equipment_id')->nullable()->index()->comment('업체 보유 장비 — 재고 관리 inv_equipment.id (예전 업체검색 cmp_equipment.id · 번호 같음)');
                     $t->text('entities')->nullable()->comment('HA 엔티티 이름 (설정 글을 만들 때만 씀) {temp, hum, state, progress, remaining, job}');
                     $t->decimal('temp', 5, 1)->nullable();
                     $t->decimal('humidity', 5, 1)->nullable();

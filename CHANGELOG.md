@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.0 — 2026-10-11
+
+재고 관리 분리에 맞춤 — 🧵 필라멘트 · 업체 보유 장비가 새 모듈 **재고 관리(custom-inventory)** 로 옮겨 감.
+
+- 🔌 **`Api\Ha` 를 새로 둠** (`Plugins\Custom\IotLink\Api\Ha`) — 다른 확장이 `hal_*` 표를 직접 읽지 않고 물어봄: `locationSensors(회원들)` · `humidityHistory(회원들)` · `touch(회원)` · `runHours('printer_id' | 'equipment_id', 번호, 언제부터)`. 재고 관리(보관함 온습도 · 건조일 당기기)와 정비 수첩(가동 시간)이 씀 — Home Assistant · SmartThings 기기 모두
+- 🏢 **업체 · 장비는 다른 확장에 물어봄** (`Support\Links`) — 내가 관리하는 업체는 업체검색 `Api\Companies`, 업체 보유 장비는 재고 관리 `Api\Inventory`. 기기의 「붙인 곳 — 업체 장비」 번호는 재고 관리의 장비 번호 (예전 번호 그대로라 다시 붙일 필요 없음)
+- 🧵 **보관 위치 · 「습도가 높아요」 알림의 필라멘트 목록도 재고 관리에서** — `cmp_*` · `mnt_spools` 표를 더는 읽지 않음. 화면의 「필라멘트 서랍 보기」는 `/inventory?tab=drawer` 로
+
+배포: DB 변경 없음 (재고 관리 모듈을 먼저 설치 · 마이그레이션한 뒤 업데이트).
+
 ## 1.3.1 — 2026-10-11
 
 - ✨ **「➕ 기기 연결」에 SmartThings** — 지금까지 이 창은 Home Assistant(HACS) 안내뿐이었음. 맨 위에 **🏠 Home Assistant · SmartThings** 로 바꿔 보는 칸을 더함.
