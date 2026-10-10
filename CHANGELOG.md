@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 — 2026-10-10
+
+- 🐛 SmartThings Developer Workspace 주소를 새 주소 `https://developer.smartthings.com/workspace` 로 고침 (예전 `smartthings.developer.samsung.com` 은 더 이상 열리지 않음) — 관리자 안내 · README
+
 ## 0.2.0 — 2026-10-10
 
 📡 **SmartThings 연결 (WebHook SmartApp)** — 회원이 SmartThings 앱에서 센서를 고르면 값이 바뀔 때마다 바로 사이트로 들어옴. SmartThings 는 그냥 또 하나의 「보내는 곳」이라 Home Assistant 와 **같은 받기**(온습도 기록 · 습도 경고 · 가동 시간 · 내 프린터로 넘기기)를 그대로 탐.

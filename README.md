@@ -14,7 +14,7 @@ SmartThings 는 또 하나의 「보내는 곳」 — 받은 센서 값을 Home 
 - 권한(Scopes): `r:devices:*` · `r:locations:*` (읽기만)
 - 관리자 › HA 연결 › 📡 SmartThings 에 등록 안내가 있습니다. 요약:
   1. 관리자 화면에서 「SmartThings 연결 쓰기」를 켜고 저장
-  2. [Developer Workspace](https://smartthings.developer.samsung.com/workspace/) → New Project → *Automation for the SmartThings App*
+  2. [Developer Workspace](https://developer.smartthings.com/workspace) → New Project → *Automation for the SmartThings App*
   3. Register App → *WebHook Endpoint* → Target URL 붙여 넣기 → 이름 · 설명 · 권한 두 개 → Save
   4. 나온 Client ID · Client Secret(한 번만 보임)을 관리자 화면에 저장 (App ID 는 선택)
   5. *Verify App Registration* → 사이트가 CONFIRMATION 을 알아서 확인 → *Deploy to Test*
