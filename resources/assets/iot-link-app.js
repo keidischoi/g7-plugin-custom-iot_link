@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.3.0 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.3.1 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.3.0';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.3.1';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -135,7 +135,7 @@
     var ins = T.installs || [], oa = ins.filter(function (x) { return x.mode === 'oauth'; }), old = ins.filter(function (x) { return x.mode !== 'oauth'; });
     var live = ins.filter(function (x) { return x.status === 'active'; }).length, bad = ins.filter(function (x) { return x.status === 'error' || x.last_error; }).length, todo = ins.filter(function (x) { return x.status === 'choose'; }).length;
     var pill = ins.length ? (bad ? '<span class="hal-pill bad">⚠️ 확인 필요</span>' : live ? '<span class="hal-pill on">🟢 연결됨' + (live > 1 ? ' ' + live : '') + '</span>' : todo ? '<span class="hal-pill wait">👉 센서 고르기</span>' : '<span class="hal-pill wait">⏳ 맞추는 중</span>') : '<span class="hal-pill">⚪ 연결 안 됨</span>';
-    var head = '<header class="hal-stc-h"><span class="hal-stc-logo" aria-hidden="true">' + stLogo() + '</span><div><h2>SmartThings</h2><p>삼성 SmartThings 의 온습도계 · 플러그 · 문 · 움직임 센서 값이 바뀔 때마다 바로 들어와요.</p></div>' + pill + '</header>';
+    var head = '<header class="hal-stc-h"><span class="hal-stc-logo" aria-hidden="true">' + stLogo() + '</span><div><h2>SmartThings</h2><p>삼성 SmartThings 의 온습도계 · 플러그 · 프린터 기기 · 문 · 움직임 센서 값이 바뀔 때마다 바로 들어와요.</p></div>' + pill + '</header>';
     if (!ins.length && !T.oauth && !(T.ready && T.code_flow)) return '<section class="hal-stc off">' + head + '<p class="hal-hint">관리자가 아직 SmartThings 연결을 준비하지 않았어요.</p></section>';
     // 로그인 연결 — 아직 안 이었으면 큰 단추 하나
     var go = !oa.length && T.oauth ? '<div class="hal-stc-go"><ol class="hal-stc-steps"><li><em>1</em>삼성 계정으로 로그인</li><li><em>2</em>「허용」 누르기</li><li><em>3</em>받을 센서 고르기</li></ol>' +
@@ -323,7 +323,7 @@
   }
   function guideBox(tab) {
     var T = S.d.smartthings || {}, hasSt = !!(T.oauth || (T.installs || []).some(function (x) { return x.mode === 'oauth'; }));
-    tab = tab === 'st' && hasSt ? 'st' : 'ha';
+    tab = (tab || srcTab()) === 'st' && hasSt ? 'st' : 'ha';
     var seg = hasSt ? '<div class="hal-seg" role="tablist"><button type="button" role="tab" data-gt="ha">🏠 Home Assistant</button><button type="button" role="tab" data-gt="st">' + stLogo() + ' SmartThings</button></div>' : '';
     var ov = modal('❓ 연결 방법', seg + '<div data-gp="ha">' + guideHa() + '</div>' + (hasSt ? '<div data-gp="st">' + guideSt() + '</div>' : ''), { left: '<button type="button" class="hal-btn pri" data-start></button>' });
     ov.classList.add('wide');
@@ -339,27 +339,69 @@
       var g = ev.target.closest('[data-gt]'); if (g) { show(g.getAttribute('data-gt')); return; }
       var st = ev.target.closest('[data-start]'); if (!st) return;
       if (tab === 'st') { stGo(st); return; }
-      ov.__close(); connectBox();
+      ov.__close(); connectBox('ha');
     });
   }
 
   /** ➕ 기기 연결 — HACS 통합으로 (쉬움: HA 화면에서 센서를 고르면 끝) · 아니면 설정 글을 직접 붙여 넣기 */
-  function connectBox() {
+  /* 1.3.1 어느 쪽을 먼저 보일까 — SmartThings 만 쓰는 회원(이어 둔 위치가 있고 Home Assistant 기기가 없음)이면 SmartThings, 아니면 Home Assistant */
+  function srcTab() {
+    var T = S.d.smartthings || {}, oa = (T.installs || []).some(function (x) { return x.mode === 'oauth'; });
+    return oa && !(S.d.devices || []).some(function (d) { return d.source !== 'smartthings'; }) ? 'st' : 'ha';
+  }
+  /* 1.3.1 ➕ 기기 연결 › SmartThings — 아직이면 「연결하기」, 이었으면 위치마다 「센서 고르기」 · 무엇을 붙일 수 있나 */
+  function stConnect(T, oa) {
+    var what = '<section class="hal-sec"><h4>무엇을 붙일 수 있나요</h4><ul class="hal-ct-what">' +
+      '<li><i>🌡️</i><span><b>온습도계</b> — 필라멘트 보관함의 습도 · 내 프린터 둘레의 온습도</span></li>' +
+      '<li><i>🔌</i><span><b>전력을 재는 플러그</b> — 프린터 · 건조기의 가동 시간, 내 프린터의 출력 중 · 완료</span></li>' +
+      '<li><i>🖨️</i><span><b>프린터 기기</b> (Edge 드라이버 — Bambu Lab · Klipper) — 출력 상태 · 진행률 · 노즐/베드 온도</span></li>' +
+      '<li><i>🚪</i><span><b>문 · 움직임 · 밝기 · 배터리 …</b> — 기기 카드에 값으로</span></li></ul>' +
+      '<p class="hal-hint">센서 고르기의 <b>「붙일 곳」</b>에서 필라멘트 보관함 카드나 <b>🖨️ 내 프린터</b>를 골라요. <a href="#" data-guide-st>프린터에 쓸 수 있는 것 표 보기 →</a></p></section>';
+    if (!oa.length) {
+      return '<section class="hal-sec"><h4><em>1</em> 삼성 계정으로 연결 <small>앱을 깔거나 코드를 적지 않아요</small></h4>' +
+        '<ol class="hal-stc-steps"><li><em>1</em>삼성 계정으로 로그인</li><li><em>2</em>「허용」 누르기</li><li><em>3</em>받을 센서 고르기</li></ol>' +
+        (T.oauth ? '<div class="hal-row"><button type="button" class="hal-btn pri big" data-st-go>🔗 SmartThings 연결하기</button></div>' : '<p class="hal-warn">관리자가 아직 SmartThings 연결을 준비하지 않았어요.</p>') +
+        '<p class="hal-hint">🔒 사이트는 값을 읽기만 해요 (기기를 켜거나 끄지 않아요). 삼성 계정 비밀번호는 삼성 화면에만 적어요.</p></section>' + what + stPay();
+    }
+    return '<section class="hal-sec"><h4><em>1</em> 받을 센서 고르기 <small>이미 삼성 계정과 이어져 있어요</small></h4><div class="hal-ct-locs">' + oa.map(function (x) {
+        return '<div class="hal-ct-loc"><span><b>📍 ' + esc(x.location || 'SmartThings 위치') + '</b><small>센서 ' + (x.picked || 0) + '개 받는 중' + (x.last_error ? ' · ⚠️ 확인 필요' : '') + '</small></span>' +
+          '<button type="button" class="hal-btn pri" data-st-pick="' + x.id + '">⚙️ 센서 고르기</button></div>';
+      }).join('') + '</div>' +
+      '<p class="hal-hint">새로 산 센서도 SmartThings 앱에 등록한 뒤 여기서 체크하면 돼요 — 다시 로그인할 필요 없어요.</p>' +
+      (T.oauth ? '<div class="hal-row"><button type="button" class="hal-btn sm" data-st-go>➕ 다른 위치(집 · 사무실) 연결</button></div>' : '') + '</section>' + what + stPay();
+  }
+  function connectBox(tab) {
+    var T = S.d.smartthings || {}, oa = (T.installs || []).filter(function (x) { return x.mode === 'oauth'; }), hasSt = !!(T.oauth || oa.length);
+    tab = (tab || srcTab()) === 'st' && hasSt ? 'st' : 'ha';
+    var seg = hasSt ? '<div class="hal-seg" role="tablist"><button type="button" role="tab" data-ct="ha">🏠 Home Assistant</button><button type="button" role="tab" data-ct="st">' + stLogo() + ' SmartThings</button></div>' : '';
     var L = S.d.link, rp = String(L.repo).split('/'), my = 'https://my.home-assistant.io/redirect/';
     var row = function (label, val, key) { return '<div class="hal-copy"><span>' + label + '</span><code>' + esc(val) + '</code><button type="button" class="hal-btn sm pri" data-cp="' + key + '">📋 복사</button></div>'; };
-    var ov = modal('➕ 기기 연결', '<section class="hal-sec"><h4><em>1</em> HACS 에서 「3ds」 설치 <small>처음 한 번만</small></h4>' +
+    var ov = modal('➕ 기기 연결', seg + '<div data-cpn="ha"><section class="hal-sec"><h4><em>1</em> HACS 에서 「3ds」 설치 <small>처음 한 번만</small></h4>' +
         '<div class="hal-row"><a class="hal-btn pri" target="_blank" rel="noopener" href="' + my + 'hacs_repository/?owner=' + encodeURIComponent(rp[0]) + '&repository=' + encodeURIComponent(rp[1] || '') + '&category=integration">🧩 내 Home Assistant 의 HACS 에서 열기</a></div>' +
         '<p class="hal-hint">열린 화면에서 <b>다운로드</b>를 누르고 Home Assistant 를 다시 시작해 주세요. 단추가 안 되면 HACS › 사용자 지정 저장소에 <code>https://github.com/' + esc(L.repo) + '</code> (종류: 통합)을 넣으면 돼요.</p></section>' +
       '<section class="hal-sec"><h4><em>2</em> 통합을 추가하고 아래 두 가지를 붙여 넣기</h4>' +
         '<div class="hal-row"><a class="hal-btn" target="_blank" rel="noopener" href="' + my + 'config_flow_start/?domain=g7_link">⚙️ 「3ds」 통합 추가 열기</a></div>' + row('사이트 주소', L.site, 'site') + row('연결 코드', L.code, 'code') +
         '<p class="hal-hint">🔒 연결 코드는 비밀번호와 같아요. 새어 나갔으면 아래 「코드 새로 만들기」.</p></section>' +
-      '<section class="hal-sec"><h4><em>3</em> 「⚡ 알아서 찾아 연결」 → 확인</h4><p class="hal-hint">사이트의 <b>내 프린터</b> · 필라멘트 <b>보관 위치</b>와 이름이 맞는 Home Assistant 기기 · 습도 센서를 찾아 체크해 둬요. 맞으면 <b>확인</b>만 누르면 끝 — 프린터는 상태 · 진행률 · 카메라, 보관함은 습도 · 온도가 한 번에 붙어요. 이름이 달라 못 찾은 것은 같은 목록에서 직접 체크하거나 「하나씩」으로 붙이면 돼요. 조금 뒤 이 화면에 🟢 로 나타나요.</p></section>',
-      { left: '<button type="button" class="hal-btn" data-guide2>❓ 그림으로 보기</button><button type="button" class="hal-btn" data-rl>🔑 코드 새로 만들기</button><button type="button" class="hal-btn" data-manual>📝 HACS 없이 설정 글로</button>' });
+      '<section class="hal-sec"><h4><em>3</em> 「⚡ 알아서 찾아 연결」 → 확인</h4><p class="hal-hint">사이트의 <b>내 프린터</b> · 필라멘트 <b>보관 위치</b>와 이름이 맞는 Home Assistant 기기 · 습도 센서를 찾아 체크해 둬요. 맞으면 <b>확인</b>만 누르면 끝 — 프린터는 상태 · 진행률 · 카메라, 보관함은 습도 · 온도가 한 번에 붙어요. 이름이 달라 못 찾은 것은 같은 목록에서 직접 체크하거나 「하나씩」으로 붙이면 돼요. 조금 뒤 이 화면에 🟢 로 나타나요.</p></section></div>' + (hasSt ? '<div data-cpn="st">' + stConnect(T, oa) + '</div>' : ''),
+      { left: '<button type="button" class="hal-btn" data-guide2>❓ 그림으로 보기</button><span data-ha-only><button type="button" class="hal-btn" data-rl>🔑 코드 새로 만들기</button><button type="button" class="hal-btn" data-manual>📝 HACS 없이 설정 글로</button></span>' });
+    // 1.3.1 🏠 Home Assistant · SmartThings 바꿔 보기
+    var show = function (t) {
+      tab = t;
+      Array.prototype.forEach.call(ov.querySelectorAll('[data-cpn]'), function (p) { p.hidden = p.getAttribute('data-cpn') !== t; });
+      Array.prototype.forEach.call(ov.querySelectorAll('[data-ct]'), function (b) { var on = b.getAttribute('data-ct') === t; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+      var ho = ov.querySelector('[data-ha-only]'); if (ho) ho.hidden = t !== 'ha';
+      ov.querySelector('.hal-modal-c').scrollTop = 0;
+    };
+    show(tab);
     ov.addEventListener('click', function (ev) {
+      var ct = ev.target.closest('[data-ct]'); if (ct) { show(ct.getAttribute('data-ct')); return; }
+      var sg = ev.target.closest('[data-st-go]'); if (sg) { stGo(sg); return; }
+      var sp = ev.target.closest('[data-st-pick]'); if (sp) { ov.__close(); stPick(+sp.getAttribute('data-st-pick')); return; }
+      if (ev.target.closest('[data-guide-st]')) { ev.preventDefault(); ov.__close(); guideBox('st'); return; }
       var c = ev.target.closest('[data-cp]'); if (c) { copy(c.getAttribute('data-cp') === 'site' ? L.site : L.code, c); return; }
-      if (ev.target.closest('[data-guide2]')) { ov.__close(); guideBox(); return; }
+      if (ev.target.closest('[data-guide2]')) { ov.__close(); guideBox(tab); return; }
       if (ev.target.closest('[data-manual]')) { ov.__close(); form(null); return; }
-      if (ev.target.closest('[data-rl]') && confirm('연결 코드를 새로 만들까요? Home Assistant 의 통합에서 기기를 더 붙이거나 고치려면 새 코드를 넣어야 해요. (이미 붙인 기기는 계속 값이 들어와요)')) api('POST', '/link/rotate', {}).then(function (r) { toast(r.message); S.d = r.data.overview; ov.__close(); connectBox(); }).catch(fail);
+      if (ev.target.closest('[data-rl]') && confirm('연결 코드를 새로 만들까요? Home Assistant 의 통합에서 기기를 더 붙이거나 고치려면 새 코드를 넣어야 해요. (이미 붙인 기기는 계속 값이 들어와요)')) api('POST', '/link/rotate', {}).then(function (r) { toast(r.message); S.d = r.data.overview; ov.__close(); connectBox('ha'); }).catch(fail);
     });
   }
 

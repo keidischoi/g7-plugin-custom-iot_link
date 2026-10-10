@@ -171,6 +171,10 @@ check(str_contains($app, 'data-st-go') && str_contains($app, "'/smartthings/oaut
 // 1.1.2 SmartThings 로고 — 이모지 대신 공식 심볼(SVG). 카드 · 배지 · 연결 방법 · 관리자
 check(preg_match("/var ST_PATH = 'M[0-9a-zA-Z .\\-]+Z';/", $app) === 1 && substr_count($app, 'stLogo()') >= 9 && str_contains($app, 'fill="#15BFFF"') && ! str_contains($app, '>📡</span>') && ! preg_match('/[>\'"]\s*📡 SmartThings/u', $app)
     && str_contains((string) file_get_contents($root.'/resources/assets/iot-link.css'), '.hal-stl {'), 'SmartThings 로고: 공식 심볼(SVG) — 카드 · 배지 · 연결 방법 · 관리자 (이모지 없음)');
+// 1.3.1 ➕ 기기 연결 · ❓ 연결 방법 — SmartThings 칸 (Home Assistant 와 바꿔 봄 · SmartThings 만 쓰면 그쪽 먼저)
+check(str_contains($app, 'function connectBox(tab)') && str_contains($app, 'function stConnect(T, oa)') && str_contains($app, 'function srcTab()') && str_contains($app, 'data-ct="st"') && str_contains($app, '<div data-cpn="st">')
+    && str_contains($app, "tab = (tab || srcTab()) === 'st' && hasSt ? 'st' : 'ha';") && substr_count($app, "(tab || srcTab()) === 'st'") === 2 && str_contains($app, 'data-ha-only') && str_contains($app, "guideBox(tab)")
+    && str_contains((string) file_get_contents($root.'/resources/assets/iot-link.css'), '.hal-ct-loc {'), '1.3.1 「➕ 기기 연결」에 SmartThings 칸 (연결하기 · 위치마다 센서 고르기) · SmartThings 만 쓰면 그쪽을 먼저 보임');
 // 1.3.0 🖨️ SmartThings 의 프린터 기기 (커뮤니티 Edge 드라이버) — DB 없이 보는 것: 알아보기 · 값 바꾸기
 $haSrc13 = (string) file_get_contents($root.'/src/Services/HaService.php');
 $S = 'Plugins\\Custom\\IotLink\\Support\\SmartThings';

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.1 — 2026-10-11
+
+- ✨ **「➕ 기기 연결」에 SmartThings** — 지금까지 이 창은 Home Assistant(HACS) 안내뿐이었음. 맨 위에 **🏠 Home Assistant · SmartThings** 로 바꿔 보는 칸을 더함.
+  - 아직 SmartThings 와 잇지 않았으면: 세 걸음(로그인 · 허용 · 센서 고르기)과 **🔗 SmartThings 연결하기**.
+  - 이미 이었으면: 위치마다 **⚙️ 센서 고르기**(바로 열림) · ➕ 다른 위치 연결.
+  - 「무엇을 붙일 수 있나요」 — 온습도계 · 전력 플러그 · 프린터 기기(Edge 드라이버) · 문/움직임 … 과 「프린터에 쓸 수 있는 것」 표로 가는 길.
+- ✨ **SmartThings 만 쓰는 회원에게는 SmartThings 를 먼저** — 「➕ 기기 연결」 · 「❓ 연결 방법」을 열면, 이어 둔 SmartThings 위치가 있고 Home Assistant 기기가 없을 때 SmartThings 칸이 먼저 보임 (전에는 늘 Home Assistant).
+- 창 아래의 「🔑 코드 새로 만들기 · 📝 HACS 없이 설정 글로」는 Home Assistant 칸에서만, 「❓ 그림으로 보기」는 보고 있던 쪽의 그림 설명으로.
+
+배포: `plugin:update` (README 「업데이트」). DB 변경 없음.
+
 ## 1.3.0 — 2026-10-11
 
 🖨️ **SmartThings 의 「프린터 기기」를 받음** — 커뮤니티 Edge 드라이버로 SmartThings 에 등록한 3D 프린터(Bambu Lab LAN MQTT · Klipper/Moonraker)의 출력 상태 · 진행률 · 온도를 프린터 라운지로.
