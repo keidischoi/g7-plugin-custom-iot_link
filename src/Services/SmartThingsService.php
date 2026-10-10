@@ -798,7 +798,7 @@ class SmartThingsService
 
     /**
      * code → 토큰 (POST …/oauth/token · Basic base64(clientId:clientSecret) · grant_type=authorization_code)
-     *  code 는 한 번만 쓸 수 있으므로 「그런 주소 없음」(404 · 405 · 연결 실패)일 때만 다음 곳에 물음
+     *  code 는 한 번만 쓸 수 있으므로 그 주소가 요청을 받지 않았을 때(연결 실패 · 404 · 405 · 406 · 415)만 다음 곳에 물음
      *
      * @return array{0: int, 1: array<string, mixed>}
      */
@@ -812,7 +812,7 @@ class SmartThingsService
         foreach (SmartThings::TOKEN_URLS as $url) {
             [$st, $res] = $this->http('POST', $url, $hdr, $body);
             $j = json_decode((string) $res, true);
-            if (! in_array($st, [0, 404, 405], true)) {
+            if (! in_array($st, [0, 404, 405, 406, 415], true)) {
                 break;
             }
         }

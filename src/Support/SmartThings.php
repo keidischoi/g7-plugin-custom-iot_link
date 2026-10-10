@@ -12,11 +12,15 @@ final class SmartThings
 {
     public const API = 'https://api.smartthings.com/v1';
 
-    /** 토큰 받기 · 새로 받기 — 지금 문서(API Access Apps)의 곳을 먼저, 없으면(404) SDK(core-sdk) · 예전 문서의 곳 */
-    public const TOKEN_URLS = ['https://api.smartthings.com/v1/oauth/token', 'https://api.smartthings.com/oauth/token', 'https://auth-global.api.smartthings.com/oauth/token'];
+    /** 토큰 받기 · 새로 받기 — SDK(core-sdk) · 공식 예제가 쓰는 곳을 먼저, 그 주소가 안 받으면 Home Assistant 가 쓰는 곳 · 새 문서(/v1)의 곳 */
+    public const TOKEN_URLS = ['https://api.smartthings.com/oauth/token', 'https://auth-global.api.smartthings.com/oauth/token', 'https://api.smartthings.com/v1/oauth/token'];
 
-    /** 1.1.0 로그인 연결 (API Access App · OAuth) — 회원을 보내는 곳 */
-    public const AUTHORIZE_URL = 'https://api.smartthings.com/v1/oauth/authorize';
+    /**
+     * 1.1.0 로그인 연결 (API Access App · OAuth) — 회원을 보내는 곳.
+     *  1.1.1 새 문서의 `/v1/oauth/authorize` 는 로그인한 뒤 허용 화면에서 「Resource representation is only available with these types: text/html」(406)로 막힘
+     *  (/v1 길은 JSON 만 주는 길 — 허용 화면은 HTML) → 공식 예제 · Home Assistant 가 쓰는 `/oauth/authorize` 로
+     */
+    public const AUTHORIZE_URL = 'https://api.smartthings.com/oauth/authorize';
 
     /** 1.1.0 로그인 연결에서 고를 수 있는 SmartThings 기기 수 (기기 하나에 구독 하나 — 설치 하나의 구독 한도는 40) */
     public const MAX_PICKS = 30;
