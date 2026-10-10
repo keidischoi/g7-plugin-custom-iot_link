@@ -76,9 +76,9 @@ check(ST::confirmUrlOk('https://api.smartthings.com/v1/apps/x/confirm-registrati
 // 1.1.0 로그인 연결 (API Access App · OAuth)
 $au = ST::authorizeUrl('cid-1', 'https://3ds.test/iot-link', str_repeat('a', 40));
 parse_str((string) parse_url($au, PHP_URL_QUERY), $aq);
-check(str_starts_with($au, 'https://api.smartthings.com/v1/oauth/authorize?') && $aq === ['client_id' => 'cid-1', 'response_type' => 'code', 'redirect_uri' => 'https://3ds.test/iot-link', 'scope' => 'r:devices:* r:locations:*', 'state' => str_repeat('a', 40)]
-    && ! str_contains($au, '+') && preg_match('/^[a-f0-9]{40}$/', ST::newState()) === 1 && ST::newState() !== ST::newState(), '로그인 주소: client_id · code · redirect_uri · 읽기 권한(빈칸은 %20) · state — state 는 40글자 hex');
-check(ST::TOKEN_URLS[0] === 'https://api.smartthings.com/v1/oauth/token' && in_array('https://api.smartthings.com/oauth/token', ST::TOKEN_URLS, true), '토큰 받는 곳: 지금 문서의 주소 먼저 · 예전 주소도');
+check(str_starts_with($au, 'https://api.smartthings.com/oauth/authorize?') && ! str_contains(ST::AUTHORIZE_URL, '/v1/') && $aq === ['client_id' => 'cid-1', 'response_type' => 'code', 'redirect_uri' => 'https://3ds.test/iot-link', 'scope' => 'r:devices:* r:locations:*', 'state' => str_repeat('a', 40)]
+    && ! str_contains($au, '+') && preg_match('/^[a-f0-9]{40}$/', ST::newState()) === 1 && ST::newState() !== ST::newState(), '로그인 주소(/oauth/authorize — /v1 길은 허용 화면에서 406): client_id · code · redirect_uri · 읽기 권한(빈칸은 %20) · state — state 는 40글자 hex');
+check(ST::TOKEN_URLS[0] === 'https://api.smartthings.com/oauth/token' && in_array('https://auth-global.api.smartthings.com/oauth/token', ST::TOKEN_URLS, true) && in_array('https://api.smartthings.com/v1/oauth/token', ST::TOKEN_URLS, true), '토큰 받는 곳: SDK · 공식 예제의 주소 먼저 · 다른 주소도');
 $cs = static fn (string $id, array $st = []) => ['id' => $id] + ($st ? ['status' => $st] : []);
 $items = [
     ['deviceId' => 'dev-plug-0001', 'label' => '건조기 플러그', 'components' => [['id' => 'main', 'capabilities' => [$cs('switch', ['switch' => ['value' => 'on']]), $cs('powerMeter', ['power' => ['value' => 120.5, 'unit' => 'W']]), $cs('energyMeter', ['energy' => ['value' => 3, 'unit' => 'kWh']])]]]],

@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.1.0 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.1.1 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.1.0';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.1.1';
   var S = { root: null, key: '', d: null, ret: null };
 
   // ── 공통 ──

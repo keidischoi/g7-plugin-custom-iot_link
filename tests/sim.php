@@ -246,7 +246,7 @@ namespace {
         $j = static fn ($x) => json_encode($x);
         parse_str((string) $b, $form);
         if (str_ends_with($url, '/oauth/token') && ($form['grant_type'] ?? '') === 'authorization_code') {
-            if (! $fake['v1'] && str_contains($url, '/v1/oauth/token')) return [404, '{}'];
+            if (! $fake['v1'] && $url === 'https://api.smartthings.com/oauth/token') return [406, "Resource representation is only available with these types:\ntext/html"];   // 그 주소가 요청을 받지 않음 → 다음 곳
             $iid = $fake['codes'][$form['code'] ?? ''] ?? null;
             if ($iid === null || in_array($form['code'], $fake['used'], true)) return [400, '{"error":"invalid_grant","error_description":"Invalid authorization code"}'];
             $fake['used'][] = $form['code'];
@@ -392,7 +392,7 @@ namespace {
     $tc = $calls[0] ?? ['', '', [], ''];
     parse_str((string) $tc[3], $form);
     $in = DB::table('hal_st_installs')->where('id', $in->id)->first();
-    t(str_starts_with((string) $tok, 'AT-NEW-') && $tc[1] === 'https://api.smartthings.com/v1/oauth/token' && in_array('Authorization: Basic '.base64_encode('cid-1234-abcd:sec-ret'), $tc[2], true) && $form === ['grant_type' => 'refresh_token', 'client_id' => 'cid-1234-abcd', 'refresh_token' => 'RT-SECRET-1']
+    t(str_starts_with((string) $tok, 'AT-NEW-') && $tc[1] === 'https://api.smartthings.com/oauth/token' && in_array('Authorization: Basic '.base64_encode('cid-1234-abcd:sec-ret'), $tc[2], true) && $form === ['grant_type' => 'refresh_token', 'client_id' => 'cid-1234-abcd', 'refresh_token' => 'RT-SECRET-1']
         && $st->token($in) === $tok && $in->refreshing_at === null && $in->token_expires_at > '2026-10-11 11:00:00' && ! str_contains(json_encode($in), 'RT-NEW'), '토큰이 끝나면 refresh_token 으로 새로 받음 (Basic · 둘 다 바꿔 암호화해 둠)');
     DB::table('hal_st_installs')->where('id', $in->id)->update(['token_expires_at' => '2026-10-10 11:00:00']);
     $stFail['token'] = true;
@@ -445,7 +445,7 @@ namespace {
     t(! $st->oauthStart(0)[0], '로그인하지 않았으면 시작하지 못함');
     [$ok, , $d] = $st->oauthStart(1);
     parse_str((string) parse_url((string) ($d['url'] ?? ''), PHP_URL_QUERY), $q);
-    t($ok && str_starts_with($d['url'], 'https://api.smartthings.com/v1/oauth/authorize?') && $q['client_id'] === 'cid-1234-abcd' && $q['response_type'] === 'code' && $q['redirect_uri'] === 'https://3ds.test/iot-link'
+    t($ok && str_starts_with($d['url'], 'https://api.smartthings.com/oauth/authorize?') && $q['client_id'] === 'cid-1234-abcd' && $q['response_type'] === 'code' && $q['redirect_uri'] === 'https://3ds.test/iot-link'
         && $q['scope'] === 'r:devices:* r:locations:*' && preg_match('/^[a-f0-9]{40}$/', $q['state']) === 1, '연결하기 → SmartThings 로그인 주소 (돌아올 곳 = 회원 화면 · 읽기 권한만 · 일회용 state)');
     $state = $q['state'];
     $calls = [];
@@ -456,9 +456,9 @@ namespace {
     $oi = DB::table('hal_st_installs')->where('installed_app_id', 'ia-oauth-0001')->first();
     $tcs = array_values(array_filter($calls, fn ($c) => str_ends_with($c[1], '/oauth/token')));
     parse_str((string) $tcs[1][3], $form);
-    t($ok && $d === ['install_id' => (int) $oi->id, 'choose' => true] && count($tcs) === 2 && $tcs[0][1] === 'https://api.smartthings.com/v1/oauth/token' && $tcs[1][1] === 'https://api.smartthings.com/oauth/token'
+    t($ok && $d === ['install_id' => (int) $oi->id, 'choose' => true] && count($tcs) === 2 && $tcs[0][1] === 'https://api.smartthings.com/oauth/token' && $tcs[1][1] === 'https://auth-global.api.smartthings.com/oauth/token'
         && $form === ['grant_type' => 'authorization_code', 'code' => 'CODE1', 'client_id' => 'cid-1234-abcd', 'redirect_uri' => 'https://3ds.test/iot-link'] && in_array('Authorization: Basic '.base64_encode('cid-1234-abcd:sec-ret'), $tcs[1][2], true),
-        '돌아옴 → code 를 토큰으로 (Basic · redirect_uri 같게 · 그 주소가 없으면(404) 다음 곳)');
+        '돌아옴 → code 를 토큰으로 (Basic · redirect_uri 같게 · 그 주소가 요청을 받지 않으면(406) 다음 곳)');
     t((int) $oi->user_id === 1 && $oi->location_id === 'loc-0000-1111' && $oi->location_name === '우리집' && $oi->temp_scale === 'F' && $oi->status === 'choose' && $st->token($oi) === 'AT-OAUTH-CODE1'
         && ! str_contains(json_encode($oi), 'OAUTH-CODE1') && $oi->token_expires_at > '2026-10-12 08:00:00', '설치를 그 회원에게 이음 · 위치 이름 · 온도 단위 · 토큰은 암호화 · 「센서를 골라 주세요」');
     t(Settings::get('st_app_id') === 'app-9999-0000', 'App ID 를 안 적었거나 틀려도 우리 Client 로 받은 설치의 앱으로 맞춤 (틀리면 값 받기가 403)');
@@ -539,7 +539,7 @@ namespace {
     $r1 = $STC->oauthStart($as(1, 'POST'));
     $r2 = $STC->devices($as(1, 'GET'), (int) $oi->id);
     $r3 = $STC->pick($as(1, 'PUT', ['devices' => [['id' => 'dev-th-0001'], ['id' => 'dev-th-0002'], ['id' => 'dev-door-001'], ['id' => 'dev-plug-001']], 'power_on_w' => '15']), (int) $oi->id);
-    t($r1->getStatusCode() === 200 && str_starts_with($js($r1)['data']['url'], 'https://api.smartthings.com/v1/oauth/authorize?') && ! isset($js($r1)['data']['overview']) && $STC->oauthStart($as(0, 'POST'))->getStatusCode() === 422
+    t($r1->getStatusCode() === 200 && str_starts_with($js($r1)['data']['url'], 'https://api.smartthings.com/oauth/authorize?') && ! isset($js($r1)['data']['overview']) && $STC->oauthStart($as(0, 'POST'))->getStatusCode() === 422
         && count($js($r2)['data']['devices']) === 4 && $STC->devices($as(2, 'GET'), (int) $oi->id)->getStatusCode() === 422 && $r3->getStatusCode() === 200 && isset($js($r3)['data']['overview']['devices']) && str_contains($js($r3)['message'], '센서 4개')
         && $STC->pick($as(2, 'PUT', ['devices' => []]), (int) $oi->id)->getStatusCode() === 422 && $STC->oauthFinish($as(1, 'POST', ['code' => ['x'], 'state' => null]))->getStatusCode() === 422 && $r3->headers->get('Cache-Control') !== null
         && str_contains((string) $r3->headers->get('Cache-Control'), 'no-store'), '컨트롤러: 시작 · 목록 · 저장 (내 것만 · 이상한 입력은 422 · 캐시하지 않음)');
