@@ -18,6 +18,9 @@ use Illuminate\Support\Facades\Schema as S;
  *  hal_st_sensors   그 설치에서 고른 센서의 마지막 값 (capability · attribute 마다 한 줄)
  *  hal_st_codes     회원이 만든 일회용 연결 코드 (SmartThings 앱 설정 화면에 적음 · 30분 · 한 번)
  *  hal_devices.source  ha(Home Assistant · 기본) · smartthings
+ *  1.1.0 SmartThings 로그인 연결 (API Access App · OAuth)
+ *  hal_st_states    「SmartThings 연결하기」를 누른 회원의 일회용 state (15분 · 한 번) — 돌아온 요청이 그 회원 것인지 확인
+ *  hal_st_installs.config  {mode: oauth, devices: [[칸, deviceId, componentId]], map: {deviceId: 사이트 기기 id}, power_on_w}
  */
 final class Schema
 {
@@ -37,7 +40,9 @@ final class Schema
 
     public const ST_CODES = 'hal_st_codes';
 
-    public const TABLES = [self::DEVICES, self::READINGS, self::RUNS, self::SETTINGS, self::LINKS, self::ST_INSTALLS, self::ST_SENSORS, self::ST_CODES];
+    public const ST_STATES = 'hal_st_states';
+
+    public const TABLES = [self::DEVICES, self::READINGS, self::RUNS, self::SETTINGS, self::LINKS, self::ST_INSTALLS, self::ST_SENSORS, self::ST_CODES, self::ST_STATES];
 
     private static bool $ok = false;
 
@@ -174,6 +179,17 @@ final class Schema
                 $t->unsignedBigInteger('user_id')->index();
                 $t->string('code', 8)->unique();
                 $t->unsignedBigInteger('device_id')->nullable()->comment('붙일 사이트 기기 (없으면 새로 만듦)');
+                $t->dateTime('expires_at');
+                $t->dateTime('used_at')->nullable();
+                $t->timestamp('created_at')->nullable();
+            });
+        }
+        // 1.1.0 로그인 연결 (OAuth)
+        if (! S::hasTable(self::ST_STATES)) {
+            S::create(self::ST_STATES, function (Blueprint $t) {
+                $t->id();
+                $t->unsignedBigInteger('user_id')->index();
+                $t->string('state', 64)->unique();
                 $t->dateTime('expires_at');
                 $t->dateTime('used_at')->nullable();
                 $t->timestamp('created_at')->nullable();

@@ -57,9 +57,14 @@ class HaService
         // 0.2.0 SmartThings — 설치 · 센서 값 (기기 카드에도 그 기기에 이은 센서를 붙임)
         $st = (new SmartThingsService($this))->forUser($uid);
         $byDev = [];
-        foreach ($st['installs'] as $in) {
-            if ($in['device_id']) {
-                $byDev[$in['device_id']] = array_merge($byDev[$in['device_id']] ?? [], $in['sensors']);
+        foreach ($st['installs'] as $n => $in) {
+            foreach ($in['sensors'] as $sn) {
+                if ($sn['site']) {
+                    $byDev[$sn['site']][] = $sn;   // 1.1.0 로그인 연결은 SmartThings 기기마다 그 사이트 기기에
+                }
+            }
+            if ($in['mode'] === 'oauth') {
+                $st['installs'][$n]['sensors'] = [];   // 로그인 연결의 값은 기기 카드에만 보임 — 같은 것을 두 번 내려보내지 않음
             }
         }
 
@@ -178,7 +183,7 @@ class HaService
             @unlink(self::snapPath($id));
             DB::table(Schema::READINGS)->where('device_id', $id)->delete();
             DB::table(Schema::RUNS)->where('device_id', $id)->delete();
-            DB::table(Schema::ST_INSTALLS)->where('device_id', $id)->update(['device_id' => null, 'last_error' => '이은 기기를 지웠어요 — 값을 넘길 기기를 골라 주세요.']);   // 0.2.0 SmartThings 연결은 남김
+            (new SmartThingsService($this))->deviceDeleted($uid, $id);   // 0.2.0 SmartThings 연결은 남김 · 1.1.0 로그인 연결은 그 센서를 고른 것에서 뺌
         }
 
         return $n ? [true, '지웠어요.'] : [false, '기기를 찾을 수 없어요.'];

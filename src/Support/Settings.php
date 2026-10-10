@@ -32,13 +32,14 @@ final class Settings
         'company_link' => true,        // 업체검색(custom-companies) 보유 장비에 연결
         'timezone' => 'Asia/Seoul',    // 날짜 기준 시간대
         'hacs_repo' => 'keidischoi/ha-3ds-link',   // HACS 에 넣을 통합 저장소 (GitHub 주인/이름)
-        // 0.2.0 SmartThings (WebHook SmartApp) — Developer Workspace 에서 받은 값
+        // 0.2.0 SmartThings — 앱을 등록하고 받은 값 (1.1.0 API Access App · OAuth-In. 예전: Developer Workspace 의 WebHook SmartApp)
         'st_enabled' => false,         // SmartThings 연결 쓰기
-        'st_app_id' => '',             // App ID (요청의 appId 와 맞춰 봄 — 비우면 안 봄)
-        'st_client_id' => '',          // Client ID (토큰 새로 받기)
+        'st_app_id' => '',             // App ID (요청의 appId 와 맞춰 봄 — 비우면 안 봄 · 1.1.0 회원이 처음 연결할 때 알아서 채움)
+        'st_client_id' => '',          // Client ID (로그인 연결 · 토큰 새로 받기)
         'st_client_secret' => '',      // Client Secret — 저장할 때 Crypt 로 암호화 ('enc:…'), 화면 · API 에는 내보내지 않음
         'st_public_key' => '',         // (고급) 서명 공개 키 PEM — 비우면 key.smartthings.com 에서 keyId 로 받음
         'st_ping_unsigned' => false,   // (예전 방식) 서명 없는 PING 에도 답하기 — 답은 challenge 를 그대로 돌려줄 뿐
+        'st_code_flow' => false,       // 1.1.0 (예전 방식) SmartApp 연결 코드도 화면에 보이기 — 기본은 로그인 연결(API Access App · OAuth)만
         'st_code_min' => 30,           // 연결 코드가 쓸 수 있는 시간 (분)
         'st_max_events_min' => 120,    // 설치 하나가 1분에 보낼 수 있는 값 (넘으면 버림 — 답은 200)
     ];

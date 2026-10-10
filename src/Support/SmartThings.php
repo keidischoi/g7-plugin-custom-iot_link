@@ -12,8 +12,21 @@ final class SmartThings
 {
     public const API = 'https://api.smartthings.com/v1';
 
-    /** 토큰 새로 받기 — SDK(core-sdk)가 쓰는 곳을 먼저, 안 되면 예전 문서의 곳 */
-    public const TOKEN_URLS = ['https://api.smartthings.com/oauth/token', 'https://auth-global.api.smartthings.com/oauth/token'];
+    /** 토큰 받기 · 새로 받기 — 지금 문서(API Access Apps)의 곳을 먼저, 없으면(404) SDK(core-sdk) · 예전 문서의 곳 */
+    public const TOKEN_URLS = ['https://api.smartthings.com/v1/oauth/token', 'https://api.smartthings.com/oauth/token', 'https://auth-global.api.smartthings.com/oauth/token'];
+
+    /** 1.1.0 로그인 연결 (API Access App · OAuth) — 회원을 보내는 곳 */
+    public const AUTHORIZE_URL = 'https://api.smartthings.com/v1/oauth/authorize';
+
+    /** 1.1.0 로그인 연결에서 고를 수 있는 SmartThings 기기 수 (기기 하나에 구독 하나 — 설치 하나의 구독 한도는 40) */
+    public const MAX_PICKS = 30;
+
+    /**
+     * 1.1.0 로그인 연결 — capability → 칸. 기기를 고르면 그 기기가 가진 이 capability 들을 모두 받음.
+     *  switch 는 전력 측정(powerMeter)이 같이 있으면 「그 밖의 스위치」(값만) — 가동 상태는 전력으로 봄
+     */
+    public const CAP_SLOTS = ['temperatureMeasurement' => 'temp', 'relativeHumidityMeasurement' => 'hum', 'powerMeter' => 'power_meter', 'switch' => 'power_switch', 'contactSensor' => 'contact',
+        'motionSensor' => 'motion', 'presenceSensor' => 'presence', 'waterSensor' => 'water', 'battery' => 'battery', 'energyMeter' => 'energy', 'illuminanceMeasurement' => 'illuminance'];
 
     /** 서명 공개 키 — keyId(/pl/useast2/…)를 그대로 붙임 (SDK HttpKeyResolver). 새 문서의 /key/{keyId} 도 시도 */
     public const KEY_HOST = 'https://key.smartthings.com';
@@ -47,6 +60,9 @@ final class SmartThings
         'temperatureMeasurement' => '온도', 'relativeHumidityMeasurement' => '습도', 'switch' => '스위치', 'powerMeter' => '전력', 'energyMeter' => '전력량',
         'contactSensor' => '열림', 'motionSensor' => '움직임', 'presenceSensor' => '재실', 'waterSensor' => '누수', 'battery' => '배터리', 'illuminanceMeasurement' => '밝기',
     ];
+
+    /** 값에 단위가 같이 오지 않을 때 (DEVICE_EVENT 에는 단위가 없음) */
+    public const UNITS = ['powerMeter' => 'W', 'energyMeter' => 'kWh', 'battery' => '%', 'illuminanceMeasurement' => 'lux'];
 
     public const VALUES = ['on' => '켜짐', 'off' => '꺼짐', 'open' => '열림', 'closed' => '닫힘', 'active' => '움직임 있음', 'inactive' => '조용함', 'present' => '있음', 'not present' => '없음', 'wet' => '물 감지!', 'dry' => '정상'];
 
@@ -185,6 +201,9 @@ final class SmartThings
         }
         $unit = $ev['unit'] ?? (is_array($ev['data'] ?? null) ? ($ev['data']['unit'] ?? null) : null);
         $unit = is_string($unit) && $unit !== '' ? mb_substr($unit, 0, 12) : (string) ($knownUnit ?? '');
+        if ($unit === '' && is_numeric($raw) && isset(self::UNITS[$cap]) && $attr === (self::SLOTS[self::CAP_SLOTS[$cap]][1] ?? '')) {
+            $unit = self::UNITS[$cap];   // 1.1.0 이벤트에는 단위가 없어 「3.2」로만 보였음 → 「3.2 W」
+        }
         $num = is_numeric($raw) ? (float) $raw : null;
         $value = mb_substr(trim(strip_tags((string) $raw)), 0, 60);
         $payload = [];
@@ -277,6 +296,140 @@ final class SmartThings
         ];
 
         return ['configurationData' => ['page' => ['pageId' => '2', 'name' => '센서 고르기', 'nextPageId' => null, 'previousPageId' => '1', 'complete' => true, 'sections' => $sections]]];
+    }
+
+    /* ───────── 1.1.0 로그인 연결 (API Access App · OAuth) ───────── */
+
+    /** 일회용 state — 40글자 hex */
+    public static function newState(): string
+    {
+        return bin2hex(random_bytes(20));
+    }
+
+    /** 회원을 보낼 SmartThings 로그인 · 허용 주소 */
+    public static function authorizeUrl(string $clientId, string $redirectUri, string $state): string
+    {
+        return self::AUTHORIZE_URL.'?'.http_build_query(['client_id' => $clientId, 'response_type' => 'code', 'redirect_uri' => $redirectUri, 'scope' => implode(' ', self::SCOPES), 'state' => $state], '', '&', PHP_QUERY_RFC3986);
+    }
+
+    /**
+     * 앱 등록 본문 (POST /v1/apps — SmartThings CLI 의 「OAuth-In App」과 같은 모양)
+     *
+     * @return array<string, mixed>
+     */
+    public static function appRequest(string $site, string $targetUrl, string $redirectUri, string $uuid): array
+    {
+        $site = trim($site) !== '' ? trim($site) : 'IoT Link';
+        $slug = strtolower((string) preg_replace('/[^A-Za-z0-9]+/', '', $site));
+        $name = mb_substr($site, 0, 60).' IoT 연결';
+
+        return ['appName' => ($slug !== '' && preg_match('/^[a-z]/', $slug) ? substr($slug, 0, 40) : 'iotlink').'-'.$uuid, 'displayName' => $name, 'description' => mb_substr($site.' — 온습도 · 기기 상태를 사이트로 보내요 (읽기만)', 0, 250),
+            'appType' => 'API_ONLY', 'classifications' => ['CONNECTED_SERVICE'], 'singleInstance' => true, 'iconImage' => new \stdClass(), 'apiOnly' => ['targetUrl' => $targetUrl], 'principalType' => 'LOCATION',
+            'oauth' => ['clientName' => $name, 'scope' => self::SCOPES, 'redirectUris' => [$redirectUri]]];
+    }
+
+    /** GET /devices?includeStatus=true 의 기기 하나 → /devices/{id}/status 와 같은 모양 {components: {칸: {capability: {attribute: {value, unit}}}}} */
+    public static function listStatus(array $item): array
+    {
+        $out = [];
+        foreach (is_array($item['components'] ?? null) ? $item['components'] : [] as $c) {
+            $comp = is_array($c) ? self::comp($c['id'] ?? 'main') : 'main';
+            foreach (is_array($c) && is_array($c['capabilities'] ?? null) ? $c['capabilities'] : [] as $cap) {
+                if (is_array($cap) && is_string($cap['id'] ?? null) && is_array($cap['status'] ?? null)) {
+                    $out[$comp][$cap['id']] = $cap['status'];
+                }
+            }
+        }
+
+        return ['components' => $out];
+    }
+
+    /**
+     * 고를 수 있는 기기 — 받을 수 있는 capability 가 하나라도 있는 것만. 온습도계가 먼저.
+     *
+     * @param  list<mixed>  $items  GET /devices 의 items
+     * @return list<array{id: string, label: string, caps: array<string, string>, values: array<string, string>, kind: string}>  caps = capability => componentId
+     */
+    public static function candidates(array $items, ?string $scale = null): array
+    {
+        $out = [];
+        foreach ($items as $it) {
+            $id = is_array($it) ? self::id($it['deviceId'] ?? '') : '';
+            if ($id === '') {
+                continue;
+            }
+            $comps = array_values(array_filter(is_array($it['components'] ?? null) ? $it['components'] : [], 'is_array'));
+            usort($comps, static fn ($a, $b) => (($b['id'] ?? '') === 'main') <=> (($a['id'] ?? '') === 'main'));   // main 먼저
+            $caps = [];
+            foreach ($comps as $c) {
+                foreach (is_array($c['capabilities'] ?? null) ? $c['capabilities'] : [] as $cap) {
+                    $cid = is_array($cap) ? ($cap['id'] ?? '') : '';
+                    if (is_string($cid) && isset(self::CAP_SLOTS[$cid]) && ! isset($caps[$cid])) {
+                        $caps[$cid] = self::comp($c['id'] ?? 'main');
+                    }
+                }
+            }
+            if ($caps === []) {
+                continue;
+            }
+            $status = self::listStatus($it);
+            $values = [];
+            foreach (self::triples($id, $caps) as $t) {
+                foreach (self::statusEvents($status, $id, $t[2], self::SLOTS[$t[0]][0]) as $ev) {
+                    $r = self::event($ev, [$t], $scale);
+                    if ($r !== null && $ev['attribute'] === self::SLOTS[$t[0]][1]) {
+                        $values[$r['sensor']['capability']] = self::show($r['sensor']['capability'], $r['sensor']['value'], $r['sensor']['unit']);
+                    }
+                }
+            }
+            $label = Rules::text($it['label'] ?? '', 60) ?: (Rules::text($it['name'] ?? '', 60) ?: 'SmartThings 기기');
+            $kind = isset($caps['temperatureMeasurement']) || isset($caps['relativeHumidityMeasurement']) ? 'env' : (isset($caps['powerMeter']) || isset($caps['switch']) ? 'power' : 'other');
+            $out[] = ['id' => $id, 'label' => $label, 'caps' => $caps, 'values' => $values, 'kind' => $kind];
+        }
+        usort($out, static fn ($a, $b) => [array_search($a['kind'], ['env', 'power', 'other'], true), $a['label']] <=> [array_search($b['kind'], ['env', 'power', 'other'], true), $b['label']]);
+
+        return $out;
+    }
+
+    /**
+     * 고른 기기 하나 → 저장할 칸 [칸, deviceId, componentId] (가진 capability 마다 하나)
+     *
+     * @param  array<string, string>  $caps  capability => componentId
+     * @return list<array{0: string, 1: string, 2: string}>
+     */
+    public static function triples(string $deviceId, array $caps): array
+    {
+        $out = [];
+        foreach ($caps as $cap => $comp) {
+            if (isset(self::CAP_SLOTS[$cap])) {
+                $out[] = [$cap === 'switch' && isset($caps['powerMeter']) ? 'switches' : self::CAP_SLOTS[$cap], $deviceId, self::comp($comp)];
+            }
+        }
+
+        return $out;
+    }
+
+    /** 로그인 연결의 구독 — 기기 하나에 하나 (그 기기의 모든 값 · 바뀔 때만). 이름은 기기마다 늘 같음 (다시 만들지 않으려고) */
+    public static function deviceSubscription(string $deviceId): array
+    {
+        return ['sourceType' => 'DEVICE', 'device' => ['deviceId' => $deviceId, 'componentId' => '*', 'capability' => '*', 'attribute' => '*', 'value' => '*', 'stateChangeOnly' => true, 'subscriptionName' => 'd_'.substr(sha1($deviceId), 0, 24)]];
+    }
+
+    /** SmartThings 의 오류 답에서 사람이 읽을 글만 (비밀이 들어갈 일은 없지만 길이 · 태그를 정리) */
+    public static function errorText(mixed $json): string
+    {
+        if (! is_array($json)) {
+            return '';
+        }
+        $e = is_array($json['error'] ?? null) ? $json['error'] : $json;
+        $parts = [is_scalar($e['message'] ?? null) ? (string) $e['message'] : (is_scalar($json['error_description'] ?? null) ? (string) $json['error_description'] : (is_scalar($json['error'] ?? null) ? (string) $json['error'] : ''))];
+        foreach (is_array($e['details'] ?? null) ? array_slice($e['details'], 0, 3) : [] as $d) {
+            if (is_array($d) && is_scalar($d['message'] ?? null)) {
+                $parts[] = (string) $d['message'];
+            }
+        }
+
+        return Rules::text(implode(' · ', array_filter($parts, static fn ($x) => $x !== '')), 200);
     }
 
     /** CONFIRMATION 의 주소가 SmartThings 의 것인가 (https · *.smartthings.com) */

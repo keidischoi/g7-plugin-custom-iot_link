@@ -36,22 +36,37 @@ sudo -u http php82 artisan ext-static:publish --force
 
 되돌리기: `plugin:deactivate custom-iot_link --force` → `plugin:activate custom-ha_link --force` → `hooks:clear` · `cache:clear` · `ext-static:publish --force` (데이터는 같은 표라 그대로).
 
-## 📡 SmartThings (0.2.0, WebHook SmartApp)
+## 📡 SmartThings (1.1.0 로그인 연결 — API Access App · OAuth)
 
 SmartThings 는 또 하나의 「보내는 곳」 — 받은 센서 값을 Home Assistant 와 같은 받기(`HaService::ingest`)로 넘깁니다.
 
-- 받는 곳: `POST /api/plugins/custom-iot_link/smartthings` (Target URL) — 모든 요청의 HTTP 서명(rsa-sha256 · Digest · Date)을 확인
-- 권한(Scopes): `r:devices:*` · `r:locations:*` (읽기만)
-- 관리자 › IoT 연결 › 📡 SmartThings 에 등록 안내가 있습니다. 요약:
-  1. 관리자 화면에서 「SmartThings 연결 쓰기」를 켜고 저장
-  2. [Developer Workspace](https://developer.smartthings.com/workspace) → New Project → *Automation for the SmartThings App*
-  3. Register App → *WebHook Endpoint* → Target URL 붙여 넣기 → 이름 · 설명 · 권한 두 개 → Save
-  4. 나온 Client ID · Client Secret(한 번만 보임)을 관리자 화면에 저장 (App ID 는 선택)
-  5. *Verify App Registration* → 사이트가 CONFIRMATION 을 알아서 확인 → *Deploy to Test*
-  6. 다른 회원도 쓰려면 Workspace 에서 배포(Publish) 신청 — Deploy to Test 는 그 개발자 계정만 설치 가능
-- 회원: `/iot-link` 의 SmartThings 카드 → 🔑 연결 코드 만들기 → SmartThings 앱 › 자동화 › ＋ › 루틴 추가 › 발견 › 이 앱 → 코드 적기 → 센서 고르기
-- 값: 온도(°F→°C) · 습도 → 기기 온습도, 전원 스위치 · 전력(W 기준) → 가동 상태, 문 · 움직임 · 재실 · 누수 · 배터리 · 전력량 · 밝기 → 센서 값
-- 토큰은 Laravel Crypt 로 암호화 · 끝나 가면 refresh_token 으로 새로 받음 (`APP_KEY` 를 바꾸면 회원이 앱 설정을 한 번 더 저장해야 함)
+### 회원
+
+`/iot-link` 의 SmartThings 카드 → **🔗 SmartThings 연결하기** → 삼성 계정 로그인 → 위치를 고르고 **허용** → 사이트로 돌아오면 **⚙️ 센서 고르기**(온습도계는 미리 체크) → 저장. 화면의 「❓ 연결 방법 › 📡 SmartThings」에 그림 안내가 있습니다.
+
+- 센서 하나가 기기 카드 하나 — 이름이 같은 카드가 있으면 거기에, 필라멘트 **보관 위치**와 이름이 같으면 그 보관함에 붙습니다. 카드의 ✏️ 에서 알림 기준 · 붙일 곳을 정합니다.
+- 값: 온도(°F→°C) · 습도 → 기기 온습도, 전력(정한 W 넘으면) 또는 스위치 → 가동 상태, 문 · 움직임 · 재실 · 누수 · 배터리 · 전력량 · 밝기 → 센서 값
+- 센서를 더하거나 빼기: ⚙️ 센서 고르기 (다시 로그인하지 않음) · 다른 위치: ➕ 다른 위치 연결 · 그만 쓰기: 연결 끊기 (기기 카드 · 기록은 남음)
+- 💳 **고지**: 삼성이 SmartThings API 를 유료 이용제로 바꾸는 중이라 무료 이용이 중지되어 값이 들어오지 않게 될 수 있습니다. 이 안내는 회원 화면(SmartThings 카드 · 연결 방법 · 센서 고르기)에 늘 보입니다.
+
+### 관리자 (한 번) — 관리자 › IoT 연결 › 📡 SmartThings
+
+- **⚡ 자동 등록**: [account.smartthings.com/tokens](https://account.smartthings.com/tokens) 에서 개인 액세스 토큰을 만들어(권한: 애플리케이션) 붙여 넣고 「⚡ 자동 등록」 → 사이트가 앱을 만들고 Client ID · Client Secret 저장 · 주소 확인까지 합니다. 토큰은 저장하지 않습니다.
+- **📝 직접 등록**: [Developer Center](https://developer.smartthings.com/console) › Service Integrations › Register New App, 또는 SmartThings CLI `smartthings apps:create` → *OAuth-In App*. 화면의 복사 단추로 아래 값을 넣고, 나온 Client ID · Client Secret 을 관리자 화면에 저장합니다.
+
+| 항목 | 값 |
+| --- | --- |
+| Target URL (받는 곳) | `https://사이트/api/plugins/custom-iot_link/smartthings` — 모든 요청의 HTTP 서명(rsa-sha256 · Digest · Date)을 확인 |
+| Redirect URI (돌아오는 곳) | `https://사이트/iot-link` |
+| Scopes (권한) | `r:devices:*` · `r:locations:*` (읽기만) |
+
+- 주소 확인(CONFIRMATION)은 SmartThings 가 받는 곳으로 보내면 사이트가 알아서 답합니다 (관리자 화면에 ✅).
+- 토큰은 Laravel Crypt 로 암호화 · 끝나 가면 refresh_token 으로 새로 받음 (`APP_KEY` 를 바꾸면 회원이 「🔗 다시 연결」을 한 번 눌러야 함)
+- 💳 SmartThings 는 2026-10 부터 API 를 유료 플랜으로 바꾸는 중입니다 (개인 월 $4.99 · 상업용은 따로 — [SmartThings 의 안내](https://blog.smartthings.com/smartthings-updates/a-new-enhanced-smartthings-api-experience/)). 등록 · 연결이 거부되면 Developer Center 에서 플랜을 확인하세요.
+
+### 예전 방식 (0.2.0 연결 코드 · WebHook SmartApp)
+
+[Developer Workspace](https://developer.smartthings.com/workspace) 에서 *Automation for the SmartThings App* → *WebHook Endpoint* 로 등록한 경우입니다. Target URL · 권한은 위와 같고, 관리자 「고급」에서 「(예전 방식) 연결 코드로 잇기도 보이기」를 켜면 회원 화면에 연결 코드 칸이 나옵니다 (코드를 SmartThings 앱 › 자동화 › ＋ › 루틴 추가 › 발견 › 이 앱의 설정 화면에 적음). *Deploy to Test* 상태에서는 등록한 계정만 설치할 수 있습니다.
 
 ## 설치 (NAS)
 
