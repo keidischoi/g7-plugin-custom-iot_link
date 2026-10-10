@@ -1,8 +1,8 @@
-/*! custom-ha_link 0.2.0 — 🏠 HA 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-ha_link 0.2.1 — 🏠 HA 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-ha_link', BASE = '/ha-link', V = '0.2.0';
+  var API = '/api/plugins/custom-ha_link', BASE = '/ha-link', V = '0.2.1';
   var S = { root: null, key: '', d: null };
 
   // ── 공통 ──
@@ -319,7 +319,7 @@
     var ok = I.confirmed_at ? '<span class="hal-pill on">✅ 주소 확인됨 · ' + esc(I.confirmed_at) + '</span>' : (s.st_enabled ? '<span class="hal-pill wait">⏳ 아직 주소 확인 전 — ⑥을 눌러 주세요</span>' : '<span class="hal-pill">⚪ 꺼져 있음</span>');
     var steps = [
       ['아래에서 「SmartThings 연결 쓰기」를 켜고 저장', '꺼져 있으면 사이트가 SmartThings 의 확인 요청에 답하지 않아요 (404).'],
-      ['Developer Workspace 에 로그인', '<a href="https://smartthings.developer.samsung.com/workspace/" target="_blank" rel="noopener">smartthings.developer.samsung.com/workspace</a> — 삼성 계정 (SmartThings 앱과 같은 계정)으로.'],
+      ['Developer Workspace 에 로그인', '<a href="https://developer.smartthings.com/workspace" target="_blank" rel="noopener">developer.smartthings.com/workspace</a> — 삼성 계정 (SmartThings 앱과 같은 계정)으로.'],
       ['New Project → 「Automation for the SmartThings App」 → Continue', '프로젝트 이름(예: <b>' + esc(location.hostname) + ' 연결</b>)을 적고 <b>Create Project</b>.'],
       ['Register App → 「WebHook Endpoint」 → Target URL 붙여 넣기', '아래 주소를 그대로 붙여 넣어요. <b>https</b> 이고 밖에서 열려야 해요.' + cp(I.target_url || '', 'url')],
       ['앱 이름 · 설명을 적고 권한(Scopes) 두 개 체크 → Save', '회원 SmartThings 앱의 「발견」에 이 이름이 보여요. 권한은 <b>읽기만</b>:' + cp((I.scopes || []).join(' '), 'scopes') + '<span class="hal-hint">r:devices:* (기기 · 값 읽기) · r:locations:* (위치 이름 · 온도 단위 °C/°F)</span>'],
