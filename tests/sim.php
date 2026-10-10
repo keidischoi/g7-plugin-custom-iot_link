@@ -20,6 +20,7 @@ namespace {
     use Illuminate\Support\Facades\DB;
     use Plugins\Custom\HaLink\Listeners\IntegrationListener;
     use Plugins\Custom\HaLink\Services\HaService;
+    use Plugins\Custom\HaLink\Services\SmartThingsService;
     use Plugins\Custom\HaLink\Support\Notify;
     use Plugins\Custom\HaLink\Support\Settings;
 
@@ -39,6 +40,7 @@ namespace {
     $capsule->bootEloquent();
     $app->instance('db', $capsule->getDatabaseManager());
     $app->bind('db.schema', fn () => $capsule->getConnection()->getSchemaBuilder());
+    $app->instance('encrypter', new Illuminate\Encryption\Encrypter(random_bytes(32), 'AES-256-CBC'));   // 0.2.0 토큰 암호화
     Illuminate\Support\Facades\Facade::setFacadeApplication($app);
     if (! function_exists('now')) {
         function now()
@@ -219,6 +221,189 @@ namespace {
     [, , $x] = $svc->save(1, null, ['target' => 'printer', 'printer_id' => 5, 'ent_state' => 'sensor.p1s_print_status']);
     $prn = DB::table('hal_devices')->where('id', $x['id'])->first();
 
+    echo "■ 0.2.0 SmartThings (WebHook SmartApp)\n";
+    // 서명 열쇠 — SmartThings 흉내 (key.smartthings.com 은 인증서 PEM 을 줌)
+    $ossl = ['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA];
+    $pk = openssl_pkey_new($ossl);
+    $cert = '';
+    openssl_x509_export(openssl_csr_sign(openssl_csr_new(['commonName' => 'key.smartthings.test'], $pk, $ossl), null, $pk, 1, $ossl), $cert);
+    $evil = openssl_pkey_new($ossl);
+    $calls = [];
+    $stFail = ['subs' => false, 'token' => false];
+    SmartThingsService::$inline = true;
+    SmartThingsService::$http = function (string $m, string $url, array $h, ?string $b) use (&$calls, &$stFail, $cert): array {
+        $calls[] = [$m, $url, $h, $b];
+        $j = static fn ($x) => json_encode($x);
+        if (str_starts_with($url, 'https://key.smartthings.com/pl/')) return [200, $cert];
+        if (str_contains($url, '/confirm-registration')) return [200, '{}'];
+        if (str_ends_with($url, '/oauth/token')) return $stFail['token'] ? [401, '{"error":"invalid_grant"}'] : [200, $j(['access_token' => 'AT-NEW-'.count($calls), 'refresh_token' => 'RT-NEW-'.count($calls), 'expires_in' => 86399])];
+        if (preg_match('#/locations/#', $url)) return [200, $j(['name' => '우리집', 'temperatureScale' => 'F'])];
+        if (str_ends_with($url, '/subscriptions')) return $m === 'POST' && $stFail['subs'] ? [403, '{}'] : [200, '{}'];
+        if (preg_match('#/devices/([^/]+)/status$#', $url, $x)) {
+            return [200, $j(['components' => ['main' => ['temperatureMeasurement' => ['temperature' => ['value' => 77, 'unit' => 'F']], 'relativeHumidityMeasurement' => ['humidity' => ['value' => 33, 'unit' => '%']],
+                'contactSensor' => ['contact' => ['value' => 'closed']], 'powerMeter' => ['power' => ['value' => 2.5, 'unit' => 'W']]]]])];
+        }
+        if (preg_match('#/devices/([^/]+)$#', $url, $x)) return [200, $j(['deviceId' => $x[1], 'label' => ['dev-th-0001' => '드라이박스 온습도계', 'dev-door-001' => '보관함 문', 'dev-plug-001' => '프린터 플러그'][$x[1]] ?? '기기']) ];
+        if (preg_match('#/installedapps/[^/]+$#', $url) && $m === 'DELETE') return [200, '{}'];
+
+        return [404, '{}'];
+    };
+    $path = '/api/plugins/custom-ha_link/smartthings';
+    $sign = function (array $body, $key = null, array $over = []) use ($pk, $path): array {
+        $raw = json_encode($body);
+        $date = gmdate('D, d M Y H:i:s \G\M\T', $over['time'] ?? time());
+        $dg = 'SHA-256='.base64_encode(hash('sha256', $raw, true));
+        openssl_sign("(request-target): post $path\ndigest: $dg\ndate: $date", $sig, $key ?? $pk, OPENSSL_ALGO_SHA256);
+        $h = ['authorization' => 'Signature keyId="/pl/useast2/1b-75-test",signature="'.base64_encode($sig).'",headers="(request-target) digest date",algorithm="rsa-sha256"', 'digest' => $dg, 'date' => $date];
+
+        return [$over['raw'] ?? $raw, array_merge($h, $over['h'] ?? [])];
+    };
+    $st = new SmartThingsService($svc);
+    $send = function (array $body, $key = null, array $over = []) use ($st, $sign, $path): array {
+        [$raw, $h] = $sign($body, $key, $over);
+
+        return $st->handle('POST', [$path], $h, $raw);
+    };
+    HaService::$nowOverride = '2026-10-10 11:20:00';
+    t($send(['lifecycle' => 'PING', 'pingData' => ['challenge' => 'abc']])[0] === 404, 'SmartThings 를 안 켰으면 404');
+    Settings::save(['st_enabled' => true, 'st_client_id' => 'cid-1234-abcd', 'st_client_secret' => 'enc:'.Illuminate\Support\Facades\Crypt::encryptString('sec-ret')]);
+    t(SmartThingsService::clientSecret() === 'sec-ret' && Settings::public()['st_client_secret'] === '' && Settings::public()['st_client_secret_set'] === true && ! str_contains(json_encode(Settings::public()), 'sec-ret'), 'Client Secret 은 암호화해 두고 밖으로 안 내보냄');
+
+    echo "  · 서명\n";
+    $ping = ['lifecycle' => 'PING', 'executionId' => 'e1', 'pingData' => ['challenge' => 'abc']];
+    t($st->handle('POST', [$path], [], json_encode($ping))[0] === 401, '서명 없는 요청은 거부 (PING 도 — 기본)');
+    t($send($ping) === [200, ['pingData' => ['challenge' => 'abc']]], '서명이 맞으면 PING 에 challenge');
+    t($send($ping, $evil)[0] === 401, '다른 열쇠로 서명하면 거부');
+    [$raw, $h] = $sign($ping);
+    $req = Illuminate\Http\Request::create($path, 'POST', [], [], [], ['HTTP_AUTHORIZATION' => $h['authorization'], 'HTTP_DIGEST' => $h['digest'], 'HTTP_DATE' => $h['date'], 'CONTENT_TYPE' => 'application/json'], $raw);
+    $res = (new Plugins\Custom\HaLink\Http\Controllers\SmartThingsController($st, $svc))->webhook($req);
+    $req2 = Illuminate\Http\Request::create('/api/plugins/custom-ha_link/smartthingz', 'POST', [], [], [], ['HTTP_AUTHORIZATION' => $h['authorization'], 'HTTP_DIGEST' => $h['digest'], 'HTTP_DATE' => $h['date']], $raw);
+    t($res->getStatusCode() === 200 && $res->getContent() === '{"pingData":{"challenge":"abc"}}' && (new Plugins\Custom\HaLink\Http\Controllers\SmartThingsController($st, $svc))->webhook($req2)->getStatusCode() === 401, '컨트롤러: 실제 요청의 (request-target) 로 확인 · 다른 경로로 보낸 서명은 거부');
+    t($send($ping, null, ['raw' => json_encode(['lifecycle' => 'PING', 'pingData' => ['challenge' => 'evil']])])[0] === 401, '본문을 바꾸면 거부 (digest)');
+    t($send($ping, null, ['time' => time() - 3600])[0] === 401, '오래된 Date 는 거부 (다시 보내기 공격)');
+    t($send($ping, null, ['h' => ['authorization' => str_replace('rsa-sha256', 'hmac-sha256', $sign($ping)[1]['authorization'])]])[0] === 401, '알고리즘이 rsa-sha256 이 아니면 거부');
+    t($send($ping, null, ['h' => ['authorization' => str_replace('/pl/useast2/1b-75-test', '/../../evil', $sign($ping)[1]['authorization'])]])[0] === 401, '이상한 keyId 는 거부 (공개 키 주소 밖으로 못 나감)');
+    $keyCalls = count(array_filter($calls, fn ($c) => str_starts_with($c[1], 'https://key.smartthings.com/')));
+    t($keyCalls === 1, '공개 키는 한 번 받아 둠 (keyId 마다 캐시)');
+    Settings::save(['st_ping_unsigned' => true]);
+    t($st->handle('POST', [$path], [], json_encode($ping)) === [200, ['pingData' => ['challenge' => 'abc']]] && $st->handle('POST', [$path], [], json_encode(['lifecycle' => 'INSTALL']))[0] === 401, '(예전) 서명 없는 PING 은 켰을 때만 — 다른 것은 여전히 거부');
+    Settings::save(['st_ping_unsigned' => false, 'st_public_key' => $cert]);
+    t(Settings::get('st_public_key') !== '' && $send($ping)[0] === 200, '관리자가 넣은 공개 키(PEM)로도 확인');
+    Settings::save(['st_public_key' => '']);
+
+    echo "  · CONFIRMATION · CONFIGURATION\n";
+    $calls = [];
+    t($send(['lifecycle' => 'CONFIRMATION', 'appId' => 'app-1111-2222', 'confirmationData' => ['appId' => 'app-1111-2222', 'confirmationUrl' => 'https://evil.example.com/x']])[0] === 400 && $calls === [], 'SmartThings 주소가 아니면 confirmationUrl 을 부르지 않음');
+    $r = $send(['lifecycle' => 'CONFIRMATION', 'appId' => 'app-1111-2222', 'confirmationData' => ['appId' => 'app-1111-2222', 'confirmationUrl' => 'https://api.smartthings.com/v1/apps/app-1111-2222/confirm-registration?token=t']]);
+    t($r === [200, ['targetUrl' => 'https://3ds.test/api/plugins/custom-ha_link/smartthings']] && $calls[0][0] === 'GET' && str_contains($calls[0][1], 'confirm-registration') && $st->adminInfo()['confirmed_at'] === '2026-10-10 11:20:00', 'CONFIRMATION → confirmationUrl 을 GET · targetUrl 답');
+    Settings::save(['st_app_id' => 'app-1111-2222']);
+    t($send(['lifecycle' => 'PING', 'appId' => 'other-app-999', 'pingData' => ['challenge' => 'x']])[0] === 403 && $send(['messageType' => 'PING', 'appId' => 'app-1111-2222', 'pingData' => ['challenge' => 'x']])[0] === 200, 'App ID 를 정하면 다른 앱의 요청은 거부 · messageType 도 읽음');
+    $r = $send(['lifecycle' => 'CONFIGURATION', 'appId' => 'app-1111-2222', 'configurationData' => ['installedAppId' => 'ia-new-0001', 'phase' => 'INITIALIZE', 'config' => []]])[1];
+    t($r['configurationData']['initialize']['permissions'] === ['r:devices:*', 'r:locations:*'] && $r['configurationData']['initialize']['firstPageId'] === '1', 'INITIALIZE — 권한 r:devices:* · r:locations:*');
+    $p1 = $send(['lifecycle' => 'CONFIGURATION', 'configurationData' => ['installedAppId' => 'ia-new-0001', 'phase' => 'PAGE', 'pageId' => '1', 'config' => []]])[1]['configurationData']['page'];
+    t($p1['nextPageId'] === '2' && $p1['complete'] === false && $p1['sections'][0]['settings'][1]['id'] === 'link_code' && $p1['sections'][0]['settings'][1]['required'] === true, '1쪽: 연결 코드 칸');
+    t(! $st->createCode(2, (int) $box->id)[0], '남의 기기로는 코드를 못 만듦');
+    [$ok] = $st->createCode(1, (int) $box->id);
+    $code = str_replace('-', '', (string) $svc->overview(1)['smartthings']['code']['code']);
+    t($ok && strlen($code) === 8 && $svc->overview(1)['smartthings']['code']['device_id'] === (int) $box->id && $svc->overview(1)['smartthings']['ready'], '회원이 일회용 코드를 만듦 (붙일 기기와 함께)');
+    $cfgPage = fn (string $c) => ['link_code' => [['valueType' => 'STRING', 'stringConfig' => ['value' => $c]]]];
+    $p2 = $send(['lifecycle' => 'CONFIGURATION', 'configurationData' => ['installedAppId' => 'ia-new-0001', 'phase' => 'PAGE', 'pageId' => '2', 'config' => $cfgPage('ZZZZ-ZZZZ')]])[1]['configurationData']['page'];
+    t($p2['complete'] === false && str_contains(json_encode($p2, JSON_UNESCAPED_UNICODE), '코드가 맞지 않거나'), '2쪽: 틀린 코드면 끝낼 수 없음');
+    $p2 = $send(['lifecycle' => 'CONFIGURATION', 'configurationData' => ['installedAppId' => 'ia-new-0001', 'phase' => 'PAGE', 'pageId' => '2', 'config' => $cfgPage(strtolower(substr($code, 0, 4)).' '.substr($code, 4))]])[1]['configurationData']['page'];
+    $ids = []; foreach ($p2['sections'] as $sec) { foreach ($sec['settings'] as $x) { $ids[$x['id']] = $x; } }
+    t($p2['complete'] === true && str_contains($p2['sections'][0]['name'], '드라이박스') && $ids['temp']['capabilities'] === ['temperatureMeasurement'] && $ids['temp']['multiple'] === false && $ids['contact']['multiple'] === true
+        && isset($ids['hum'], $ids['power_switch'], $ids['power_meter'], $ids['motion'], $ids['presence'], $ids['water'], $ids['battery'], $ids['energy'], $ids['power_on_w']), '2쪽: 맞는 코드(소문자 · 빈칸 괜찮음) → capability 별 센서 고르기');
+
+    echo "  · INSTALL · EVENT\n";
+    $dc = fn (string $id) => [['valueType' => 'DEVICE', 'deviceConfig' => ['deviceId' => $id, 'componentId' => 'main']]];
+    $config = $cfgPage($code) + ['temp' => $dc('dev-th-0001'), 'hum' => $dc('dev-th-0001'), 'contact' => $dc('dev-door-001'), 'power_meter' => $dc('dev-plug-001'), 'power_on_w' => [['valueType' => 'STRING', 'stringConfig' => ['value' => '15']]]];
+    $calls = [];
+    $sentBefore = count($sent);
+    $r = $send(['lifecycle' => 'INSTALL', 'appId' => 'app-1111-2222', 'installData' => ['authToken' => 'AT-SECRET-1', 'refreshToken' => 'RT-SECRET-1', 'installedApp' => ['installedAppId' => 'ia-new-0001', 'locationId' => 'loc-0000-1111', 'config' => $config]]]);
+    $in = DB::table('hal_st_installs')->where('installed_app_id', 'ia-new-0001')->first();
+    t($r[0] === 200 && json_encode($r[1]) === '{"installData":{}}' && (int) $in->user_id === 1 && (int) $in->device_id === (int) $box->id && $in->location_id === 'loc-0000-1111' && $in->status === 'active', 'INSTALL → 회원 · 기기와 이음 · installData {}');
+    t(! str_contains(json_encode(DB::table('hal_st_installs')->get()), 'SECRET') && $st->token($in) === 'AT-SECRET-1' && ! str_contains((string) $in->config, $code), '토큰은 암호화해 둠 (DB 에 글 그대로 없음) · 코드는 설정에 안 남김');
+    $subs = array_values(array_filter($calls, fn ($c) => $c[0] === 'POST' && str_ends_with($c[1], '/installedapps/ia-new-0001/subscriptions')));
+    $sb = array_map(fn ($c) => json_decode($c[3], true)['device'], $subs);
+    t(count($subs) === 4 && $sb[0]['capability'] === 'temperatureMeasurement' && $sb[0]['deviceId'] === 'dev-th-0001' && $sb[0]['attribute'] === '*' && json_decode($subs[0][3], true)['sourceType'] === 'DEVICE'
+        && in_array('Authorization: Bearer AT-SECRET-1', $subs[0][2], true) && str_starts_with($subs[0][1], 'https://api.smartthings.com/v1/installedapps/') && $calls[1][0] === 'DELETE', '구독: 예전 것 지우고 고른 센서마다 POST /v1/installedapps/{id}/subscriptions');
+    $b = DB::table('hal_devices')->where('id', $box->id)->first();
+    t($in->temp_scale === 'F' && (float) $b->temp === 25.0 && (float) $b->humidity === 33.0 && DB::table('hal_st_sensors')->where('install_id', $in->id)->count() === 4
+        && DB::table('hal_st_sensors')->where('capability', 'contactSensor')->value('label') === '보관함 문', '처음 값: 77°F → 25°C 로 기기에 · 센서 이름 · 값 4줄');
+    HaService::$nowOverride = '2026-10-10 11:25:00';
+    $ev = fn (string $dev, string $cap, string $attr, $val, array $more = []) => ['eventTime' => '2026-10-10T02:25:00Z', 'eventType' => 'DEVICE_EVENT', 'deviceEvent' => ['eventId' => uniqid(), 'locationId' => 'loc-0000-1111', 'deviceId' => $dev, 'componentId' => 'main', 'capability' => $cap, 'attribute' => $attr, 'value' => $val, 'valueType' => 'number', 'stateChange' => true, 'subscriptionName' => 'x_0'] + $more];
+    $r = $send(['lifecycle' => 'EVENT', 'appId' => 'app-1111-2222', 'eventData' => ['authToken' => 'EPHEMERAL', 'installedApp' => ['installedAppId' => 'ia-new-0001', 'locationId' => 'loc-0000-1111'], 'events' => [
+        $ev('dev-th-0001', 'relativeHumidityMeasurement', 'humidity', 55), $ev('dev-th-0001', 'temperatureMeasurement', 'temperature', 86, ['unit' => 'F']), $ev('dev-door-001', 'contactSensor', 'contact', 'open'), $ev('dev-plug-001', 'powerMeter', 'power', 120.5),
+        $ev('dev-not-chosen', 'temperatureMeasurement', 'temperature', 99)]]]);
+    $b = DB::table('hal_devices')->where('id', $box->id)->first();
+    t($r === [200, ['eventData' => new stdClass()]] || json_encode($r[1]) === '{"eventData":{}}', 'EVENT → eventData {}');
+    t((float) $b->humidity === 55.0 && (float) $b->temp === 30.0 && $b->state === 'on' && (bool) $b->is_on && $b->last_seen_at === '2026-10-10 11:25:00', 'DEVICE_EVENT → 같은 받기: 습도 · 온도(86°F→30°C) · 전력 120W(기준 15W) → 가동 중');
+    t(count($sent) === $sentBefore + 1 && str_contains($sent[count($sent) - 1][3], '습도 55%'), '습도 기준을 넘으면 HA 와 똑같이 알림');
+    t(DB::table('hal_st_sensors')->where('st_device_id', 'dev-not-chosen')->doesntExist() && DB::table('hal_st_sensors')->where('capability', 'contactSensor')->value('value') === 'open', '고르지 않은 기기의 값은 버림 · 문 열림은 센서 값으로');
+    $o = $svc->overview(1);
+    $sts = $o['smartthings']['installs'][0];
+    $bd = array_values(array_filter($o['devices'], fn ($v) => $v['id'] === (int) $box->id))[0];
+    t($sts['location'] === '우리집' && $sts['device_name'] === '드라이박스' && $sts['status'] === 'active' && in_array('열림', array_column($sts['sensors'], 'value'), true) && in_array('30°C', array_column($sts['sensors'], 'value'), true)
+        && count($bd['sensors']) === 4 && $svc->overview(2)['smartthings']['installs'] === [] && ! str_contains(json_encode($o), 'AT-SECRET'), '화면: 연결 상태 · 센서 값 · 시각 (기기 카드에도) · 남은 안 보임 · 토큰 안 나감');
+
+    echo "  · 코드 · 토큰 · 고치기\n";
+    $r = $send(['lifecycle' => 'INSTALL', 'installData' => ['authToken' => 'AT-2', 'refreshToken' => 'RT-2', 'installedApp' => ['installedAppId' => 'ia-other-0002', 'locationId' => 'loc-0000-2222', 'config' => $cfgPage($code) + ['temp' => $dc('dev-th-0001')]]]]);
+    $in2 = DB::table('hal_st_installs')->where('installed_app_id', 'ia-other-0002')->first();
+    t($r[0] === 200 && $in2->user_id === null && $in2->status === 'unlinked' && str_contains((string) $in2->last_error, '코드'), '코드는 한 번만 — 다시 쓰면 잇지 않음');
+    $before = (float) DB::table('hal_devices')->where('id', $box->id)->value('temp');
+    $send(['lifecycle' => 'EVENT', 'eventData' => ['installedApp' => ['installedAppId' => 'ia-other-0002'], 'events' => [$ev('dev-th-0001', 'temperatureMeasurement', 'temperature', 50, ['unit' => 'C'])]]]);
+    t((float) DB::table('hal_devices')->where('id', $box->id)->value('temp') === $before, '잇지 않은 설치의 값은 어느 기기에도 안 들어감');
+    DB::table('hal_st_installs')->where('id', $in->id)->update(['token_expires_at' => '2026-10-10 11:00:00']);
+    $calls = [];
+    $tok = $st->token(DB::table('hal_st_installs')->where('id', $in->id)->first());
+    $tc = $calls[0] ?? ['', '', [], ''];
+    parse_str((string) $tc[3], $form);
+    $in = DB::table('hal_st_installs')->where('id', $in->id)->first();
+    t(str_starts_with((string) $tok, 'AT-NEW-') && $tc[1] === 'https://api.smartthings.com/oauth/token' && in_array('Authorization: Basic '.base64_encode('cid-1234-abcd:sec-ret'), $tc[2], true) && $form === ['grant_type' => 'refresh_token', 'client_id' => 'cid-1234-abcd', 'refresh_token' => 'RT-SECRET-1']
+        && $st->token($in) === $tok && $in->refreshing_at === null && $in->token_expires_at > '2026-10-11 11:00:00' && ! str_contains(json_encode($in), 'RT-NEW'), '토큰이 끝나면 refresh_token 으로 새로 받음 (Basic · 둘 다 바꿔 암호화해 둠)');
+    DB::table('hal_st_installs')->where('id', $in->id)->update(['token_expires_at' => '2026-10-10 11:00:00']);
+    $stFail['token'] = true;
+    $calls = [];
+    t($st->token(DB::table('hal_st_installs')->where('id', $in->id)->first()) === null && count($calls) === 1 && str_contains((string) DB::table('hal_st_installs')->where('id', $in->id)->value('last_error'), '토큰'), '새로 받기가 거절되면(401) 다른 곳에 다시 묻지 않고 알림');
+    $stFail['token'] = false;
+    DB::table('hal_st_installs')->where('id', $in->id)->update(['refreshing_at' => '2026-10-10 11:24:50']);
+    t($st->refresh(DB::table('hal_st_installs')->where('id', $in->id)->first()) === null, '다른 요청이 새로 받는 중이면 기다림 (한 번에 하나)');
+    DB::table('hal_st_installs')->where('id', $in->id)->update(['refreshing_at' => null]);
+    $r = $send(['lifecycle' => 'UPDATE', 'updateData' => ['authToken' => 'AT-3', 'refreshToken' => 'RT-3', 'installedApp' => ['installedAppId' => 'ia-new-0001', 'locationId' => 'loc-0000-1111', 'config' => ['temp' => $dc('dev-th-0001'), 'hum' => $dc('dev-th-0001')]], 'previousConfig' => []]]);
+    $in = DB::table('hal_st_installs')->where('id', $in->id)->first();
+    t(json_encode($r[1]) === '{"updateData":{}}' && (int) $in->user_id === 1 && (int) $in->device_id === (int) $box->id && $st->token($in) === 'AT-3' && DB::table('hal_st_sensors')->where('install_id', $in->id)->where('st_device_id', 'dev-door-001')->doesntExist(), 'UPDATE: 코드 없이도 이음 그대로 · 새 토큰 · 뺀 센서 값은 지움');
+    $p1 = $send(['lifecycle' => 'CONFIGURATION', 'configurationData' => ['installedAppId' => 'ia-new-0001', 'phase' => 'PAGE', 'pageId' => '2', 'config' => []]])[1]['configurationData']['page'];
+    t($p1['complete'] === true, '이미 이은 설치는 코드 없이 센서만 고침');
+    $stFail['subs'] = true;
+    $send(['lifecycle' => 'UPDATE', 'updateData' => ['authToken' => 'AT-4', 'refreshToken' => 'RT-4', 'installedApp' => ['installedAppId' => 'ia-new-0001', 'locationId' => 'loc-0000-1111', 'config' => ['temp' => $dc('dev-th-0001')]]]]);
+    $stFail['subs'] = false;
+    t(DB::table('hal_st_installs')->where('id', $in->id)->value('status') === 'error' && str_contains((string) DB::table('hal_st_installs')->where('id', $in->id)->value('last_error'), '구독'), '구독을 못 만들면 화면에 오류로');
+
+    echo "  · 주인 확인 · 끊기 · UNINSTALL\n";
+    t(! $st->relink(2, (int) $in->id, (int) $prn->id)[0] && ! $st->relink(1, (int) $in->id, 999)[0] && ! $st->disconnect(2, (int) $in->id)[0], '남의 연결은 못 바꾸고 못 끊음 · 남의(없는) 기기로는 못 이음');
+    t($st->relink(1, (int) $in->id, (int) $prn->id)[0] && (int) DB::table('hal_st_installs')->where('id', $in->id)->value('device_id') === (int) $prn->id, '내 다른 기기로 바꿔 이음');
+    $svc->delete(1, (int) $prn->id);
+    t(DB::table('hal_st_installs')->where('id', $in->id)->value('device_id') === null && DB::table('hal_st_installs')->where('id', $in->id)->exists(), '이은 기기를 지우면 연결은 남고 기기만 비움');
+    [, , $x] = $svc->save(1, null, ['target' => 'printer', 'printer_id' => 5, 'ent_state' => 'sensor.p1s_print_status']);
+    $prn = DB::table('hal_devices')->where('id', $x['id'])->first();
+    $calls = [];
+    [$ok, $msg] = $st->disconnect(1, (int) $in->id);
+    t($ok && str_contains($msg, '끊었어요') && $calls[array_key_last($calls)][0] === 'DELETE' && str_ends_with($calls[array_key_last($calls)][1], '/installedapps/ia-new-0001') && DB::table('hal_st_installs')->where('id', $in->id)->doesntExist() && DB::table('hal_st_sensors')->where('install_id', $in->id)->doesntExist(), '끊기: SmartThings 에서 앱 지우기 · 여기 토큰 · 값 지움');
+    t(json_encode($send(['lifecycle' => 'UNINSTALL', 'uninstallData' => ['installedApp' => ['installedAppId' => 'ia-other-0002']]])[1]) === '{"uninstallData":{}}' && DB::table('hal_st_installs')->where('installed_app_id', 'ia-other-0002')->doesntExist(), 'UNINSTALL → 정리 · uninstallData {}');
+    $st->createCode(1, null);
+    $c2 = str_replace('-', '', (string) $svc->overview(1)['smartthings']['code']['code']);
+    $send(['lifecycle' => 'INSTALL', 'installData' => ['authToken' => 'AT-5', 'refreshToken' => 'RT-5', 'installedApp' => ['installedAppId' => 'ia-third-0003', 'locationId' => 'loc-0000-1111', 'config' => $cfgPage($c2) + ['power_switch' => $dc('dev-plug-001')]]]]);
+    $i3 = DB::table('hal_st_installs')->where('installed_app_id', 'ia-third-0003')->first();
+    $nd = DB::table('hal_devices')->where('id', $i3->device_id)->first();
+    $send(['lifecycle' => 'EVENT', 'eventData' => ['installedApp' => ['installedAppId' => 'ia-third-0003'], 'events' => [$ev('dev-plug-001', 'switch', 'switch', 'on')]]]);
+    t($nd->source === 'smartthings' && $nd->name === 'SmartThings' && (int) $nd->user_id === 1 && DB::table('hal_devices')->where('id', $nd->id)->value('state') === 'on' && $svc->save(1, (int) $nd->id, ['target' => 'other', 'name' => '건조기 플러그'])[0]
+        && ! in_array((int) $nd->id, array_column($svc->hub(1)['devices'], 'id'), true), '기기를 안 고르면 새 SmartThings 기기 (센서 이름 없이 고칠 수 있음 · HA 통합에는 안 보임) · 스위치 → 가동 상태');
+    $send(['lifecycle' => 'EVENT', 'eventData' => ['installedApp' => ['installedAppId' => 'ia-third-0003'], 'events' => [['eventType' => 'INSTALLED_APP_LIFECYCLE_EVENT', 'installedAppLifecycleEvent' => ['installedAppId' => 'ia-third-0003', 'lifecycle' => 'DELETE', 'delete' => []]]]]]);
+    t(DB::table('hal_st_installs')->where('installed_app_id', 'ia-third-0003')->doesntExist() && DB::table('hal_devices')->where('id', $nd->id)->exists(), 'EVENT 안의 DELETE(앱 지움)도 정리 — 사이트 기기 · 기록은 남김');
+    $st->createCode(1, (int) $box->id);
+    $send(['lifecycle' => 'INSTALL', 'installData' => ['authToken' => 'AT-6', 'refreshToken' => 'RT-6', 'installedApp' => ['installedAppId' => 'ia-four-0004', 'locationId' => 'loc-0000-1111', 'config' => $cfgPage(str_replace('-', '', (string) $svc->overview(1)['smartthings']['code']['code'])) + ['temp' => $dc('dev-th-0001')]]]]);
+    t((int) DB::table('hal_st_installs')->where('installed_app_id', 'ia-four-0004')->value('user_id') === 1, '(회원 삭제 검사용 설치 하나 더)');
+
     echo "■ 고치기 · 지우기\n";
     [$ok] = $svc->rotate(1, (int) $box->id);
     t($ok && ! $svc->ingest($box->token, ['humidity' => 20])[0] && ! $svc->rotate(2, (int) $box->id)[0] && ! $svc->delete(2, (int) $box->id)[0], '주소 새로 만들기 — 옛 주소는 안 받음 · 남은 못 함');
@@ -228,6 +413,7 @@ namespace {
     t(DB::table('hal_readings')->count() === 0, '오래된 온습도 기록 지움');
     (new IntegrationListener())->onUserDeleted((object) ['id' => 1]);
     t(DB::table('hal_devices')->count() === 0 && DB::table('hal_runs')->count() === 0, '회원 삭제 → 기기 · 기록 정리');
+    t(DB::table('hal_st_installs')->count() === 0 && DB::table('hal_st_codes')->where('user_id', 1)->count() === 0, '회원 삭제 → SmartThings 연결 · 코드도 정리');
     Settings::save(['enabled' => false]);
     t(! $svc->ingest(str_repeat('a', 32), [])[0], '꺼 두면 안 받음');
 

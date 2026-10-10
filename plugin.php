@@ -16,6 +16,7 @@ use Plugins\Custom\HaLink\Support\Settings;
  *  - 온습도: 지금 값 · 이틀 그래프 · 기준(습도 · 온도)을 넘으면 알림 (그 보관함에 든 필라멘트도 알려 줌)
  *  - 상태: 가동 시간 기록 → 정비 수첩의 「가동 몇 시간마다」 · 내 프린터에 붙인 기기는 출력 상태를 그 프린터로 넘김
  *  - 사이트가 회원 집으로 접속하지 않음 (회원 쪽에서 보내오는 값만 받음) · 화면: /ha-link · 관리자: /admin/ha-link
+ *  - 0.2.0 SmartThings (WebHook SmartApp) — 회원이 SmartThings 앱에서 센서를 고르면 값이 바뀔 때마다 바로 들어옴 (같은 받기로)
  */
 class Plugin extends AbstractPlugin
 {
@@ -25,7 +26,7 @@ class Plugin extends AbstractPlugin
 
     public const USER_LAYOUT = 'custom-ha_link.ha_link';
 
-    public const TABLES = ['hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links'];
+    public const TABLES = ['hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links', 'hal_st_installs', 'hal_st_sensors', 'hal_st_codes'];
 
     private static bool $autoload = false;
 
@@ -157,6 +158,6 @@ class Plugin extends AbstractPlugin
     /** @return array<string, mixed> */
     public function getMetadata(): array
     {
-        return ['author' => 'keidischoi', 'license' => 'MIT', 'keywords' => ['3d printing', 'home assistant', 'hacs', 'sensor', 'humidity', 'temperature', 'printer', 'iot']];
+        return ['author' => 'keidischoi', 'license' => 'MIT', 'keywords' => ['3d printing', 'home assistant', 'hacs', 'smartthings', 'sensor', 'humidity', 'temperature', 'printer', 'iot']];
     }
 }

@@ -1,8 +1,8 @@
-/*! custom-ha_link 0.1.10 — 🏠 HA 연결 (Home Assistant 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-ha_link 0.2.0 — 🏠 HA 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-ha_link', BASE = '/ha-link', V = '0.1.10';
+  var API = '/api/plugins/custom-ha_link', BASE = '/ha-link', V = '0.2.0';
   var S = { root: null, key: '', d: null };
 
   // ── 공통 ──
@@ -66,31 +66,81 @@
       (hp ? '<path class="f" d="' + hp + ' L' + W + ' ' + H + ' L0 ' + H + ' Z"/><path class="h" d="' + hp + '"/>' : '') + (ts.length > 1 ? '<path class="t" d="' + line(1, tlo, thi) + '"/>' : '') +
       (my != null && hp ? '<line class="m" x1="0" x2="' + W + '" y1="' + my + '" y2="' + my + '"/>' : '') + '</svg>';
   }
+  /* 0.2.0 SmartThings — 기기에 이은 센서 값 (온습도 · 상태 밖의 것도) */
+  function sensList(list, max) {
+    if (!list || !list.length) return '';
+    var more = list.length > max ? '<li class="more">… 그 밖에 ' + (list.length - max) + '개</li>' : '';
+    return '<ul class="hal-sens">' + list.slice(0, max).map(function (x) { return '<li><span><b>' + esc(x.what) + '</b><small>' + esc(x.label) + '</small></span><em>' + esc(x.value) + '</em><time>' + esc(x.at ? agoText(x.at) : '–') + '</time></li>'; }).join('') + more + '</ul>';
+  }
   function card(d) {
-    var hasEnv = d.entities.temp || d.entities.hum, hasState = !!d.entities.state;
-    var st = d.never ? '<span class="hal-dot wait"></span>값을 기다리는 중' : d.stale ? '<span class="hal-dot off"></span>끊김 · ' + agoText(d.seen) : '<span class="hal-dot on"></span>' + agoText(d.seen);
+    var st = d.source === 'smartthings', hasHum = d.entities.hum || (st && d.humidity != null), hasTemp = d.entities.temp || (st && d.temp != null);
+    var hasEnv = hasTemp || hasHum, hasState = !!d.entities.state || (st && !!d.state);
+    var stt = d.never ? '<span class="hal-dot wait"></span>값을 기다리는 중' : d.stale ? '<span class="hal-dot off"></span>끊김 · ' + agoText(d.seen) : '<span class="hal-dot on"></span>' + agoText(d.seen);
     return '<article class="hal-card' + (d.over ? ' over' : '') + (d.stale && !d.never ? ' stale' : '') + '">' +
-      '<header><span class="hal-ico">' + ICON[d.target] + '</span><div><b>' + esc(d.name) + '</b><small>' + esc(S.d.targets[d.target]) + (d.where && d.where !== d.name ? ' · ' + esc(d.where) : '') + '</small></div><button class="hal-icobtn" data-edit="' + d.id + '" title="고치기" aria-label="고치기">✏️</button></header>' +
+      '<header><span class="hal-ico">' + ICON[d.target] + '</span><div><b>' + esc(d.name) + '</b><small>' + (st || (d.sensors && d.sensors.length) ? '<span class="hal-badge">📡 SmartThings</span> ' : '') + esc(S.d.targets[d.target]) + (d.where && d.where !== d.name ? ' · ' + esc(d.where) : '') + '</small></div><button class="hal-icobtn" data-edit="' + d.id + '" title="고치기" aria-label="고치기">✏️</button></header>' +
       '<div class="hal-vals">' +
-        (d.entities.hum ? '<div class="' + (d.humidity_max != null && d.humidity != null && d.humidity > d.humidity_max ? 'hot' : '') + '"><i>💧</i><b>' + (d.humidity == null ? '–' : d.humidity) + '</b><u>%</u>' + (d.humidity_max != null ? '<small>기준 ' + d.humidity_max + '%</small>' : '') + '</div>' : '') +
-        (d.entities.temp ? '<div class="' + (d.temp_max != null && d.temp != null && d.temp > d.temp_max ? 'hot' : '') + '"><i>🌡️</i><b>' + (d.temp == null ? '–' : d.temp) + '</b><u>°C</u>' + (d.temp_max != null ? '<small>기준 ' + d.temp_max + '°C</small>' : '') + '</div>' : '') +
+        (hasHum ? '<div class="' + (d.humidity_max != null && d.humidity != null && d.humidity > d.humidity_max ? 'hot' : '') + '"><i>💧</i><b>' + (d.humidity == null ? '–' : d.humidity) + '</b><u>%</u>' + (d.humidity_max != null ? '<small>기준 ' + d.humidity_max + '%</small>' : '') + '</div>' : '') +
+        (hasTemp ? '<div class="' + (d.temp_max != null && d.temp != null && d.temp > d.temp_max ? 'hot' : '') + '"><i>🌡️</i><b>' + (d.temp == null ? '–' : d.temp) + '</b><u>°C</u>' + (d.temp_max != null ? '<small>기준 ' + d.temp_max + '°C</small>' : '') + '</div>' : '') +
         (hasState ? '<div class="st' + (d.is_on ? ' run' : '') + '"><i>' + (d.is_on ? '⚙️' : '⏸') + '</i><b>' + (d.is_on ? '가동 중' : '쉬는 중') + '</b><small>' + (d.state ? esc(d.state) + ' · ' : '') + '30일 ' + d.hours_30d + '시간</small></div>' : '') +
-      '</div>' + (d.snap_at ? '<button type="button" class="hal-snap" data-snap="' + d.id + '" data-at="' + esc(d.snap_at) + '" title="크게 보기"><span>📷 ' + esc(agoText(d.snap_at)) + ' · ' + (d.snap_public ? '🌐 공개' : '🔒 나만') + '</span></button>' : '') + (hasEnv ? spark(d) : '') +
+      '</div>' + (d.snap_at ? '<button type="button" class="hal-snap" data-snap="' + d.id + '" data-at="' + esc(d.snap_at) + '" title="크게 보기"><span>📷 ' + esc(agoText(d.snap_at)) + ' · ' + (d.snap_public ? '🌐 공개' : '🔒 나만') + '</span></button>' : '') + (hasEnv ? spark(d) : '') + sensList(d.sensors, 6) +
       (d.over ? '<p class="hal-warn">⚠️ 기준을 넘었어요' + (d.target === 'location' ? ' — 여기 둔 필라멘트 건조를 챙겨 주세요' : '') + '</p>' : '') +
-      '<footer><span class="hal-st">' + st + '</span><button class="hal-btn sm" data-yaml="' + d.id + '">📋 설정 글</button></footer></article>';
+      '<footer><span class="hal-st">' + stt + '</span>' + (st ? '<small class="hal-hint">SmartThings 앱에서 센서를 바꿔요</small>' : '<button class="hal-btn sm" data-yaml="' + d.id + '">📋 설정 글</button>') + '</footer></article>';
   }
   function draw() {
     var d = S.d, live = d.devices.filter(function (x) { return !x.stale; }).length, over = d.devices.filter(function (x) { return x.over; }).length;
-    wrap('<section class="hal-hero"><div><h1>🏠 HA 연결</h1><p>Home Assistant 의 온습도 센서 · 프린터 · 장비 상태를 받아 정비 수첩과 내 프린터에 이어요.</p></div>' +
+    wrap('<section class="hal-hero"><div><h1>🏠 HA 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 정비 수첩과 내 프린터에 이어요.</p></div>' +
       '<div class="hal-stats"><span>기기 <b>' + d.devices.length + '</b></span><span>🟢 연결됨 <b>' + live + '</b></span>' + (over ? '<span class="hot">⚠️ 기준 넘음 <b>' + over + '</b></span>' : '') + '<button class="hal-btn ghost" data-guide title="연결 방법 보기" aria-label="연결 방법 보기">❓ 연결 방법</button><button class="hal-btn light" data-new>➕ 기기 연결</button></div></section>' +
+      stCard() +
       (d.devices.length ? '<div class="hal-grid">' + d.devices.map(card).join('') + '</div>' +
         '<p class="hal-note">' + (liveSec() ? '🔄 이 화면은 ' + (liveSec() >= 60 && liveSec() % 60 === 0 ? liveSec() / 60 + '분' : liveSec() + '초') + '마다 스스로 새 값을 받아 와요' : '🔄 새 값을 보려면 화면을 새로 고쳐 주세요') + ' (Home Assistant 는 ' + (d.config.send_mode === 'change' ? '값이 변하면' : (d.config.interval_min || 10) + '분마다') + ' · 상태가 바뀌면 바로 보내요).</p><p class="hal-note">🔒 받는 주소는 비밀번호와 같아요 — 남에게 보이지 마세요. 사이트가 내 집으로 접속하지 않고, 내 Home Assistant 가 보내는 값만 받아요.' + (d.config.maintenance ? ' · <a href="/maintenance?tab=drawer" data-go>🧵 필라멘트 서랍 보기</a>' : '') + '</p>'
         : '<section class="hal-start"><h2>세 걸음이면 돼요</h2><ol><li><b>① HACS 에서 「3ds」 설치</b><span>단추 한 번으로 저장소가 들어가요</span></li><li><b>② 사이트 주소 · 연결 코드 붙여 넣기</b><span>복사 단추 두 번</span></li><li><b>③ 「⚡ 알아서 찾아 연결」 → 확인</b><span>내 프린터 · 필라멘트 보관 위치와 이름이 맞는 것을 찾아 줘요</span></li></ol><div class="hal-row center"><button class="hal-btn pri big" data-new>➕ 첫 기기 연결하기</button><button class="hal-btn big" data-guide>❓ 그림으로 보는 연결 방법</button></div></section>'));
     qa('[data-guide]').forEach(function (b) { b.onclick = function () { guideBox(); }; });
+    stBind();
     qa('[data-snap]').forEach(function (b) { snapLoad(b); b.onclick = function () { var u = SNAP[b.getAttribute('data-snap')]; if (u && u.url) modal('📷 ' + esc(find(b.getAttribute('data-snap')).name), '<img class="hal-snapbig" src="' + u.url + '" alt="">'); }; });
     qa('[data-new]').forEach(function (b) { b.onclick = function () { connectBox(); }; });
     qa('[data-edit]').forEach(function (b) { b.onclick = function () { form(find(b.getAttribute('data-edit'))); }; });
     qa('[data-yaml]').forEach(function (b) { b.onclick = function () { yamlBox(find(b.getAttribute('data-yaml'))); }; });
+  }
+
+  /* ── 0.2.0 📡 SmartThings 카드 — 연결 상태 · 이은 센서 · 연결 코드 · 끊기 ── */
+  var ST_STATUS = { active: ['on', '연결됨'], syncing: ['wait', '센서 맞추는 중'], unlinked: ['off', '회원과 안 이어짐'], error: ['bad', '확인이 필요해요'] };
+  function minsLeft(at) { return Math.max(0, Math.ceil((new Date(at.replace(' ', 'T')) - new Date(S.d.now.replace(' ', 'T'))) / 60000)); }
+  function stCard() {
+    var T = S.d.smartthings; if (!T) return '';
+    var ins = T.installs || [], live = ins.filter(function (x) { return x.status === 'active'; }).length, bad = ins.filter(function (x) { return x.status === 'error' || x.last_error; }).length;
+    var pill = ins.length ? (bad ? '<span class="hal-pill bad">⚠️ 확인 필요</span>' : live ? '<span class="hal-pill on">🟢 연결됨 ' + live + '</span>' : '<span class="hal-pill wait">⏳ 맞추는 중</span>') : '<span class="hal-pill">⚪ 연결 안 됨</span>';
+    var head = '<header class="hal-stc-h"><span class="hal-stc-logo" aria-hidden="true">📡</span><div><h2>SmartThings</h2><p>삼성 SmartThings 의 온습도 · 문 · 움직임 · 플러그 센서를 고르면 값이 바뀔 때마다 바로 들어와요.</p></div>' + pill + '</header>';
+    if (!T.ready && !ins.length) return '<section class="hal-stc off">' + head + '<p class="hal-hint">관리자가 아직 SmartThings 연결을 켜지 않았어요.</p></section>';
+    var opts = '<option value="">➕ 새 기기 만들기 (「SmartThings」)</option>' + S.d.devices.map(function (x) { return '<option value="' + x.id + '">' + ICON[x.target] + ' ' + esc(x.name) + '</option>'; }).join('');
+    var code = T.code ? '<div class="hal-stc-code"><div><small>연결 코드 · ' + minsLeft(T.code.expires_at) + '분 남음 · 한 번만</small><b data-st-code-v>' + esc(T.code.code) + '</b><small>붙일 기기: ' + esc(T.code.device_id ? ((find(T.code.device_id) || {}).name || '–') : '새 기기 「SmartThings」') + '</small></div><div class="hal-row"><button type="button" class="hal-btn pri" data-st-copy>📋 복사</button><button type="button" class="hal-btn" data-st-new>🔄 새로</button></div></div>'
+      : '<div class="hal-stc-code empty"><label>값을 넘길 기기<select data-st-dev-new>' + opts + '</select></label><button type="button" class="hal-btn pri" data-st-new' + (T.ready ? '' : ' disabled') + '>🔑 연결 코드 만들기</button></div>';
+    var list = ins.map(function (x) {
+      var s = ST_STATUS[x.status] || ['', x.status];
+      var sel = '<select data-st-relink="' + x.id + '" aria-label="값을 넘길 기기">' + (x.device_id ? '' : '<option value="">— 기기 고르기 —</option>') + S.d.devices.map(function (d) { return '<option value="' + d.id + '"' + (d.id === x.device_id ? ' selected' : '') + '>' + ICON[d.target] + ' ' + esc(d.name) + '</option>'; }).join('') + '</select>';
+      return '<article class="hal-stc-i"><div class="hal-stc-ih"><div><b>📍 ' + esc(x.location || 'SmartThings 위치') + '</b><small><span class="hal-dot ' + s[0] + '"></span>' + s[1] + ' · 마지막 값 ' + esc(x.last_event_at ? agoText(x.last_event_at) : '아직 없음') + '</small></div><div class="hal-stc-to">→ ' + sel + '</div><button type="button" class="hal-btn sm danger" data-st-del="' + x.id + '">연결 끊기</button></div>' +
+        (x.last_error ? '<p class="hal-warn">' + esc(x.last_error) + '</p>' : '') + (x.sensors.length ? sensList(x.sensors, 40) : '<p class="hal-hint">센서 값을 기다리는 중이에요. SmartThings 앱에서 센서를 골랐는지 확인해 주세요.</p>') + '</article>';
+    }).join('');
+    var how = '<details class="hal-stc-how"' + (ins.length ? '' : ' open') + '><summary>❓ SmartThings 앱에서 연결하는 방법</summary><ol>' +
+      '<li><b>위에서 「🔑 연결 코드 만들기」</b> — 값을 넘길 기기(필라멘트 보관함 등)를 먼저 고르면 그 기기로 들어가요.</li>' +
+      '<li>SmartThings 앱 → <b>자동화</b> 탭 → <b>＋</b> → <b>루틴 추가</b> → 아래 <b>발견</b>에서 이 사이트의 앱을 눌러요.</li>' +
+      '<li><b>연결 코드</b> 칸에 8글자를 적고 <b>다음</b> (대소문자 · 줄표는 상관없어요).</li>' +
+      '<li>온도 · 습도 · 전원 플러그 · 문 · 움직임 센서 등을 골라 <b>완료</b> → <b>허용</b>.</li>' +
+      '<li>잠시 뒤 이 카드에 🟢 와 센서 값이 나와요. 센서를 바꾸려면 SmartThings 앱에서 그 앱을 열어 고치면 돼요 (코드는 다시 안 적어도 돼요).</li></ol>' +
+      '<p class="hal-hint">🔒 사이트는 고른 센서의 값만 읽어요 (기기를 켜고 끄지 않아요). 연결 코드는 30분 안에 한 번만 쓸 수 있어요.</p></details>';
+    return '<section class="hal-stc">' + head + code + (list ? '<div class="hal-stc-list">' + list + '</div>' : '') + how + '</section>';
+  }
+  function stBind() {
+    var root = q('.hal-stc'); if (!root) return;
+    root.onclick = function (ev) {
+      var t = ev.target;
+      if (t.closest('[data-st-copy]')) { copy(String(S.d.smartthings.code.code), t.closest('[data-st-copy]')); return; }
+      if (t.closest('[data-st-new]')) { var sel = root.querySelector('[data-st-dev-new]'), dev = sel ? sel.value : (S.d.smartthings.code && S.d.smartthings.code.device_id) || ''; api('POST', '/smartthings/code', { device_id: dev ? +dev : null }).then(function (r) { toast(r.message); S.d = r.data.overview; draw(); }).catch(fail); return; }
+      var del = t.closest('[data-st-del]'); if (del && confirm('SmartThings 연결을 끊을까요? 사이트 기기와 기록은 남아요. (SmartThings 앱의 그 앱도 지워져요)')) api('DELETE', '/smartthings/installs/' + del.getAttribute('data-st-del')).then(function (r) { toast(r.message); S.d = r.data.overview; draw(); }).catch(fail);
+    };
+    root.onchange = function (ev) {
+      var s = ev.target.closest('[data-st-relink]'); if (!s || !s.value) return;
+      api('PUT', '/smartthings/installs/' + s.getAttribute('data-st-relink'), { device_id: +s.value }).then(function (r) { toast(r.message); S.d = r.data.overview; draw(); }).catch(fail);
+    };
   }
 
   function copy(txt, btn) {
@@ -179,7 +229,7 @@
     octo: ['OctoPrint', { state: 'sensor.{p}_current_state', progress: 'sensor.{p}_job_percentage' }]
   };
   function form(d) {
-    var D = S.d, isNew = !d;
+    var D = S.d, isNew = !d, isSt = !!(d && d.source === 'smartthings');
     d = d || { target: 'location', name: '', location: '', entities: {}, humidity_max: 40, temp_max: null, notify: true, snap_public: false };
     var e = d.entities, ent = function (k, label, ph) { return '<label>' + label + '<input name="ent_' + k + '" value="' + esc(e[k] || '') + '" placeholder="' + ph + '" autocapitalize="off" autocomplete="off" spellcheck="false"></label>'; };
     var tg = Object.keys(D.targets).filter(function (k) { return k === 'location' || k === 'other' || (k === 'printer' && D.printers.length) || (k === 'equipment' && D.equipment.length); });
@@ -189,16 +239,17 @@
         '<div data-for="printer"><label>내 프린터<select name="printer_id">' + D.printers.map(function (p) { return '<option value="' + p.id + '"' + (d.printer_id === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select></label></div>' +
         '<div data-for="equipment"><label>업체 장비<select name="equipment_id">' + D.equipment.map(function (x) { var c = D.companies.filter(function (y) { return y.id === x.company_id; })[0]; return '<option value="' + x.id + '"' + (d.equipment_id === x.id ? ' selected' : '') + '>' + esc((c ? c.name + ' — ' : '') + x.name) + '</option>'; }).join('') + '</select></label></div>' +
         '<label>이름 <small>비우면 위에서 고른 것</small><input name="name" maxlength="60" value="' + esc(d.name || '') + '" placeholder="예: 거실 드라이박스"></label></section>' +
-      '<section class="hal-sec"><h4><em>2</em> Home Assistant 센서 이름</h4><p class="hal-hint">HA 의 <b>개발자 도구 › 상태</b>에서 보이는 이름이에요. 있는 것만 적으면 돼요.</p>' +
+      (isSt ? '<section class="hal-sec"><h4><em>2</em> 📡 SmartThings 센서</h4><p class="hal-hint">이 기기의 값은 SmartThings 에서 들어와요. 센서를 바꾸려면 SmartThings 앱에서 그 앱을 열어 고쳐 주세요.</p></section>' : '') +
+      (isSt ? '' : '<section class="hal-sec"><h4><em>2</em> Home Assistant 센서 이름</h4><p class="hal-hint">HA 의 <b>개발자 도구 › 상태</b>에서 보이는 이름이에요. 있는 것만 적으면 돼요.</p>' +
         '<div data-for="printer equipment other" class="hal-preset">빠르게 채우기: ' + Object.keys(PRESET).map(function (k) { return '<button type="button" class="hal-chip" data-preset="' + k + '">' + PRESET[k][0] + '</button>'; }).join('') + '</div>' +
         '<div class="hal-two">' + ent('hum', '💧 습도', 'sensor.drybox_humidity') + ent('temp', '🌡️ 온도', 'sensor.drybox_temperature') + '</div>' +
         '<div data-for="printer equipment other">' + ent('state', '⚙️ 상태 <small>프린터 상태 · 전원 스위치 · 플러그 — 가동 시간을 세요</small>', 'sensor.p1s_print_status 또는 switch.dryer') + '</div>' +
-        '<div data-for="printer" class="hal-two">' + ent('progress', '진행률 (%)', 'sensor.p1s_print_progress') + ent('remaining', '남은 시간 (분)', 'sensor.p1s_remaining_time') + ent('job', '작업 이름', 'sensor.p1s_task_name') + '</div></section>' +
+        '<div data-for="printer" class="hal-two">' + ent('progress', '진행률 (%)', 'sensor.p1s_print_progress') + ent('remaining', '남은 시간 (분)', 'sensor.p1s_remaining_time') + ent('job', '작업 이름', 'sensor.p1s_task_name') + '</div></section>') +
       '<section class="hal-sec"><h4><em>3</em> 알림 기준 <small>비우면 알리지 않아요</small></h4>' +
         '<div class="hal-two"><label>습도가 이보다 높으면 (%)<div class="hal-chips">' + [20, 30, 40, 50].map(function (v) { return '<button type="button" class="hal-chip" data-hm="' + v + '">' + v + '%</button>'; }).join('') + '</div><input name="humidity_max" type="number" min="1" max="100" inputmode="numeric" value="' + esc(d.humidity_max == null ? '' : d.humidity_max) + '" placeholder="안 알림"></label>' +
         '<label>온도가 이보다 높으면 (°C)<div class="hal-chips"></div><input name="temp_max" type="number" inputmode="numeric" value="' + esc(d.temp_max == null ? '' : d.temp_max) + '" placeholder="안 알림"></label></div>' +
         '<label class="hal-chk"><input type="checkbox" name="notify"' + (d.notify ? ' checked' : '') + '> 기준을 넘으면 알림 받기</label><p class="hal-hint">필라멘트는 보통 습도 20~40% 아래로 둬요 (나일론 · PVA 는 더 낮게).</p></section>' +
-      '<section class="hal-sec"><h4><em>4</em> 카메라 사진 <small>HACS 통합에서 카메라를 골랐을 때</small></h4><label class="hal-chk"><input type="checkbox" name="snap_public"' + (d.snap_public ? ' checked' : '') + '> 🌐 사진을 다른 회원에게 공개</label><p class="hal-hint">끄면 나만 봐요 (기본). 켜면 사이트의 다른 화면(예: 내 프린터)에서 이 사진을 보일 수 있어요. 언제든 끌 수 있어요.</p></section>';
+      (isSt ? '' : '<section class="hal-sec"><h4><em>4</em> 카메라 사진 <small>HACS 통합에서 카메라를 골랐을 때</small></h4><label class="hal-chk"><input type="checkbox" name="snap_public"' + (d.snap_public ? ' checked' : '') + '> 🌐 사진을 다른 회원에게 공개</label><p class="hal-hint">끄면 나만 봐요 (기본). 켜면 사이트의 다른 화면(예: 내 프린터)에서 이 사진을 보일 수 있어요. 언제든 끌 수 있어요.</p></section>');
     var ov = modal(isNew ? '➕ 기기 연결' : '✏️ 기기 고치기', html, {
       ok: isNew ? '만들고 설정 글 보기' : '저장',
       left: isNew ? '' : '<button type="button" class="hal-btn danger" data-del>🗑 지우기</button>',
@@ -259,18 +310,47 @@
     ['interval_min', '「주기적으로」 · 설정 글(YAML): 값 보내는 주기 (분, 1~60)', 'num'], ['refresh_sec', '화면이 새 값을 다시 받는 간격 (초, 5~3600 · 0 = 끔)', 'num'],
     ['away_after_min', '회원이 화면을 이만큼(분) 안 보면 「자리 비움」 (5~1440 · 0 = 끔: 늘 같은 주기)', 'num'], ['away_interval_min', '자리 비움일 때 값 보내는 주기 (분) — 통합 「3ds」이 스스로 늦춤', 'num'], ['keep_days', '온습도 기록을 며칠 둘지 (한 시간에 한 줄)', 'num'], ['stale_hours', '몇 시간 소식이 없으면 「끊김」', 'num'], ['alert_gap_hours', '같은 기기의 경고를 다시 보내기까지 (시간)', 'num'],
     ['notify_site', '기준을 넘으면 사이트 알림', 'bool'], ['notify_mail', '기준을 넘으면 메일도', 'bool'], ['snapshot', '카메라 사진 받기 (기기마다 최신 한 장 · 주인만 봄)', 'bool'], ['snap_gap_min', '사진을 받는 가장 짧은 간격 (분)', 'num'], ['printer_link', '내 프린터로 출력 상태 넘기기', 'bool'], ['company_link', '업체 보유 장비에 연결', 'bool'], ['hacs_repo', 'HACS 통합 저장소 (GitHub 주인/이름)', 'text'], ['timezone', '시간대 (예: Asia/Seoul)', 'text']];
+  /* 0.2.0 📡 SmartThings — 관리자 설정 · Developer Workspace 등록 안내 (한 걸음씩) */
+  var ST_FIELDS = [['st_enabled', 'SmartThings 연결 쓰기 (먼저 켜고 저장해야 Workspace 의 주소 확인이 돼요)', 'bool'], ['st_app_id', 'App ID (비우면 맞춰 보지 않음)', 'text'], ['st_client_id', 'Client ID', 'text'],
+    ['st_client_secret', 'Client Secret', 'secret'], ['st_code_min', '회원 연결 코드를 쓸 수 있는 시간 (분, 5~1440)', 'num'], ['st_max_events_min', '설치 하나가 1분에 보낼 수 있는 값 (넘으면 버림, 10~2000)', 'num'],
+    ['st_ping_unsigned', '(예전 방식) 서명 없는 PING 에도 답하기 — 보통은 끔', 'bool'], ['st_public_key', '(고급) 서명 공개 키 PEM — 비우면 key.smartthings.com 에서 받아요', 'area']];
+  function stAdmin(s, info) {
+    var I = info || {}, cp = function (v, k) { return '<div class="hal-copy"><code>' + esc(v) + '</code><button type="button" class="hal-btn sm pri" data-acp="' + k + '">📋 복사</button></div>'; };
+    var ok = I.confirmed_at ? '<span class="hal-pill on">✅ 주소 확인됨 · ' + esc(I.confirmed_at) + '</span>' : (s.st_enabled ? '<span class="hal-pill wait">⏳ 아직 주소 확인 전 — ⑥을 눌러 주세요</span>' : '<span class="hal-pill">⚪ 꺼져 있음</span>');
+    var steps = [
+      ['아래에서 「SmartThings 연결 쓰기」를 켜고 저장', '꺼져 있으면 사이트가 SmartThings 의 확인 요청에 답하지 않아요 (404).'],
+      ['Developer Workspace 에 로그인', '<a href="https://smartthings.developer.samsung.com/workspace/" target="_blank" rel="noopener">smartthings.developer.samsung.com/workspace</a> — 삼성 계정 (SmartThings 앱과 같은 계정)으로.'],
+      ['New Project → 「Automation for the SmartThings App」 → Continue', '프로젝트 이름(예: <b>' + esc(location.hostname) + ' 연결</b>)을 적고 <b>Create Project</b>.'],
+      ['Register App → 「WebHook Endpoint」 → Target URL 붙여 넣기', '아래 주소를 그대로 붙여 넣어요. <b>https</b> 이고 밖에서 열려야 해요.' + cp(I.target_url || '', 'url')],
+      ['앱 이름 · 설명을 적고 권한(Scopes) 두 개 체크 → Save', '회원 SmartThings 앱의 「발견」에 이 이름이 보여요. 권한은 <b>읽기만</b>:' + cp((I.scopes || []).join(' '), 'scopes') + '<span class="hal-hint">r:devices:* (기기 · 값 읽기) · r:locations:* (위치 이름 · 온도 단위 °C/°F)</span>'],
+      ['나온 Client ID · Client Secret 을 아래 칸에 붙여 넣고 저장', '<b>Client Secret 은 이때 한 번만 보여요</b> — 바로 복사해 두세요. App ID 는 프로젝트 화면(Overview)의 App ID 를 적어요 (비워도 돼요).'],
+      ['「Verify App Registration」(주소 확인) 누르기', 'SmartThings 가 사이트로 CONFIRMATION 을 보내면 사이트가 알아서 확인해요 — 이 화면을 새로 고치면 ✅ 로 바뀌어요.'],
+      ['「Deploy to Test」 누르기', '이제 그 삼성 계정의 SmartThings 앱 → <b>설정 › SmartThings 정보</b>를 5초 길게 눌러 <b>개발자 모드</b>를 켜면 자동화 › ＋ › 루틴 추가 › <b>발견</b>에 앱이 보여요.'],
+      ['다른 회원도 쓰게 하려면 — 배포(Publish)', 'Deploy to Test 상태에서는 <b>그 개발자 계정만</b> 설치할 수 있어요. 회원 누구나 쓰게 하려면 Workspace 에서 배포 신청(삼성 검토)이 필요해요.']
+    ];
+    return '<section class="hal-form hal-st-admin"><div class="full hal-st-ah"><h2>📡 SmartThings 연결 <small>WebHook SmartApp</small></h2>' + ok + '<span class="hal-hint">설치 ' + n(I.installs) + ' · 회원과 이은 것 ' + n(I.linked) + '</span></div>' +
+      '<ol class="full hal-st-steps">' + steps.map(function (x, i) { return '<li><em>' + (i + 1) + '</em><div><b>' + x[0] + '</b><p>' + x[1] + '</p></div></li>'; }).join('') + '</ol>' +
+      ST_FIELDS.map(function (f) {
+        if (f[2] === 'bool') return '<label class="hal-chk"><input type="checkbox" data-k="' + f[0] + '"' + (s[f[0]] ? ' checked' : '') + '> ' + esc(f[1]) + '</label>';
+        if (f[2] === 'secret') return '<label>' + esc(f[1]) + ' <small>' + (s.st_client_secret_set ? '🔒 저장됨 (암호화) — 바꿀 때만 적어요' : '아직 없음') + '</small><input type="password" autocomplete="new-password" data-k="' + f[0] + '" value="" placeholder="' + (s.st_client_secret_set ? '●●●●●●●● 그대로 두기' : 'Workspace 에서 받은 Client Secret') + '"></label>';
+        if (f[2] === 'area') return '<label class="full">' + esc(f[1]) + '<textarea data-k="' + f[0] + '" rows="3" spellcheck="false" placeholder="-----BEGIN PUBLIC KEY-----">' + esc(s[f[0]] || '') + '</textarea></label>';
+        return '<label>' + esc(f[1]) + '<input type="' + (f[2] === 'num' ? 'number' : 'text') + '" data-k="' + f[0] + '" value="' + esc(s[f[0]]) + '" autocomplete="off" spellcheck="false"></label>';
+      }).join('') +
+      '<p class="hal-hint full">🔒 모든 요청의 HTTP 서명(rsa-sha256 · Digest · Date)을 확인하고 맞지 않으면 거부해요. 회원 토큰은 암호화해 두고 24시간마다 refresh_token 으로 새로 받아요. 회원은 자기 화면 /ha-link 의 SmartThings 카드에서 일회용 연결 코드를 만들어 SmartThings 앱의 설정 화면에 적으면 이어져요.</p></section>';
+  }
   function renderAdmin() {
     api('GET', '/admin/settings').then(function (r) {
       var s = r.data.settings, st = r.data.stats;
-      wrap('<section class="hal-hero"><div><h1>🏠 HA 연결 — 관리자</h1><p>회원 화면: <a href="' + BASE + '" target="_blank">' + BASE + '</a> · 회원 기기의 값 · 받는 주소는 관리자에게도 보이지 않아요</p></div><div class="hal-stats"><span>쓰는 회원 <b>' + n(st.users) + '</b></span><span>기기 <b>' + n(st.devices) + '</b></span><span>🟢 연결됨 <b>' + n(st.live) + '</b></span><span>기록 <b>' + n(st.readings) + '</b>줄</span></div></section>' +
+      wrap('<section class="hal-hero"><div><h1>🏠 HA 연결 — 관리자</h1><p>회원 화면: <a href="' + BASE + '" target="_blank">' + BASE + '</a> · 회원 기기의 값 · 받는 주소는 관리자에게도 보이지 않아요</p></div><div class="hal-stats"><span>쓰는 회원 <b>' + n(st.users) + '</b></span><span>기기 <b>' + n(st.devices) + '</b></span><span>🟢 연결됨 <b>' + n(st.live) + '</b></span><span>기록 <b>' + n(st.readings) + '</b>줄</span><span>📡 SmartThings <b>' + n(st.st_installs) + '</b></span></div></section>' +
         '<div class="hal-form">' + FIELDS.map(function (f) {
           if (f[2] === 'sel') return '<label>' + esc(f[1]) + '<select data-k="' + f[0] + '">' + f[3].map(function (o) { return '<option value="' + o[0] + '"' + (s[f[0]] === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></label>';
           return f[2] === 'bool' ? '<label class="hal-chk"><input type="checkbox" data-k="' + f[0] + '"' + (s[f[0]] ? ' checked' : '') + '> ' + esc(f[1]) + '</label>' : '<label>' + esc(f[1]) + '<input type="' + (f[2] === 'num' ? 'number' : 'text') + '" data-k="' + f[0] + '" value="' + esc(s[f[0]]) + '"></label>';
         }).join('') + '<p class="hal-hint full">전송 방식은 여기서 정하고 회원의 통합이 따라요 (회원은 주기를 더 길게만 바꿀 수 있어요). 「값이 변하면」: 습도 · 온도가 정한 만큼 변했을 때만 보내고(잇따라 변해도 1분에 한 번까지), 변화가 없으면 가끔 한 번만 — 값이 안정된 보관함은 요청이 줄고, 뚜껑을 열어 습도가 오르면 더 빨리 알아요. 「주기적으로」: 정한 주기마다 보내요 (기기 100대 · 10분이면 한 시간에 600번). 회원이 사이트의 HA 연결 · 정비 수첩 화면을 한동안 안 보면(자리 비움) 통합이 느린 주기로 바꿔 보내요 — 그동안에도 출력 시작 · 끝 같은 상태 변화는 바로 오고, 습도 경고는 느린 주기만큼 늦어질 수 있어요. 다시 화면을 열면 다음 번 값이 올 때부터 평소 주기로 돌아와요 (설정 글(YAML)로 붙인 기기는 늘 같은 주기) — 요청 하나에 조회 1 · 저장 1~3. 기록은 기기마다 한 시간에 한 줄만 남기고 위 날짜가 지나면 지워요. 받는 주소는 1분에 30번까지만 받아요.</p>' +
-        '<div class="hal-acts full"><button class="hal-btn pri" id="hal-asave">저장</button></div></div>');
+        '</div>' + stAdmin(s, r.data.smartthings) + '<div class="hal-acts hal-acts-end"><button class="hal-btn pri" id="hal-asave">저장</button></div>');
+      S.root.onclick = function (ev) { var c = ev.target.closest('[data-acp]'); if (!c) return; var I = r.data.smartthings || {}; copy(c.getAttribute('data-acp') === 'url' ? I.target_url : (I.scopes || []).join(' '), c); };
       q('#hal-asave').onclick = function () {
         var out = {}; qa('[data-k]').forEach(function (i) { out[i.getAttribute('data-k')] = i.type === 'checkbox' ? i.checked : i.type === 'number' ? +i.value : i.value; });
-        api('PUT', '/admin/settings', { settings: out }).then(function (x) { toast(x.message || '저장했어요.'); }).catch(fail);
+        api('PUT', '/admin/settings', { settings: out }).then(function (x) { toast(x.message || '저장했어요.'); renderAdmin(); }).catch(fail);
       };
     }).catch(function (e) { wrap('<div class="hal-empty">' + esc(e.message) + '</div>'); });
   }
@@ -280,7 +360,7 @@
     if (S.root.hasAttribute('data-hal-admin')) return renderAdmin();
     wrap('<div class="hal-empty">불러오는 중…</div>');
     api('GET', '/me').then(function (r) { S.d = r.data; draw(); }).catch(function (e) {
-      wrap(e.status === 401 ? '<section class="hal-hero"><div><h1>🏠 HA 연결</h1><p>Home Assistant 의 온습도 센서 · 프린터 · 장비 상태를 받아 정비 수첩과 내 프린터에 이어요.</p></div></section><div class="hal-empty">로그인하면 내 기기를 연결할 수 있어요. <a href="/login" data-go>로그인</a></div>' : '<div class="hal-empty">' + esc(e.message) + '</div>');
+      wrap(e.status === 401 ? '<section class="hal-hero"><div><h1>🏠 HA 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 정비 수첩과 내 프린터에 이어요.</p></div></section><div class="hal-empty">로그인하면 내 기기를 연결할 수 있어요. <a href="/login" data-go>로그인</a></div>' : '<div class="hal-empty">' + esc(e.message) + '</div>');
     });
   }
   function tick() {
@@ -302,7 +382,7 @@
   var liveBusy = false, liveAt = 0;
   /** 0.1.5 다시 받는 간격 (초) — 관리자 설정 (0 = 끔) */
   function liveSec() { var c = S.d && S.d.config, v = c && c.refresh_sec != null ? +c.refresh_sec : 60; return v > 0 ? Math.max(5, v) : 0; }
-  function sig(d) { return JSON.stringify(d.devices.map(function (x) { return [x.id, x.temp, x.humidity, x.state, x.is_on, x.seen, x.stale, x.over, x.snap_at, x.hours_30d, x.name, x.where, x.humidity_max, x.temp_max, x.snap_public]; })); }
+  function sig(d) { return JSON.stringify([d.devices.map(function (x) { return [x.id, x.temp, x.humidity, x.state, x.is_on, x.seen, x.stale, x.over, x.snap_at, x.hours_30d, x.name, x.where, x.humidity_max, x.temp_max, x.snap_public, x.sensors]; }), d.smartthings]); }
   function live() {
     if (liveBusy || !S.root || !S.d || S.root.hasAttribute('data-hal-admin') || document.hidden || document.querySelector('.hal-modal') || !document.contains(S.root)) return;
     liveBusy = true; liveAt = Date.now();

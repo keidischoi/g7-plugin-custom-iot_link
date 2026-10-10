@@ -54,10 +54,19 @@ class HaService
         $companies = $this->companies($uid);
         $equip = $this->equipment(array_column($companies, 'id'));
         $pn = array_column($printers, 'name', 'id');
+        // 0.2.0 SmartThings — 설치 · 센서 값 (기기 카드에도 그 기기에 이은 센서를 붙임)
+        $st = (new SmartThingsService($this))->forUser($uid);
+        $byDev = [];
+        foreach ($st['installs'] as $in) {
+            if ($in['device_id']) {
+                $byDev[$in['device_id']] = array_merge($byDev[$in['device_id']] ?? [], $in['sensors']);
+            }
+        }
 
         return [
             'now' => self::now(),
-            'devices' => $rows->map(fn ($d) => $this->device($d, $hist[(int) $d->id] ?? [], $pn, $equip))->all(),
+            'devices' => $rows->map(fn ($d) => $this->device($d, $hist[(int) $d->id] ?? [], $pn, $equip) + ['sensors' => $byDev[(int) $d->id] ?? []])->all(),
+            'smartthings' => $st,
             'printers' => $printers, 'companies' => $companies, 'equipment' => array_values($equip), 'locations' => $this->locations($uid),
             'targets' => Rules::TARGETS,
             'link' => ['code' => $this->linkCode($uid), 'site' => rtrim((string) config('app.url'), '/'), 'repo' => (string) Settings::get('hacs_repo')],
@@ -85,7 +94,7 @@ class HaService
             default => '',
         };
 
-        return ['id' => (int) $d->id, 'token' => (string) $d->token, 'name' => (string) $d->name, 'target' => (string) $d->target, 'where' => $where, 'location' => (string) ($d->location ?? ''),
+        return ['id' => (int) $d->id, 'token' => (string) $d->token, 'name' => (string) $d->name, 'target' => (string) $d->target, 'where' => $where, 'source' => (string) ($d->source ?? 'ha'), 'location' => (string) ($d->location ?? ''),
             'printer_id' => $d->printer_id ? (int) $d->printer_id : null, 'company_id' => $d->company_id ? (int) $d->company_id : null, 'equipment_id' => $d->equipment_id ? (int) $d->equipment_id : null,
             'entities' => array_merge(array_fill_keys(Rules::ENTITIES, ''), array_intersect_key((array) json_decode((string) ($d->entities ?? ''), true), array_flip(Rules::ENTITIES))),
             'temp' => $temp, 'humidity' => $hum, 'state' => (string) ($d->state ?? ''), 'is_on' => (bool) $d->is_on && ! $stale,
@@ -144,7 +153,7 @@ class HaService
         foreach (Rules::ENTITIES as $k) {
             $ent[$k] = Rules::entity(is_array($in['entities'] ?? null) ? ($in['entities'][$k] ?? '') : ($in['ent_'.$k] ?? ''));
         }
-        if ($ent['temp'] === '' && $ent['hum'] === '' && $ent['state'] === '') {
+        if ($ent['temp'] === '' && $ent['hum'] === '' && $ent['state'] === '' && ($old->source ?? 'ha') !== 'smartthings') {   // 0.2.0 SmartThings 기기는 센서 이름이 없음
             return [false, 'Home Assistant 의 센서 이름을 하나는 적어 주세요 (예: sensor.drybox_humidity).'];
         }
         $lim = static fn ($v, int $min, int $max) => $v === null || $v === '' || ! is_numeric($v) ? null : max($min, min($max, (int) $v));
@@ -169,6 +178,7 @@ class HaService
             @unlink(self::snapPath($id));
             DB::table(Schema::READINGS)->where('device_id', $id)->delete();
             DB::table(Schema::RUNS)->where('device_id', $id)->delete();
+            DB::table(Schema::ST_INSTALLS)->where('device_id', $id)->update(['device_id' => null, 'last_error' => '이은 기기를 지웠어요 — 값을 넘길 기기를 골라 주세요.']);   // 0.2.0 SmartThings 연결은 남김
         }
 
         return $n ? [true, '지웠어요.'] : [false, '기기를 찾을 수 없어요.'];
@@ -271,7 +281,7 @@ class HaService
 
         return ['site' => (string) (config('app.name') ?: 'G7'), 'targets' => $o['targets'], 'locations' => $o['locations'], 'printers' => $o['printers'],
             'equipment' => array_map(fn ($e) => ['id' => $e['id'], 'name' => trim((string) (collect($o['companies'])->firstWhere('id', $e['company_id'])['name'] ?? '').' — '.$e['name'], ' —')], $o['equipment']),
-            'devices' => array_map(fn ($d) => ['id' => $d['id'], 'name' => $d['name'], 'target' => $d['target'], 'token' => $d['token'], 'printer_id' => $d['printer_id'], 'equipment_id' => $d['equipment_id'], 'location' => $d['location'], 'entities' => $d['entities'], 'humidity_max' => $d['humidity_max'], 'temp_max' => $d['temp_max'], 'snap_public' => $d['snap_public']], $o['devices']),
+            'devices' => array_map(fn ($d) => ['id' => $d['id'], 'name' => $d['name'], 'target' => $d['target'], 'token' => $d['token'], 'printer_id' => $d['printer_id'], 'equipment_id' => $d['equipment_id'], 'location' => $d['location'], 'entities' => $d['entities'], 'humidity_max' => $d['humidity_max'], 'temp_max' => $d['temp_max'], 'snap_public' => $d['snap_public']], array_values(array_filter($o['devices'], fn ($d) => $d['source'] !== 'smartthings'))),   // 0.2.0 SmartThings 기기는 HA 통합에 안 보임
             'push_url' => $o['config']['base'], 'interval_min' => (int) Settings::get('interval_min'), 'send_mode' => (string) Settings::get('send_mode'),
             'next_min' => (int) Settings::get(Settings::get('send_mode') === 'change' ? 'idle_min' : 'interval_min'), 'change_hum' => (int) Settings::get('change_hum'), 'change_temp' => 0.5, 'gap_sec' => 60, 'snapshot' => (bool) Settings::get('snapshot'), 'snap_gap_min' => (int) Settings::get('snap_gap_min'), 'snap_max' => self::SNAP_MAX];
     }
@@ -617,6 +627,7 @@ class HaService
             DB::table(Schema::RUNS)->whereIn('device_id', $ids ?: [0])->delete();
             DB::table(Schema::DEVICES)->where('user_id', $uid)->delete();
             DB::table(Schema::LINKS)->where('user_id', $uid)->delete();
+            (new SmartThingsService($this))->removeUser($uid);
         }
     }
 
@@ -626,7 +637,8 @@ class HaService
         Schema::ensure();
 
         return ['users' => DB::table(Schema::DEVICES)->distinct()->count('user_id'), 'devices' => DB::table(Schema::DEVICES)->count(),
-            'live' => DB::table(Schema::DEVICES)->where('last_seen_at', '>=', self::ago((int) Settings::get('stale_hours') * 3600))->count(), 'readings' => DB::table(Schema::READINGS)->count()];
+            'live' => DB::table(Schema::DEVICES)->where('last_seen_at', '>=', self::ago((int) Settings::get('stale_hours') * 3600))->count(), 'readings' => DB::table(Schema::READINGS)->count(),
+            'st_installs' => DB::table(Schema::ST_INSTALLS)->count()];
     }
 
     private function hasTable(string $t): bool

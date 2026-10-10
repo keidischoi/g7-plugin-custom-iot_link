@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\Schema as S;
  *  hal_links     회원의 연결 코드 (HACS 통합이 이 코드로 사이트와 이어짐 — 기기를 만들고 고침).
  *                updated_at = 그 회원이 사이트의 HA 연결 · 정비 수첩 화면을 마지막으로 본 때 (0.1.5 「자리 비움」 판단 — 칸을 늘리지 않으려고 이 칸을 씀)
  *  hal_settings  관리자 설정
+ *  0.2.0 SmartThings (WebHook SmartApp)
+ *  hal_st_installs  SmartThings 앱 설치 하나 (installedApp) — 회원 · 사이트 기기와 이음. 토큰은 Laravel Crypt 로 암호화해 둠
+ *  hal_st_sensors   그 설치에서 고른 센서의 마지막 값 (capability · attribute 마다 한 줄)
+ *  hal_st_codes     회원이 만든 일회용 연결 코드 (SmartThings 앱 설정 화면에 적음 · 30분 · 한 번)
+ *  hal_devices.source  ha(Home Assistant · 기본) · smartthings
  */
 final class Schema
 {
@@ -26,7 +31,13 @@ final class Schema
 
     public const LINKS = 'hal_links';
 
-    public const TABLES = [self::DEVICES, self::READINGS, self::RUNS, self::SETTINGS, self::LINKS];
+    public const ST_INSTALLS = 'hal_st_installs';
+
+    public const ST_SENSORS = 'hal_st_sensors';
+
+    public const ST_CODES = 'hal_st_codes';
+
+    public const TABLES = [self::DEVICES, self::READINGS, self::RUNS, self::SETTINGS, self::LINKS, self::ST_INSTALLS, self::ST_SENSORS, self::ST_CODES];
 
     private static bool $ok = false;
 
@@ -98,6 +109,8 @@ final class Schema
                 });
             }
 
+            self::smartThings();
+
             return self::$ok = true;
         } catch (\Throwable $e) {
             try {
@@ -106,6 +119,65 @@ final class Schema
             }
 
             return false;
+        }
+    }
+
+    /** 0.2.0 SmartThings 표 · 칸 (마이그레이션 2026_10_10_000001 · 처음 쓸 때) */
+    private static function smartThings(): void
+    {
+        if (! S::hasColumn(self::DEVICES, 'source')) {
+            S::table(self::DEVICES, function (Blueprint $t) {
+                $t->string('source', 16)->default('ha')->comment('ha(Home Assistant) · smartthings');
+            });
+        }
+        if (! S::hasTable(self::ST_INSTALLS)) {
+            S::create(self::ST_INSTALLS, function (Blueprint $t) {
+                $t->id();
+                $t->string('installed_app_id', 64)->unique();
+                $t->string('location_id', 64)->nullable();
+                $t->string('app_id', 64)->nullable();
+                $t->unsignedBigInteger('user_id')->nullable()->index()->comment('이어진 회원 (연결 코드로)');
+                $t->unsignedBigInteger('device_id')->nullable()->index()->comment('값을 넘길 사이트 기기 hal_devices.id');
+                $t->text('auth_token')->nullable()->comment('암호화 (Crypt)');
+                $t->text('refresh_token')->nullable()->comment('암호화 (Crypt)');
+                $t->dateTime('token_expires_at')->nullable();
+                $t->dateTime('refreshing_at')->nullable()->comment('토큰을 새로 받는 중 (한 번에 하나만)');
+                $t->dateTime('token_checked_at')->nullable();
+                $t->string('temp_scale', 2)->nullable()->comment('위치의 온도 단위 C · F');
+                $t->string('location_name', 80)->nullable();
+                $t->text('config')->nullable()->comment('고른 기기 {devices: [[칸, deviceId, componentId]], power_on_w}');
+                $t->string('status', 16)->default('syncing')->comment('syncing · active · unlinked · error');
+                $t->string('last_error', 160)->nullable();
+                $t->dateTime('last_event_at')->nullable();
+                $t->timestamps();
+            });
+        }
+        if (! S::hasTable(self::ST_SENSORS)) {
+            S::create(self::ST_SENSORS, function (Blueprint $t) {
+                $t->id();
+                $t->unsignedBigInteger('install_id')->index();
+                $t->string('st_device_id', 64);
+                $t->string('component_id', 40)->default('main');
+                $t->string('label', 80)->nullable();
+                $t->string('capability', 60);
+                $t->string('attribute', 60);
+                $t->string('value', 60)->nullable();
+                $t->string('unit', 12)->nullable();
+                $t->decimal('num', 12, 2)->nullable();
+                $t->dateTime('updated_at')->nullable();
+                $t->unique(['install_id', 'st_device_id', 'component_id', 'capability', 'attribute'], 'hal_st_sensors_key');
+            });
+        }
+        if (! S::hasTable(self::ST_CODES)) {
+            S::create(self::ST_CODES, function (Blueprint $t) {
+                $t->id();
+                $t->unsignedBigInteger('user_id')->index();
+                $t->string('code', 8)->unique();
+                $t->unsignedBigInteger('device_id')->nullable()->comment('붙일 사이트 기기 (없으면 새로 만듦)');
+                $t->dateTime('expires_at');
+                $t->dateTime('used_at')->nullable();
+                $t->timestamp('created_at')->nullable();
+            });
         }
     }
 }

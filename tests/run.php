@@ -6,9 +6,13 @@
 
 require __DIR__.'/../src/Support/Rules.php';
 require __DIR__.'/../src/Support/Settings.php';
+require __DIR__.'/../src/Support/SmartThings.php';
+require __DIR__.'/../src/Support/StSignature.php';
 
 use Plugins\Custom\HaLink\Support\Rules as R;
 use Plugins\Custom\HaLink\Support\Settings as S;
+use Plugins\Custom\HaLink\Support\SmartThings as ST;
+use Plugins\Custom\HaLink\Support\StSignature as SIG;
 
 $pass = 0;
 $fail = 0;
@@ -36,12 +40,69 @@ check($n['max_devices'] === 200 && S::DEFAULTS['send_mode'] === 'change' && S::n
     && S::normalize(['send_mode' => 'interval', 'interval_min' => 20, 'away_interval_min' => 5])['away_interval_min'] === 20 && S::DEFAULTS['refresh_sec'] === 60 && S::normalize(['refresh_sec' => 3])['refresh_sec'] === 5 && S::normalize(['refresh_sec' => 0])['refresh_sec'] === 0 && S::normalize(['refresh_sec' => 99999])['refresh_sec'] === 3600 && S::DEFAULTS['interval_min'] === 10 && S::normalize(['interval_min' => 0])['interval_min'] === 1 && S::normalize(['interval_min' => 999])['interval_min'] === 60 && $n['stale_hours'] === 1 && $n['timezone'] === 'Asia/Seoul' && $n['menu_label'] === '집' && S::normalize([])['menu_label'] === 'HA 연결' && $n['hacs_repo'] === 'keidischoi/ha-3ds-link'
     && S::normalize(['hacs_repo' => 'me/my-repo'])['hacs_repo'] === 'me/my-repo' && S::normalize(['hacs_repo' => 'https://evil/x y'])['hacs_repo'] === 'keidischoi/ha-3ds-link', '설정 정리');
 
+// ── 0.2.0 SmartThings ──
+check(S::DEFAULTS['st_enabled'] === false && S::normalize(['st_client_id' => ' 1a2b-3c '])['st_client_id'] === '1a2b-3c' && S::normalize(['st_client_id' => 'x y/../'])['st_client_id'] === ''
+    && S::normalize(['st_client_secret' => 'plain-secret'])['st_client_secret'] === '' && S::normalize(['st_client_secret' => 'enc:abc'])['st_client_secret'] === 'enc:abc'
+    && S::normalize(['st_public_key' => 'evil'])['st_public_key'] === '' && S::normalize(['st_code_min' => 1])['st_code_min'] === 5 && S::normalize([])['menu_label'] === 'HA 연결', '0.2.0 SmartThings 설정 정리 (Secret 은 암호화한 것만 · 메뉴 이름 규칙과 따로)');
+$c = ST::newCode();
+check(strlen($c) === 8 && ST::normCode(strtolower(substr($c, 0, 4)).' - '.substr($c, 4)) === $c && ST::normCode('ABCD-EFG') === '' && ST::normCode('ABCD-EFG0') === '' && ST::showCode('ABCDEFGH') === 'ABCD-EFGH', '연결 코드: 8글자 · 소문자 · 줄표 · 빈칸 괜찮음 · 헷갈리는 글자(0 · O · 1 · I) 없음');
+check(ST::celsius(77, 'F') === 25.0 && ST::celsius(86, '°F') === 30.0 && ST::celsius(21.5, 'C') === 21.5 && ST::celsius(21.5, null) === 21.5 && ST::celsius(-40, 'fahrenheit') === -40.0, '°F → °C');
+$cfg = ['link_code' => [['valueType' => 'STRING', 'stringConfig' => ['value' => 'ABCD-2345']]], 'temp' => [['valueType' => 'DEVICE', 'deviceConfig' => ['deviceId' => 'dev-aaaa-0001', 'componentId' => 'main']]],
+    'hum' => [['valueType' => 'DEVICE', 'deviceConfig' => ['deviceId' => 'dev-aaaa-0001', 'componentId' => 'main']]], 'power_meter' => [['valueType' => 'DEVICE', 'deviceConfig' => ['deviceId' => 'dev-plug-0001', 'componentId' => 'main']]],
+    'contact' => [['valueType' => 'DEVICE', 'deviceConfig' => ['deviceId' => 'bad id!', 'componentId' => 'main']], ['valueType' => 'DEVICE', 'deviceConfig' => ['deviceId' => 'dev-door-0001', 'componentId' => '../x']]],
+    'nope' => [['valueType' => 'DEVICE', 'deviceConfig' => ['deviceId' => 'dev-zzzz-0001']]], 'power_on_w' => [['valueType' => 'STRING', 'stringConfig' => ['value' => '25']]]];
+$cc = ST::cleanConfig($cfg);
+check(ST::configString($cfg, 'link_code') === 'ABCD-2345' && $cc['power_on_w'] === 25.0 && count($cc['devices']) === 4 && $cc['devices'][3] === ['contact', 'dev-door-0001', 'main'] && ! str_contains(json_encode($cc), 'ABCD'), '설정 값: 고른 기기만 (이상한 id · 모르는 칸 뺌) · 코드는 안 남김');
+$e = ST::event(['deviceId' => 'dev-aaaa-0001', 'componentId' => 'main', 'capability' => 'temperatureMeasurement', 'attribute' => 'temperature', 'value' => 77], $cc['devices'], 'F');
+$h = ST::event(['deviceId' => 'dev-aaaa-0001', 'componentId' => 'main', 'capability' => 'relativeHumidityMeasurement', 'attribute' => 'humidity', 'value' => '41.5'], $cc['devices']);
+$pw = ST::event(['deviceId' => 'dev-plug-0001', 'capability' => 'powerMeter', 'attribute' => 'power', 'value' => 30.2, 'unit' => 'W'], $cc['devices'], null, $cc['power_on_w']);
+$pw2 = ST::event(['deviceId' => 'dev-plug-0001', 'capability' => 'powerMeter', 'attribute' => 'power', 'value' => 3], $cc['devices'], null, $cc['power_on_w']);
+$door = ST::event(['deviceId' => 'dev-door-0001', 'capability' => 'contactSensor', 'attribute' => 'contact', 'value' => 'open'], $cc['devices']);
+check($e['payload'] === ['temperature' => 25.0] && $e['sensor']['unit'] === '°C' && ST::event(['deviceId' => 'dev-aaaa-0001', 'capability' => 'temperatureMeasurement', 'attribute' => 'temperature', 'value' => 20, 'unit' => 'C'], $cc['devices'], 'F')['payload'] === ['temperature' => 20.0]
+    && $h['payload'] === ['humidity' => 41.5] && $pw['payload'] === ['state' => 'on'] && $pw2['payload'] === ['state' => 'off'] && $door['payload'] === [] && $door['sensor']['value'] === 'open'
+    && ST::event(['deviceId' => 'dev-other-0001', 'capability' => 'temperatureMeasurement', 'attribute' => 'temperature', 'value' => 20], $cc['devices']) === null
+    && ST::event(['deviceId' => 'dev-door-0001', 'capability' => 'temperatureMeasurement', 'attribute' => 'temperature', 'value' => 20], $cc['devices']) === null
+    && ST::event(['deviceId' => 'dev-door-0001', 'capability' => 'contactSensor', 'attribute' => 'contact', 'value' => ['x' => 1]], $cc['devices']) === null, '값 바꾸기: 온도(°F→°C · 이벤트 단위 우선) · 습도 · 전력→가동 · 문은 센서 값만 · 고르지 않은 기기 · 칸이 다른 capability · 묶음 값은 버림');
+check(ST::show('contactSensor', 'open', '') === '열림' && ST::show('battery', '87', '%') === '87%' && ST::show('powerMeter', '12.5', 'W') === '12.5 W' && ST::show('temperatureMeasurement', '25', '°C') === '25°C', '화면 글 (열림 · 87% · 12.5 W)');
+$sub = ST::subscription('temp', 'dev-aaaa-0001', 'main', 0);
+check($sub['sourceType'] === 'DEVICE' && $sub['device']['capability'] === 'temperatureMeasurement' && $sub['device']['attribute'] === '*' && $sub['device']['stateChangeOnly'] === true && strlen($sub['device']['subscriptionName']) <= 36 && ST::subscription('nope', 'x', 'main', 0) === null, '구독 본문');
+check(count(ST::statusEvents(['components' => ['main' => ['temperatureMeasurement' => ['temperature' => ['value' => 72, 'unit' => 'F']]]]], 'd1', 'main', 'temperatureMeasurement')) === 1 && ST::statusEvents([], 'd1', 'main', 'x') === [], '처음 값 (기기 status → 이벤트 모양)');
+$ini = ST::initialize('3DS');
+$p2 = ST::page('2', '3DS', null, '「드라이박스」', true);
+$p2bad = ST::page('2', '3DS', null, null, true);
+check($ini['configurationData']['initialize']['permissions'] === ['r:devices:*', 'r:locations:*'] && ST::page('1', '3DS', null, null, false)['configurationData']['page']['nextPageId'] === '2' && $p2['configurationData']['page']['complete'] === true && $p2bad['configurationData']['page']['complete'] === false
+    && ST::page('1', '3DS', '드라이박스', null, false)['configurationData']['page']['sections'][0]['settings'][1]['required'] === false, '설정 화면: 권한 · 1쪽 코드 · 2쪽 센서 (틀린 코드면 못 끝냄 · 이미 이었으면 코드 없이)');
+check(ST::confirmUrlOk('https://api.smartthings.com/v1/apps/x/confirm-registration?token=a') && ! ST::confirmUrlOk('http://api.smartthings.com/x') && ! ST::confirmUrlOk('https://api.smartthings.com.evil.io/x') && ! ST::confirmUrlOk('https://evil.io/?smartthings.com') && ! ST::confirmUrlOk('https://u@api.smartthings.com/') && ! ST::confirmUrlOk(['x']), 'confirmationUrl 은 https://*.smartthings.com 만');
+// 서명
+$k = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+$pub = openssl_pkey_get_details($k)['key'];
+$k2 = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+$body = '{"lifecycle":"EVENT"}';
+$now = 1791600000;
+$date = gmdate('D, d M Y H:i:s \G\M\T', $now);
+$dg = 'SHA-256='.base64_encode(hash('sha256', $body, true));
+$mk = function ($key, string $target = '/api/plugins/custom-ha_link/smartthings', string $list = '(request-target) digest date', string $alg = 'rsa-sha256', string $kid = '/pl/useast2/1b-75-d2') use ($dg, $date) {
+    openssl_sign(SIG::signingString('POST', $target, ['digest' => $dg, 'date' => $date], $list), $sig, $key, OPENSSL_ALGO_SHA256);
+
+    return ['authorization' => 'Signature keyId="'.$kid.'",signature="'.base64_encode($sig).'",headers="'.$list.'",algorithm="'.$alg.'"', 'digest' => $dg, 'date' => $date];
+};
+$keys = fn (string $kid) => $kid === '/pl/useast2/1b-75-d2' ? [$pub] : [];
+$T = ['/api/plugins/custom-ha_link/smartthings'];
+check(SIG::parse($mk($k)['authorization'])['keyId'] === '/pl/useast2/1b-75-d2' && SIG::parse('Bearer abc') === null && SIG::parse('Signature keyId=""') === null, '서명 머리 읽기');
+check(SIG::verify('POST', $T, $mk($k), $body, $keys, $now) === null, '맞는 서명 → 통과');
+check(SIG::verify('POST', $T, [], $body, $keys, $now) === 'unsigned' && SIG::verify('POST', $T, $mk($k2), $body, $keys, $now) === 'signature' && SIG::verify('POST', $T, $mk($k), $body.' ', $keys, $now) === 'digest'
+    && SIG::verify('POST', $T, $mk($k), $body, $keys, $now + 3600) === 'date' && SIG::verify('POST', $T, $mk($k, '/other'), $body, $keys, $now) === 'signature' && SIG::verify('POST', $T, $mk($k, $T[0], 'digest date'), $body, $keys, $now) === 'headers'
+    && SIG::verify('POST', $T, $mk($k, $T[0], '(request-target) digest date', 'hmac-sha256'), $body, $keys, $now) === 'algorithm' && SIG::verify('POST', $T, $mk($k, $T[0], '(request-target) digest date', 'rsa-sha256', '/pl/x'), $body, $keys, $now) === 'key'
+    && SIG::verify('POST', $T, $mk($k, $T[0], '(request-target) digest date', 'rsa-sha256', '/../etc'), $body, $keys, $now) === 'keyid', '거부: 서명 없음 · 다른 열쇠 · 본문 바뀜(digest) · 오래된 Date · 다른 경로 · 서명 머리 빠짐 · 알고리즘 · 모르는 키 · 이상한 keyId');
+check(SIG::digestOk('SHA256='.base64_encode(hash('sha256', 'x', true)), 'x') && SIG::digestOk('sha-256='.base64_encode(hash('sha256', 'x', true)), 'x') && ! SIG::digestOk('MD5=abc', 'x') && ! SIG::digestOk(null, 'x'), 'Digest — SHA-256= · SHA256= 둘 다');
+check(SIG::keyUrls('/pl/useast2/1b-75') === ['https://key.smartthings.com/pl/useast2/1b-75', 'https://key.smartthings.com/key/pl/useast2/1b-75'] && SIG::keyUrls('//evil.com/x') === [] && SIG::keyUrls('@evil.com') === [], '공개 키 주소 — key.smartthings.com 밖으로 못 나감');
+
 $root = dirname(__DIR__);
 $pj = json_decode((string) file_get_contents($root.'/plugin.json'), true);
 $cj = json_decode((string) file_get_contents($root.'/composer.json'), true);
 $ver = $pj['version'] ?? '';
 check(($pj['identifier'] ?? '') === 'custom-ha_link' && $ver !== '' && ($cj['version'] ?? '') === $ver, 'plugin.json · composer.json 식별자 · 버전');
-foreach (['resources/routes.json', 'resources/layouts/user/ha_link.json', 'resources/layouts/admin/plugin_settings.json', 'resources/lang/ko.json', 'resources/lang/en.json'] as $f) {
+foreach (['plugin.json', 'composer.json', 'resources/routes.json', 'resources/layouts/user/ha_link.json', 'resources/layouts/admin/plugin_settings.json', 'resources/lang/ko.json', 'resources/lang/en.json'] as $f) {
     check(is_array(json_decode((string) file_get_contents($root.'/'.$f), true)), $f.' JSON');
 }
 check(str_contains((string) file_get_contents($root.'/CHANGELOG.md'), '## '.$ver), 'CHANGELOG 에 지금 버전');
@@ -51,7 +112,12 @@ $app = (string) file_get_contents($root.'/resources/assets/ha-link-app.js');
 check(str_contains((string) file_get_contents($root.'/resources/layouts/admin/plugin_settings.json'), 'ha-link-app.js?v='.$ver) && str_contains($app, 'custom-ha_link '.$ver)
     && str_contains((string) file_get_contents($root.'/resources/assets/ha-link.css'), $ver), '관리자 화면 · 앱 · CSS 버전');
 $pp = (string) file_get_contents($root.'/plugin.php');
-check(str_contains($pp, "'custom_ha_link_alert'") && str_contains($pp, "'hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links'") && ! str_contains($pp, 'getSchedules'), '알림 정의 · 표 목록 · 스케줄 없음');
+check(str_contains($pp, "'custom_ha_link_alert'") && str_contains($pp, "'hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links', 'hal_st_installs', 'hal_st_sensors', 'hal_st_codes'") && ! str_contains($pp, 'getSchedules'), '알림 정의 · 표 목록 · 스케줄 없음');
+$api = (string) file_get_contents($root.'/src/routes/api.php');
+check(is_file($root.'/database/migrations/2026_10_10_000001_add_smartthings_tables.php') && str_contains($api, "Route::post('smartthings', [SmartThingsController::class, 'webhook'])->middleware('throttle:")
+    && preg_match("/auth:sanctum.*smartthings\/code.*throttle:10,1/s", $api) && str_contains($app, 'data-st-new') && str_contains($app, 'stAdmin('), '0.2.0 마이그레이션 · 받는 곳(서명 확인) · 회원 API(로그인 · 1분 한도) · 화면');
+$svcSrc = (string) file_get_contents($root.'/src/Services/SmartThingsService.php');
+check(! preg_match('/log\([^;]*(token|secret|authorization|signature|code)\W*=>/i', $svcSrc) && str_contains($svcSrc, 'Crypt::encryptString'), '로그에 토큰 · Secret · 서명 · 코드를 남기지 않음 · 토큰 암호화');
 foreach (array_keys(S::DEFAULTS) as $k) {
     if (! str_contains($app, "['".$k."'")) {
         check(false, '관리자 화면에 설정 '.$k);

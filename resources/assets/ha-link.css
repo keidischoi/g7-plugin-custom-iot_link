@@ -1,4 +1,4 @@
-/* custom-ha_link 0.1.10 — 🏠 HA 연결 */
+/* custom-ha_link 0.2.0 — 🏠 HA 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -127,3 +127,48 @@ html.hal-modal-open, html.hal-modal-open body { overflow:hidden; }
 @keyframes halIn { from { opacity:0; transform:translateY(8px); } }
 @media (prefers-reduced-motion: reduce) { .hal-modal-b { animation:none; } }
 @media (max-width:520px) { .hal-grid { grid-template-columns:1fr; } .hal-modal { padding:0; align-items:flex-end; } .hal-modal-b { max-height:94dvh; border-radius:20px 20px 0 0; } }
+
+/* 0.2.0 📡 SmartThings — 회원 카드 · 기기 카드의 센서 값 · 관리자 안내 (다크 · 모바일) */
+.hal-badge { display:inline-block; margin-right:2px; padding:1px 7px; border-radius:99px; background:#e0f2fe; color:#0369a1; font-size:10.5px; font-weight:700; vertical-align:2px; }
+html.dark .hal-badge, .dark .hal-badge { background:#0c4a6e; color:#bae6fd; }
+.hal-pill { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:99px; background:rgba(127,127,127,.14); color:var(--mute); font-size:12.5px; font-weight:700; white-space:nowrap; }
+.hal-pill.on { background:#dcfce7; color:#15803d; } .hal-pill.wait { background:#fef3c7; color:#b45309; } .hal-pill.bad { background:#fee2e2; color:var(--hot); }
+html.dark .hal-pill.on, .dark .hal-pill.on { background:#14532d; color:#bbf7d0; } html.dark .hal-pill.wait, .dark .hal-pill.wait { background:#451a03; color:#fde68a; } html.dark .hal-pill.bad, .dark .hal-pill.bad { background:#450a0a; color:#fecaca; }
+.hal-dot.wait { background:#f59e0b; } .hal-dot.bad { background:var(--hot); }
+.hal-sens { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+.hal-sens li { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:4px 10px; padding:7px 10px; font-size:12.5px; }
+.hal-sens li + li { border-top:1px solid var(--line); }
+.hal-sens li span { min-width:0; display:flex; flex-direction:column; } .hal-sens li span b { font-size:12.5px; } .hal-sens li span small { color:var(--mute); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hal-sens li em { font-style:normal; font-weight:800; font-size:14px; text-align:right; } .hal-sens li time { color:var(--mute); font-size:11px; min-width:44px; text-align:right; }
+.hal-sens li.more { display:block; color:var(--mute); text-align:center; }
+.hal-stc { margin-top:14px; padding:16px; border:1px solid var(--line); border-radius:20px; background:var(--card); display:flex; flex-direction:column; gap:12px; }
+.hal-stc.off { opacity:.8; }
+.hal-stc-h { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.hal-stc-h > div { flex:1; min-width:200px; } .hal-stc-h h2 { margin:0; font-size:17px; } .hal-stc-h p { margin:2px 0 0; color:var(--mute); font-size:12.5px; }
+.hal-stc-logo { flex:none; width:44px; height:44px; border-radius:14px; display:grid; place-items:center; font-size:22px; background:linear-gradient(135deg,#0ea5e9,#6366f1); color:#fff; }
+.hal-stc-code { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; border-radius:16px; background:var(--soft); }
+.hal-stc-code > div:first-child { display:flex; flex-direction:column; gap:2px; } .hal-stc-code small { color:var(--mute); font-size:12px; }
+.hal-stc-code b { font:800 28px/1.15 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; letter-spacing:.12em; color:var(--a); }
+.hal-stc-code.empty label { flex:1; min-width:220px; }
+.hal-stc-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:10px; }
+.hal-stc-i { display:flex; flex-direction:column; gap:8px; padding:12px; border:1px solid var(--line); border-radius:16px; }
+.hal-stc-ih { display:flex; flex-wrap:wrap; align-items:center; gap:8px; } .hal-stc-ih > div:first-child { flex:1; min-width:160px; display:flex; flex-direction:column; }
+.hal-stc-ih small { display:inline-flex; align-items:center; gap:5px; color:var(--mute); font-size:12px; }
+.hal-stc-to { display:flex; align-items:center; gap:6px; color:var(--mute); font-size:12.5px; } .hal-stc-to select { width:auto; max-width:190px; padding:5px 8px; font-size:12.5px; }
+.hal-stc-how { border-top:1px dashed var(--line); padding-top:10px; } .hal-stc-how summary { cursor:pointer; font-weight:700; font-size:13.5px; }
+.hal-stc-how ol { margin:8px 0; padding-left:20px; display:flex; flex-direction:column; gap:5px; font-size:13px; }
+/* 관리자 */
+.hal textarea { width:100%; font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; padding:9px 11px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink); resize:vertical; }
+.hal-st-admin { margin-top:16px; }
+.hal-st-ah { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; } .hal-st-ah h2 { margin:0; font-size:18px; } .hal-st-ah h2 small { font-weight:500; font-size:12px; color:var(--mute); }
+.hal-st-steps { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; counter-reset:none; }
+.hal-st-steps li { display:flex; gap:10px; padding:10px 12px; border-radius:14px; background:var(--soft); }
+.hal-st-steps li em { flex:none; width:26px; height:26px; border-radius:50%; background:var(--a); color:#fff; font-style:normal; font-weight:800; font-size:13px; display:grid; place-items:center; }
+.hal-st-steps li > div { min-width:0; flex:1; display:flex; flex-direction:column; gap:4px; } .hal-st-steps li p { margin:0; color:var(--mute); font-size:12.5px; } .hal-st-steps .hal-copy { margin-top:4px; background:var(--card); }
+.hal-acts-end { margin-top:12px; }
+@media (max-width:640px) {
+  .hal { padding:10px; } .hal-stc { padding:12px; border-radius:16px; } .hal-stc-code b { font-size:24px; }
+  .hal-stc-list { grid-template-columns:1fr; } .hal-stc-to { width:100%; } .hal-stc-to select { flex:1; max-width:none; }
+  .hal-stc-code .hal-row, .hal-stc-code.empty .hal-btn { width:100%; } .hal-stc-code .hal-row .hal-btn { flex:1; }
+  .hal-sens li { grid-template-columns:minmax(0,1fr) auto; } .hal-sens li time { grid-column:2; }
+}
