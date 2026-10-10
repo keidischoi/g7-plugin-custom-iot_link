@@ -364,7 +364,7 @@ class HaService
         }
         DB::table(Schema::DEVICES)->where('id', $d->id)->update($set);
         if ($d->target === 'printer' && $d->printer_id && $v['state'] !== null) {
-            $this->forwardPrinter((int) $d->printer_id, (int) $d->user_id, $v, $via);
+            $this->forwardPrinter((int) $d->printer_id, (int) $d->user_id, $v, $via, (bool) $d->is_on !== Rules::isOn($v['state']));
         }
         if (random_int(1, 200) === 1) {
             $this->tidy();
@@ -406,7 +406,7 @@ class HaService
     }
 
     /** 내 프린터에 붙인 기기 — 그 프린터의 자동 연결(custom-my_printer)로 상태를 넘김. 그 플러그인이 없거나 바뀌었으면 조용히 건너뜀 */
-    private function forwardPrinter(int $printerId, int $uid, array $v, string $source = 'ha'): void
+    private function forwardPrinter(int $printerId, int $uid, array $v, string $source = 'ha', bool $changed = true): void
     {
         if (! Settings::get('printer_link') || ! $this->hasTable('mpr_printers')) {
             return;
@@ -422,12 +422,23 @@ class HaService
             $st = $source === 'smartthings';
             // 1.2.0 프린터 라운지 0.1.28+ 가 아는 것 — via_st: SmartThings 로 받았다고 표시 · env: 주변 온습도는 필터(printer_env)로 물어 감
             $caps = defined($cls.'::IOT_CAPS') && is_array(constant($cls.'::IOT_CAPS')) ? constant($cls.'::IOT_CAPS') : [];
+            $x = is_array($v['x'] ?? null) ? $v['x'] : [];
+            // 1.3.0 SmartThings 는 값 하나가 바뀔 때마다 오므로(온도 · 스위치 …) 「쉬는 중」을 거듭 넘기지 않음 — 켜짐 → 꺼짐으로 바뀐 그때만.
+            //  (한 줄 연결 · 손으로 시작한 출력이 SmartThings 의 「쉬는 중」 한 번에 닫히지 않게 · 처음 연결할 때도)
+            if ($st && ! $changed && ! in_array($state, ['printing', 'paused'], true)) {
+                return;
+            }
             if ($st && $state === 'idle') {
-                $state = 'done';   // 1.2.0 SmartThings 플러그는 진행률을 몰라, 꺼지면(전력이 내려가면) 출력 기록이 늘 「그만둠」으로 닫혔을 것 → 「완료」로
+                // 1.2.0 SmartThings 플러그는 진행률을 몰라, 꺼지면(전력이 내려가면) 출력 기록이 늘 「그만둠」으로 닫혔을 것 → 「완료」로
+                // 1.3.0 프린터 기기는 진행률을 앎 — 거의 끝(98%+)이면 「완료」, 아니면 그대로 넘겨 프린터 라운지가 마지막 진행률로 가림(완료 · 그만둠)
+                $state = ! empty($x['printer']) && (float) ($v['progress'] ?? 0) < 98 ? 'idle' : 'done';
             }
             $env = $st && in_array('env', $caps, true);   // SmartThings 온습도계는 프린터 안(챔버)이 아니라 주변 값 — 라운지가 「주변」으로 따로 보임
+            $hum = $x['ams_humidity'] ?? ($env ? null : $v['humidity']);
             (new $cls())->hook($tok, array_filter(['state' => $state, 'progress' => $v['progress'], 'remaining_min' => $v['remaining_min'], 'job' => $v['job'],
-                'chamber' => $env ? null : $v['temp'], 'humidity' => $env ? null : $v['humidity']], static fn ($x) => $x !== null), $st && in_array('via_st', $caps, true) ? 'st' : 'ha');
+                'nozzle' => $x['nozzle'] ?? null, 'bed' => $x['bed'] ?? null, 'chamber' => $x['chamber'] ?? ($env ? null : $v['temp']), 'humidity' => $hum,
+                'hum_src' => isset($x['ams_humidity']) ? 'ams' : null, 'light' => $x['light'] ?? null, 'fan' => $x['fan'] ?? null,
+                'source' => ! empty($x['printer']) ? 'printer' : null], static fn ($y) => $y !== null), $st && in_array('via_st', $caps, true) ? 'st' : 'ha');
         } catch (\Throwable) {
         }
     }

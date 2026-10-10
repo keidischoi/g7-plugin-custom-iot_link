@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.2.0 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.3.0 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.2.0';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.3.0';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -215,7 +215,7 @@
       var wp = wantOk ? P.filter(function (p) { return p.id === want; })[0] : null;
       var opts = function (x) {
         // 이미 붙인 카드 → 프린터 라운지에서 고른 프린터(플러그 · 온습도계) → 이름이 같은 프린터 → 이름이 같은 카드 → 새 카드
-        var cur = x.site_device_id ? String(x.site_device_id) : wantOk && x.kind !== 'other' ? 'p:' + want : x.suggest_printer ? 'p:' + x.suggest_printer : x.suggest ? String(x.suggest) : '';
+        var cur = x.resave && x.suggest_printer ? 'p:' + x.suggest_printer : x.site_device_id ? String(x.site_device_id) : wantOk && x.kind !== 'other' ? 'p:' + want : x.suggest_printer ? 'p:' + x.suggest_printer : x.suggest ? String(x.suggest) : '';
         return '<option value="">➕ 새 기기 카드로</option>' +
           (P.length ? '<optgroup label="🖨️ 내 프린터에 붙이기 (프린터 라운지에 보여요)">' + P.map(function (p) { return '<option value="p:' + p.id + '"' + (cur === 'p:' + p.id ? ' selected' : '') + '>🖨️ ' + esc(p.name) + '</option>'; }).join('') + '</optgroup>' : '') +
           (S.d.devices.length ? '<optgroup label="이미 있는 기기 카드">' + S.d.devices.map(function (d) { return '<option value="' + d.id + '"' + (cur === String(d.id) ? ' selected' : '') + '>' + ICON[d.target] + ' ' + esc(d.name) + '</option>'; }).join('') + '</optgroup>' : '');
@@ -225,7 +225,8 @@
         '<div class="hal-pk-tools"><b data-pk-count></b><span><button type="button" class="hal-chip" data-pk-env>🌡️ 온습도계 모두</button><button type="button" class="hal-chip" data-pk-none>모두 해제</button></span></div>' +
         '<ul class="hal-pk">' + D.map(function (x) {
           var on = x.picked || (first && !wp && x.kind === 'env'), vals = x.values.map(function (v) { return esc(v.what) + (v.value !== '' ? ' <b>' + esc(v.value) + '</b>' : ''); }).join(' · ');
-          return '<li class="' + (on ? 'on' : '') + '" data-kind="' + esc(x.kind) + '"><label class="hal-pk-m"><input type="checkbox" data-pk="' + esc(x.id) + '"' + (on ? ' checked' : '') + '><span class="hal-ico">' + (x.kind === 'power' ? '🔌' : PK_ICON[(x.values[0] || {}).what] || '📟') + '</span><span class="hal-pk-t"><b>' + esc(x.label) + '</b><small>' + vals + '</small></span></label>' +
+          return '<li class="' + (on ? 'on' : '') + '" data-kind="' + esc(x.kind) + '"><label class="hal-pk-m"><input type="checkbox" data-pk="' + esc(x.id) + '"' + (on ? ' checked' : '') + '><span class="hal-ico">' + (x.kind === 'printer' ? '🖨️' : x.kind === 'power' ? '🔌' : PK_ICON[(x.values[0] || {}).what] || '📟') + '</span><span class="hal-pk-t"><b>' + esc(x.label) + (x.kind === 'printer' ? ' <em class="hal-pk-tag">프린터 기기</em>' : '') + '</b><small>' + vals + '</small>' +
+              (x.kind === 'printer' ? '<small class="hal-pk-note">' + (x.resave ? '⚠️ 예전 방식(온습도계 · 플러그처럼)으로 받고 있어요 — 붙일 곳을 <b>내 프린터</b>로 두고 <b>저장</b>을 한 번 눌러 주세요. ' : '') + '🖨️ 내 프린터에 붙이면 출력 상태 · 진행률 · 노즐/베드 온도가 프린터 라운지 카드로 가요.</small>' : '') + '</span></label>' +
             '<label class="hal-pk-to">붙일 곳<select data-pk-to="' + esc(x.id) + '">' + opts(x) + '</select></label></li>';
         }).join('') + '</ul>' +
         (D.some(function (x) { return x.values.some(function (v) { return v.what === '전력'; }); }) ? '<section class="hal-sec"><label>🔌 플러그가 이 전력(W)보다 많이 쓰면 「가동 중」 <small>프린터 · 건조기의 대기 전력보다 조금 높게 — 가동 시간(정비 수첩)을 세요</small><input type="number" min="0.5" max="5000" step="0.5" inputmode="decimal" data-pk-w value="' + esc(data.power_on_w) + '"></label></section>' : '') +
@@ -298,6 +299,17 @@
       ['끝 — 카드에서 알림 기준 · 붙일 곳 정하기', '바로 기기 카드에 값이 보이고, 값이 바뀔 때마다 들어와요. 카드의 <b>✏️</b>에서 <b>알림 기준</b>(예: 습도 40%)과 <b>붙일 곳</b>(필라멘트 보관함 · 내 프린터)을 정하면 정비 수첩 · 내 프린터와 이어져요.',
         shot('사이트 · IoT 연결', '<div class="hal-fake-card"><div class="hal-fake-row"><span>🧵 <b>드라이박스 온습도계</b> <span class="hal-fake-pill st">' + stLogo() + ' SmartThings</span></span>' + hl('<span class="hal-fake-ico">✏️</span>', 2) + '</div><div class="hal-fake-vals"><span>💧 <b>32</b>%</span><span>🌡️ <b>23.4</b>°C</span></div>' + hl('<div class="hal-fake-st"><i></i>방금</div>', 1) + '</div>' + hl(fld('습도가 이보다 높으면 (%)', '40') + fld('무엇에 붙일까요?', '🧵 필라멘트 · 레진 보관함 — 드라이박스'), 3))]
     ];
+    /* 1.3.0 🖨️ 프린터에 쓸 수 있는 것 — SmartThings 의 무엇을 붙이면 프린터 라운지에 무엇이 보이나 (지원 표 · 받는 상태 목록) */
+    var Y = '<i class="y">✅</i>', N = '<i class="n">–</i>', tr = function (name, a, b, c, d) { return '<tr><th scope="row">' + name + '</th><td>' + a + '</td><td>' + b + '</td><td>' + c + '</td><td>' + d + '</td></tr>'; };
+    var sup = '<section class="hal-sec hal-sup"><h4>🖨️ 프린터에 쓸 수 있는 것 <small>SmartThings 의 무엇을 「🖨️ 내 프린터」에 붙이면 프린터 라운지에 무엇이 보이나</small></h4>' +
+      '<div class="hal-sup-w"><table><thead><tr><th></th><th>🖨️ Bambu Lab<small>Edge 드라이버 (LAN)</small></th><th>🖨️ Klipper<small>Edge 드라이버 (Moonraker)</small></th><th>🔌 전력 플러그</th><th>🌡️ 온습도계</th></tr></thead><tbody>' +
+      tr('출력 시작 · 끝 저절로 기록', Y, Y, Y + '<small>전력으로</small>', N) + tr('진행률 (%)', Y, Y, N, N) + tr('남은 시간', '<i class="y">≈</i><small>어림</small>', Y, N, N) + tr('출력물 이름', N, Y, N, N) +
+      tr('일시정지 · 실패 구분', N, Y, N, N) + tr('노즐 · 베드 온도', Y, Y, N, N) + tr('AMS 습도 · 조명', Y, N, N, N) + tr('부품 팬', N, Y, N, N) + tr('주변 온도 · 습도', N, N, N, Y) +
+      tr('📷 카메라 · 타임랩스', N, N, N, N) + '</tbody></table></div>' +
+      '<ul class="hal-sup-st"><li><b>Bambu Lab</b> 이 알려 주는 상태 — <span>출력 중</span> <span>쉬는 중</span>. 끝날 때 진행률이 98% 를 넘었으면 <span class="ok">완료</span>, 아니면 <span class="no">그만둠</span>으로 기록해요.</li>' +
+      '<li><b>Klipper</b> 가 알려 주는 상태 — <span>standby 쉬는 중</span> <span>printing 출력 중</span> <span>paused 일시정지</span> <span class="ok">complete 완료</span> <span class="no">cancelled · error 실패</span></li>' +
+      '<li><b>전력 플러그</b> — 정한 W 보다 많이 쓰면 <span>출력 중</span>, 내려가면 <span class="ok">완료</span>.</li></ul>' +
+      '<p class="hal-hint">프린터 기기는 SmartThings 허브에 <b>커뮤니티 Edge 드라이버</b>를 깔아 등록한 3D 프린터예요 (삼성 공식 기기 종류는 아니에요). 드라이버 · 버전에 따라 보이는 값이 다를 수 있고, ⚙️ 센서 고르기에 <b>🖨️ 프린터 기기</b>로 나오면 받을 수 있어요. 📷 카메라 · 타임랩스는 SmartThings 로 받을 수 없어요 — 프린터 라운지의 <b>한 줄 연결</b>이나 Home Assistant 로 (같은 프린터에 같이 써도 돼요).</p></section>';
     var more = '<section class="hal-sec hal-tips"><h4>💡 더 알아 두면 좋아요</h4><ul>' +
       '<li><b>센서를 더하거나 빼려면</b> SmartThings 카드의 <b>⚙️ 센서 고르기</b>에서 체크를 바꾸고 저장하세요. 다시 로그인할 필요는 없어요.</li>' +
       '<li><b>다른 집 · 사무실(위치)</b>의 센서도 받으려면 <b>➕ 다른 위치 연결</b>을 누르고 삼성 화면에서 그 위치를 고르세요.</li>' +
@@ -307,7 +319,7 @@
       '<li><b>카드에 ⚠️ 가 보이면</b> 안내 글 옆의 <b>🔗 다시 연결</b>을 눌러 한 번 더 로그인하세요. 고른 센서는 그대로 있어요.</li>' +
       '<li><b>그만 쓰려면</b> <b>연결 끊기</b> — 기기 카드와 기록은 남아요. SmartThings 앱의 「연결된 서비스」에서 지워도 끊겨요.</li></ul>' +
       '<p class="hal-hint">그림은 화면을 본떠 그린 거예요. 삼성 계정 · SmartThings 화면은 조금 다를 수 있어요.</p></section>';
-    return '<p class="hal-guide-top">앱을 깔거나 코드를 적을 필요 없이 <b>1분</b>이면 돼요. 삼성 화면에서 할 일(②③)과 사이트에서 할 일(①④⑤)을 순서대로 보여 드려요. 빨간 테두리 <span class="hal-hl sm">이렇게</span> 표시한 곳을 순서대로 누르면 돼요.</p>' + stPay() + guideSteps(steps) + more;
+    return '<p class="hal-guide-top">앱을 깔거나 코드를 적을 필요 없이 <b>1분</b>이면 돼요. 삼성 화면에서 할 일(②③)과 사이트에서 할 일(①④⑤)을 순서대로 보여 드려요. 빨간 테두리 <span class="hal-hl sm">이렇게</span> 표시한 곳을 순서대로 누르면 돼요.</p>' + stPay() + guideSteps(steps) + sup + more;
   }
   function guideBox(tab) {
     var T = S.d.smartthings || {}, hasSt = !!(T.oauth || (T.installs || []).some(function (x) { return x.mode === 'oauth'; }));

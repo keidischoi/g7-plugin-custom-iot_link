@@ -336,14 +336,15 @@ class SmartThingsService
                 $status[$dev] = $x;
             }
         }
-        foreach ($cfg['devices'] as [$slot, $dev, $comp]) {
+        foreach ($cfg['devices'] as $t) {
+            [$slot, $dev, $comp] = $t;
             if (! isset($status[$dev])) {
                 [$st, $d] = $this->api($tok, 'GET', '/devices/'.$dev);
                 $labels[$dev] = $st === 200 ? Rules::text($d['label'] ?? ($d['name'] ?? ''), 80) : '';
                 [$st, $x] = $this->api($tok, 'GET', '/devices/'.$dev.'/status');
                 $status[$dev] = $st === 200 ? $x : [];
             }
-            array_push($events, ...SmartThings::statusEvents($status[$dev], $dev, $comp, SmartThings::SLOTS[$slot][0]));
+            array_push($events, ...SmartThings::statusEvents($status[$dev], $dev, $comp, $t[3] ?? SmartThings::SLOTS[$slot][0]));
         }
         DB::table(Schema::ST_SENSORS)->where('install_id', $id)->whereNotIn('st_device_id', array_column($cfg['devices'], 1) ?: ['-'])->delete();   // 뺀 기기의 값은 지움
         if ($i->user_id) {
@@ -427,6 +428,25 @@ class SmartThingsService
         if (! $i->user_id) {
             return;
         }
+        // 1.3.0 프린터 기기 — 값이 하나씩 따로 오므로(노즐 온도만 · 진행률만) 저장해 둔 그 기기의 값을 모두 모아 한 번에 넘김
+        //  (프린터 라운지는 받은 온도 묶음을 통째로 바꿔 적고, 출력 상태가 같이 있어야 받음)
+        $pd = [];
+        foreach ($cfg['devices'] as $d) {
+            if (isset($d[4])) {
+                $pd[$d[1]] = true;
+            }
+        }
+        foreach (array_keys(array_intersect_key($pd, $byDev)) as $dev) {
+            $all = [];
+            foreach (DB::table(Schema::ST_SENSORS)->where('install_id', $i->id)->where('st_device_id', $dev)->limit(40)->get() as $row) {
+                $r = SmartThings::event(['deviceId' => $dev, 'componentId' => (string) $row->component_id, 'capability' => (string) $row->capability, 'attribute' => (string) $row->attribute,
+                    'value' => $row->value, 'unit' => $row->unit], $cfg['devices'], null, (float) $cfg['power_on_w']);
+                if ($r !== null) {
+                    $all = array_merge($all, $r['payload']);
+                }
+            }
+            $byDev[$dev] = array_merge($all, $byDev[$dev]);
+        }
         // 넘길 사이트 기기 — 로그인 연결은 SmartThings 기기마다 (map), 예전 방식은 설치에 이은 기기 하나
         $to = [];
         foreach ($byDev as $dev => $payload) {
@@ -475,7 +495,9 @@ class SmartThingsService
         }
 
         return ['mode' => ($c['mode'] ?? '') === 'oauth' ? 'oauth' : 'smartapp',
-            'devices' => array_values(array_filter(is_array($c['devices'] ?? null) ? $c['devices'] : [], static fn ($d) => is_array($d) && count($d) === 3 && isset(SmartThings::SLOTS[$d[0]]))),
+            // 1.3.0 프린터 기기의 칸은 [역할, deviceId, componentId, capability, attribute]
+            'devices' => array_values(array_filter(is_array($c['devices'] ?? null) ? $c['devices'] : [], static fn ($d) => is_array($d) && array_is_list($d) && count(array_filter($d, 'is_string')) === count($d)
+                && ((count($d) === 3 && isset(SmartThings::SLOTS[$d[0]])) || (count($d) === 5 && isset(SmartThings::PRINTER[$d[0]]))))),
             'map' => $map, 'power_on_w' => is_numeric($c['power_on_w'] ?? null) ? (float) $c['power_on_w'] : 10.0];
     }
 
@@ -592,7 +614,7 @@ class SmartThingsService
                 'device_name' => $i->device_id ? (string) ($names[$i->device_id] ?? '') : '', 'status' => (string) $i->status, 'last_error' => (string) ($i->last_error ?? ''),
                 'picked' => count(array_unique(array_column($cfg['devices'], 1))), 'site_devices' => array_values(array_unique(array_values($map))), 'power_on_w' => $cfg['power_on_w'],
                 'last_event_at' => $i->last_event_at ? (string) $i->last_event_at : null,
-                'sensors' => $this->sensors((int) $i->id, $oauth ? $map : null, $i->device_id && isset($names[$i->device_id]) ? (int) $i->device_id : null)];
+                'sensors' => $this->sensors((int) $i->id, $oauth ? $map : null, $i->device_id && isset($names[$i->device_id]) ? (int) $i->device_id : null, $cfg['devices'])];
             $due = $due || $i->token_checked_at === null || (string) $i->token_checked_at < self::at(-6 * 3600);
         }
         if ($due) {
@@ -613,12 +635,14 @@ class SmartThingsService
      * @param  array<string, int>|null  $map  로그인 연결의 SmartThings 기기 → 사이트 기기 (예전 방식이면 null)
      * @return list<array<string, mixed>>
      */
-    public function sensors(int $installId, ?array $map = null, ?int $deviceId = null): array
+    public function sensors(int $installId, ?array $map = null, ?int $deviceId = null, array $devices = []): array
     {
         $out = [];
         foreach (DB::table(Schema::ST_SENSORS)->where('install_id', $installId)->orderBy('label')->orderBy('capability')->limit(240)->get() as $s) {
-            $out[] = ['label' => (string) ($s->label ?: 'SmartThings 기기'), 'capability' => (string) $s->capability, 'what' => SmartThings::LABELS[$s->capability] ?? (string) $s->attribute,
-                'attribute' => (string) $s->attribute, 'value' => SmartThings::show((string) $s->capability, (string) $s->value, (string) ($s->unit ?? '')), 'at' => $s->updated_at ? (string) $s->updated_at : null,
+            // 1.3.0 프린터 기기의 값은 그 역할 이름으로 (노즐 온도 · 베드 온도 · AMS 습도 · 출력 상태 …)
+            $role = $devices !== [] ? SmartThings::roleOf($devices, (string) $s->st_device_id, (string) $s->component_id, (string) $s->capability, (string) $s->attribute) : '';
+            $out[] = ['label' => (string) ($s->label ?: 'SmartThings 기기'), 'capability' => $role !== '' ? 'printer.'.$role : (string) $s->capability, 'what' => $role !== '' ? SmartThings::PRINTER[$role] : (SmartThings::LABELS[$s->capability] ?? (string) $s->attribute),
+                'attribute' => (string) $s->attribute, 'value' => $role !== '' ? SmartThings::showRole($role, (string) $s->capability, (string) $s->value, (string) ($s->unit ?? '')) : SmartThings::show((string) $s->capability, (string) $s->value, (string) ($s->unit ?? '')), 'at' => $s->updated_at ? (string) $s->updated_at : null,
                 'site' => $map !== null ? ($map[(string) $s->st_device_id] ?? null) : $deviceId];
         }
 
@@ -881,15 +905,30 @@ class SmartThingsService
                 }
             }
         }
+        $mineP = $this->ha->printers($uid);
         $rows = [];
         foreach (SmartThings::candidates($items, $i->temp_scale ?? null) as $c) {
             $site = isset($cfg['map'][$c['id']], $mine[$cfg['map'][$c['id']]]) ? $cfg['map'][$c['id']] : null;
             $vals = [];
-            foreach (array_keys($c['caps']) as $cap) {
-                $vals[] = ['what' => SmartThings::LABELS[$cap] ?? $cap, 'value' => $c['values'][$cap] ?? ''];
+            if ($c['kind'] === 'printer') {
+                foreach ($c['triples'] as $t) {   // 1.3.0 프린터 기기 — 역할 이름으로 (출력 상태 · 진행률 · 노즐 온도 …)
+                    $vals[] = ['what' => SmartThings::PRINTER[$t[0]], 'value' => $c['values'][$t[0]] ?? ''];
+                }
+            } else {
+                foreach (array_keys($c['caps']) as $cap) {
+                    $vals[] = ['what' => SmartThings::LABELS[$cap] ?? $cap, 'value' => $c['values'][$cap] ?? ''];
+                }
             }
+            $sp = $prn[Rules::loc($c['label'])] ?? null;
+            if ($sp === null && $c['kind'] === 'printer') {
+                // 이름이 같지 않아도 — 상표가 이름에 든 프린터가 하나뿐이면 그것 (「Bambu Lab Printer」 ↔ 내 「Bambu Lab A1」), 내 프린터가 하나뿐이면 그것
+                $hit = array_values(array_filter($mineP, static fn ($p) => ($w = Rules::loc(explode(' ', trim((string) $p['brand']))[0] ?? '')) !== '' && str_contains(Rules::loc($c['label']), $w)));
+                $sp = count($hit) === 1 ? (int) $hit[0]['id'] : (count($mineP) === 1 ? (int) $mineP[0]['id'] : null);
+            }
+            // 1.3.0 예전 버전으로 골라 둔 프린터 기기 — 온습도계 · 플러그처럼 읽고 있으니 한 번 다시 저장해야 함
+            $old = $c['kind'] === 'printer' && isset($picked[$c['id']]) && ! array_filter($cfg['devices'], static fn ($d) => $d[1] === $c['id'] && isset($d[4]));
             $rows[] = ['id' => $c['id'], 'label' => $c['label'], 'kind' => $c['kind'], 'values' => $vals, 'picked' => isset($picked[$c['id']]), 'site_device_id' => $site, 'suggest' => $site ?? ($byName[Rules::loc($c['label'])] ?? null),
-                'suggest_printer' => $site === null ? ($prn[Rules::loc($c['label'])] ?? null) : null];
+                'suggest_printer' => $site === null || $old ? $sp : null, 'resave' => $old];
         }
 
         return [true, 'ok', ['install_id' => (int) $i->id, 'location' => (string) ($i->location_name ?? ''), 'devices' => $rows, 'max' => SmartThings::MAX_PICKS, 'power_on_w' => $cfg['power_on_w'],
@@ -973,7 +1012,7 @@ class SmartThingsService
             }
             $map[$sid] = $site;
             $labels[$sid] = $c['label'];
-            array_push($triples, ...SmartThings::triples($sid, $c['caps']));
+            array_push($triples, ...$c['triples']);
         }
         $w = is_numeric($powerOnW) ? max(0.5, min(5000.0, (float) $powerOnW)) : $old['power_on_w'];
         DB::table(Schema::ST_INSTALLS)->where('id', $i->id)->update(['config' => json_encode(['mode' => 'oauth', 'devices' => $triples, 'map' => $map, 'power_on_w' => $w]),
@@ -981,8 +1020,9 @@ class SmartThingsService
         DB::table(Schema::ST_SENSORS)->where('install_id', $i->id)->whereNotIn('st_device_id', array_keys($map) ?: ['-'])->delete();
         // 지금 값 — 방금 받은 목록의 값으로 바로 (화면에 곧바로 보이게)
         $events = [];
-        foreach ($triples as [$slot, $dev, $comp]) {
-            array_push($events, ...SmartThings::statusEvents(SmartThings::listStatus($raw[$dev] ?? []), $dev, $comp, SmartThings::SLOTS[$slot][0]));
+        foreach ($triples as $t) {
+            [$slot, $dev, $comp] = $t;
+            array_push($events, ...SmartThings::statusEvents(SmartThings::listStatus($raw[$dev] ?? []), $dev, $comp, $t[3] ?? SmartThings::SLOTS[$slot][0]));
         }
         $this->absorb(DB::table(Schema::ST_INSTALLS)->where('id', $i->id)->first(), $events, $labels);
         $iid = (int) $i->id;

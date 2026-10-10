@@ -279,7 +279,7 @@ namespace {
 
             return [200, $j($fake['subs'][$iid][$sid])];
         }
-        if (str_contains($url, '/devices?includeStatus=true')) return [200, $j(['items' => $fakeDevices, '_links' => new stdClass()])];
+        if (str_contains($url, '/devices?includeStatus=true')) return [200, $j(['items' => array_merge($fakeDevices, $fake['extra'] ?? []), '_links' => new stdClass()])];
         if (str_ends_with($url, '/v1/apps') && $m === 'POST') return $fake['apps'] === 201 ? [200, $j(['app' => ['appId' => 'app-auto-7777', 'appType' => 'API_ONLY'], 'oauthClientId' => 'cid-auto-7777', 'oauthClientSecret' => 'sec-auto-7777'])] : [$fake['apps'], '{"requestId":"r","error":{"code":"ForbiddenError","message":"Plan required","details":[]}}'];
         if (preg_match('#/v1/apps/[\w-]+/register$#', $url) && $m === 'PUT') return [202, '{}'];
         if (str_starts_with($url, 'https://key.smartthings.com/pl/')) return [200, $cert];
@@ -593,6 +593,92 @@ namespace {
     HaService::$nowOverride = '2026-10-11 09:10:00';
     [$ok] = $st->oauthPick(1, (int) $oi->id, [['id' => 'dev-th-0001', 'site_device_id' => (int) $box->id], ['id' => 'dev-plug-001', 'site_device_id' => (int) $plug->id], ['id' => 'dev-th-0002', 'site_device_id' => (int) $ams->id], ['id' => 'dev-door-001', 'site_device_id' => (int) $box->id]], 15);
     t($ok && DB::table('hal_devices')->where('user_id', 1)->count() >= $devsBefore, '(다음 검사를 위해 붙인 곳을 되돌림)');
+
+    echo "  · 1.3.0 🖨️ 프린터 기기 (커뮤니티 Edge 드라이버 — Bambu Lab LAN · Klipper)\n";
+    $comp = static fn (string $id, array $caps) => ['id' => $id, 'capabilities' => $caps];
+    $fake['extra'] = [
+        // 회원이 보내 준 Bambu Lab Printer (BooungEdge) 의 속성 표 그대로
+        ['deviceId' => 'dev-bambu-01', 'label' => 'Bambu Lab Printer', 'components' => [
+            $comp('main', [$capSt('switch', ['switch' => ['value' => 'on']])]), $comp('amsHumidity', [$capSt('relativeHumidityMeasurement', ['humidity' => ['value' => 22, 'unit' => '%']])]),
+            $comp('bed', [$capSt('temperatureMeasurement', ['temperature' => ['value' => 24, 'unit' => 'C'], 'temperatureRange' => ['value' => null]])]), $comp('light', [$capSt('switch', ['switch' => ['value' => 'off']])]),
+            $comp('nozzle', [$capSt('temperatureMeasurement', ['temperature' => ['value' => 25, 'unit' => 'C'], 'temperatureRange' => ['value' => null]])]), $comp('printing', [$capSt('contactSensor', ['contact' => ['value' => 'closed']])]),
+            $comp('progress', [$capSt('flutefabric12437.printProgress', ['printProgress' => ['value' => 0, 'unit' => '%']])])]],
+        // againtalent/SmartThings-Klipper 의 profiles/moonraker-klipper.v1.yaml 그대로
+        ['deviceId' => 'dev-klip-001', 'label' => 'Voron', 'components' => [
+            $comp('main', [$capSt('againtalent19519.klipperstatus', ['printer' => ['value' => 'standby']]), $capSt('againtalent19519.message', ['message' => ['value' => '-']])]),
+            $comp('printJob', [$capSt('againtalent19519.filename', ['filename' => ['value' => '-']]), $capSt('againtalent19519.percentcomplete', ['percentComplete' => ['value' => 0, 'unit' => '%']]), $capSt('againtalent19519.printtime', ['totalTime' => ['value' => '-'], 'remainingTime' => ['value' => '-']])]),
+            $comp('extruder', [$capSt('temperatureMeasurement', ['temperature' => ['value' => 0, 'unit' => 'C']]), $capSt('againtalent19519.printerfan', ['speed' => ['value' => 0, 'unit' => '%']])]), $comp('bed', [$capSt('temperatureMeasurement', ['temperature' => ['value' => 0, 'unit' => 'C']])])]],
+        // 프린터가 아닌 것 — 맞춤 「…status」 · 「…progress」가 있어도 프린터로 보지 않음
+        ['deviceId' => 'dev-wash-001', 'label' => '세탁기', 'components' => [$comp('main', [$capSt('switch', ['switch' => ['value' => 'on']]), $capSt('acme12345.washerStatus', ['status' => ['value' => 'run']]), $capSt('acme12345.progress', ['progress' => ['value' => 40]])])]],
+    ];
+    [, , $list] = $st->oauthDevices(1, (int) $oi->id);
+    $row = array_column($list['devices'], null, 'id');
+    $vv = array_column($row['dev-bambu-01']['values'], 'value', 'what');
+    t($list['devices'][0]['kind'] === 'printer' && $row['dev-bambu-01']['kind'] === 'printer' && $row['dev-klip-001']['kind'] === 'printer' && $row['dev-wash-001']['kind'] === 'power' && $row['dev-th-0001']['kind'] === 'env',
+        '프린터 기기를 알아봄 (Bambu · Klipper) — 목록 맨 위 · 세탁기의 맞춤 status/progress 는 프린터가 아님');
+    t($vv === ['프린터 연결' => '연결됨', 'AMS 습도' => '22%', '베드 온도' => '24°C', '조명' => '꺼짐', '노즐 온도' => '25°C', '출력 상태' => '쉬는 중', '진행률' => '0%'] && $row['dev-bambu-01']['suggest_printer'] === 5 && $row['dev-bambu-01']['resave'] === false,
+        'Bambu: 칸마다 뜻대로 (연결 · AMS 습도 · 베드/노즐 온도 · 조명 · 출력 상태 · 진행률) · 상표가 같은 내 프린터를 권함');
+    $kv = array_column($row['dev-klip-001']['values'], 'value', 'what');
+    t(array_keys($kv) === ['출력 상태', '출력물', '진행률', '남은 시간', '노즐 온도', '팬', '베드 온도'] && $kv['출력 상태'] === '쉬는 중', 'Klipper: 상태 글 · 출력물 · 진행률 · 남은 시간 · 노즐/베드 온도 · 팬');
+    $prnBefore = DB::table('hal_devices')->where('id', $prn->id)->first();
+    DB::table('hal_devices')->where('id', $prn->id)->update(['is_on' => false, 'state' => 'off']);
+    FakePrinter28::$got = [];
+    HaService::$printerService = FakePrinter28::class;
+    $base = [['id' => 'dev-th-0001', 'site_device_id' => (int) $box->id], ['id' => 'dev-plug-001', 'site_device_id' => (int) $plug->id], ['id' => 'dev-th-0002', 'site_device_id' => (int) $ams->id], ['id' => 'dev-door-001', 'site_device_id' => (int) $box->id]];
+    [$ok] = $st->oauthPick(1, (int) $oi->id, array_merge($base, [['id' => 'dev-bambu-01', 'printer_id' => 5]]), 15);
+    $cfg = json_decode((string) DB::table('hal_st_installs')->where('id', $oi->id)->value('config'), true);
+    $five = array_values(array_filter($cfg['devices'], static fn ($d) => count($d) === 5));
+    $prnNow = DB::table('hal_devices')->where('id', $prn->id)->first();
+    t($ok && $cfg['map']['dev-bambu-01'] === (int) $prn->id && count($five) === 7 && in_array(['p_progress', 'dev-bambu-01', 'progress', 'flutefabric12437.printProgress', 'printProgress'], $five, true)
+        && in_array(['p_state', 'dev-bambu-01', 'printing', 'contactSensor', 'contact'], $five, true), '저장: 칸 · capability · attribute 를 같이 적어 둠 (맞춤 capability 이름공간이 드라이버마다 달라서)');
+    t(FakePrinter28::$got === [] && (string) $prnNow->temp === (string) $prnBefore->temp && (string) $prnNow->humidity === (string) $prnBefore->humidity && ! $prnNow->is_on,
+        '쉬는 중인 프린터를 처음 이어도 프린터 라운지에 「쉬는 중」을 보내지 않음 (손으로 시작한 출력이 닫히지 않게) · 노즐 온도 · AMS 습도를 주변 온습도로 넣지 않음');
+    $pev = fn (string $dev, string $c, string $cap, string $attr, $val, ?string $unit = null) => ['eventTime' => '2026-10-11T00:10:00Z', 'eventType' => 'DEVICE_EVENT', 'deviceEvent' => ['eventId' => uniqid(), 'locationId' => 'loc-0000-1111', 'deviceId' => $dev, 'componentId' => $c, 'capability' => $cap, 'attribute' => $attr, 'value' => $val, 'unit' => $unit, 'stateChange' => true]];
+    $psend = fn (array $evs) => $send(['messageType' => 'EVENT', 'eventData' => ['installedApp' => ['installedAppId' => 'ia-oauth-0001'], 'events' => $evs]]);
+    $psend([$pev('dev-bambu-01', 'nozzle', 'temperatureMeasurement', 'temperature', 221, 'C')]);
+    t(FakePrinter28::$got === [], '쉬는 중에 온도만 바뀌면 넘기지 않음 (「쉬는 중」을 거듭 보내지 않음)');
+    $psend([$pev('dev-bambu-01', 'printing', 'contactSensor', 'contact', 'open')]);
+    $g = FakePrinter28::$got[0] ?? [null, [], null];
+    t(count(FakePrinter28::$got) === 1 && $g[0] === str_repeat('a', 32) && $g[2] === 'st' && $g[1]['state'] === 'printing' && (float) $g[1]['progress'] === 0.0 && (float) $g[1]['nozzle'] === 221.0 && (float) $g[1]['bed'] === 24.0
+        && (float) $g[1]['humidity'] === 22.0 && $g[1]['hum_src'] === 'ams' && $g[1]['light'] === false && $g[1]['source'] === 'printer' && ! isset($g[1]['chamber']),
+        '출력 시작(열림) → 프린터 라운지로 「출력 중」 + 지금까지의 값 모두 (노즐 · 베드 · AMS 습도 · 조명 · 진행률) — 값이 하나씩 와도 묶어서');
+    $psend([$pev('dev-bambu-01', 'progress', 'flutefabric12437.printProgress', 'printProgress', 42, '%')]);
+    $psend([$pev('dev-bambu-01', 'bed', 'temperatureMeasurement', 'temperature', 60, 'C'), $pev('dev-bambu-01', 'light', 'switch', 'switch', 'on')]);
+    $g = FakePrinter28::$got[2] ?? [null, [], null];
+    t(count(FakePrinter28::$got) === 3 && (float) FakePrinter28::$got[1][1]['progress'] === 42.0 && FakePrinter28::$got[1][1]['state'] === 'printing' && (float) $g[1]['bed'] === 60.0 && (float) $g[1]['nozzle'] === 221.0 && (float) $g[1]['progress'] === 42.0 && $g[1]['light'] === true,
+        '진행률 · 온도가 바뀔 때마다 「출력 중」과 함께 (상태가 같이 가야 라운지가 받음)');
+    $psend([$pev('dev-bambu-01', 'printing', 'contactSensor', 'contact', 'closed')]);
+    t(count(FakePrinter28::$got) === 4 && FakePrinter28::$got[3][1]['state'] === 'idle', '진행률 42% 에서 끝남(닫힘) → 「쉬는 중」 그대로 (라운지가 마지막 진행률로 「그만둠」)');
+    $psend([$pev('dev-bambu-01', 'printing', 'contactSensor', 'contact', 'open')]);
+    $psend([$pev('dev-bambu-01', 'progress', 'flutefabric12437.printProgress', 'printProgress', 100, '%')]);
+    $psend([$pev('dev-bambu-01', 'printing', 'contactSensor', 'contact', 'closed')]);
+    $psend([$pev('dev-bambu-01', 'nozzle', 'temperatureMeasurement', 'temperature', 80, 'C')]);
+    t(count(FakePrinter28::$got) === 7 && FakePrinter28::$got[6][1]['state'] === 'done' && (float) FakePrinter28::$got[6][1]['progress'] === 100.0, '100% 에서 끝남 → 「완료」 · 그 뒤 식는 동안의 온도는 넘기지 않음');
+    $mineI = array_column($st->forUser(1)['installs'], null, 'id')[(int) $oi->id];
+    $sens = array_column(array_filter($mineI['sensors'], static fn ($x) => str_starts_with($x['capability'], 'printer.')), 'value', 'what');
+    t($sens['출력 상태'] === '쉬는 중' && $sens['노즐 온도'] === '80°C' && $sens['진행률'] === '100%' && $sens['프린터 연결'] === '연결됨' && $sens['조명'] === '켜짐' && count($sens) === 7, '기기 카드의 센서 값도 역할 이름으로 (노즐 온도 · 베드 온도 · 출력 상태 …)');
+    // Klipper — 상태 글 · 남은 시간 「1h 4m」 · 출력물
+    FakePrinter28::$got = [];
+    [$ok] = $st->oauthPick(1, (int) $oi->id, array_merge($base, [['id' => 'dev-klip-001', 'printer_id' => 5]]), 15);
+    $psend([$pev('dev-klip-001', 'printJob', 'againtalent19519.filename', 'filename', 'benchy 0.2mm'), $pev('dev-klip-001', 'printJob', 'againtalent19519.printtime', 'remainingTime', '1h 4m'),
+        $pev('dev-klip-001', 'printJob', 'againtalent19519.percentcomplete', 'percentComplete', 12.5, '%'), $pev('dev-klip-001', 'extruder', 'temperatureMeasurement', 'temperature', 215, 'C'), $pev('dev-klip-001', 'main', 'againtalent19519.klipperstatus', 'printer', 'printing')]);
+    $g = FakePrinter28::$got[0] ?? [null, [], null];
+    t($ok && count(FakePrinter28::$got) === 1 && $g[1]['state'] === 'printing' && $g[1]['job'] === 'benchy 0.2mm' && (float) $g[1]['remaining_min'] === 64.0 && (float) $g[1]['progress'] === 12.5 && (float) $g[1]['nozzle'] === 215.0, 'Klipper: 출력 중 · 출력물 · 남은 64분 · 진행률 · 노즐 온도');
+    $psend([$pev('dev-klip-001', 'main', 'againtalent19519.klipperstatus', 'printer', 'complete')]);
+    t(count(FakePrinter28::$got) === 2 && FakePrinter28::$got[1][1]['state'] === 'complete', 'Klipper: complete 는 그대로 넘김 (라운지가 「완료」로)');
+    // 예전 버전(1.2.0)으로 골라 둔 프린터 기기 — 다시 저장하라고 알림
+    $cfgOld = json_decode((string) DB::table('hal_st_installs')->where('id', $oi->id)->value('config'), true);
+    $cfgOld['devices'] = array_values(array_merge(array_filter($cfgOld['devices'], static fn ($d) => $d[1] !== 'dev-klip-001'), [['temp', 'dev-bambu-01', 'bed'], ['power_switch', 'dev-bambu-01', 'main']]));
+    $cfgOld['map']['dev-bambu-01'] = (int) $box->id;
+    DB::table('hal_st_installs')->where('id', $oi->id)->update(['config' => json_encode($cfgOld)]);
+    [, , $list] = $st->oauthDevices(1, (int) $oi->id);
+    $row = array_column($list['devices'], null, 'id');
+    t($row['dev-bambu-01']['resave'] === true && $row['dev-bambu-01']['picked'] === true && $row['dev-bambu-01']['suggest_printer'] === 5, '예전 방식으로 골라 둔 프린터 기기는 「한 번 다시 저장」 표시 · 내 프린터를 권함');
+    HaService::$printerService = FakePrinter::class;
+    $fake['extra'] = [];
+    [$ok] = $st->oauthPick(1, (int) $oi->id, $base, 15);
+    DB::table('hal_devices')->where('id', $prn->id)->update(['is_on' => $prnBefore->is_on, 'state' => $prnBefore->state]);
+    t($ok, '(다음 검사를 위해 되돌림)');
 
     echo "  · 한도 · 빼기 · 지우기 · 끊기 · 다시 연결\n";
     Settings::save(['max_devices' => DB::table('hal_devices')->where('user_id', 1)->count()]);

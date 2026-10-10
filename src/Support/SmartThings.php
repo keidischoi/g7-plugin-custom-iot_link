@@ -59,6 +59,15 @@ final class SmartThings
         'illuminance' => ['illuminanceMeasurement', 'illuminance', '☀️ 밝기 센서', '', true],
     ];
 
+    /**
+     * 1.3.0 🖨️ 프린터 기기 — 커뮤니티 Edge 드라이버가 SmartThings 에 만든 3D 프린터 (Bambu Lab LAN · Klipper/Moonraker …). 역할 => 화면 이름.
+     *  드라이버마다 capability 이름이 달라(맞춤 capability: 이름공간.이름) 고를 때 칸 · capability · attribute 를 같이 적어 둠: [역할, deviceId, componentId, capability, attribute]
+     *  본 것: Bambu(칸 printing 의 contactSensor = 출력 중 · 칸 progress 의 *.printProgress · 칸 nozzle/bed 의 온도 · amsHumidity · light · main 스위치 = 연결)
+     *        Klipper(main 의 *.klipperstatus.printer · 칸 printJob 의 *.percentcomplete · *.printtime.remainingTime · *.filename · 칸 extruder/bed 의 온도 · *.printerfan.speed)
+     */
+    public const PRINTER = ['p_state' => '출력 상태', 'p_progress' => '진행률', 'p_remaining' => '남은 시간', 'p_job' => '출력물', 'p_nozzle' => '노즐 온도', 'p_bed' => '베드 온도',
+        'p_chamber' => '챔버 온도', 'p_hum' => 'AMS 습도', 'p_light' => '조명', 'p_online' => '프린터 연결', 'p_fan' => '팬'];
+
     /** 화면에 보일 이름 (capability.attribute → 한국어 · 값 바꾸기) */
     public const LABELS = [
         'temperatureMeasurement' => '온도', 'relativeHumidityMeasurement' => '습도', 'switch' => '스위치', 'powerMeter' => '전력', 'energyMeter' => '전력량',
@@ -188,14 +197,22 @@ final class SmartThings
             return null;
         }
         $roles = [];
-        foreach ($devices as [$slot, $id, $c]) {
-            if ($id === $dev && $c === $comp && (self::SLOTS[$slot][0] ?? '') === $cap) {
-                $roles[] = self::SLOTS[$slot][3];
+        foreach ($devices as $d) {
+            if (($d[1] ?? '') !== $dev || ($d[2] ?? '') !== $comp) {
+                continue;
+            }
+            if (isset($d[4])) {   // 1.3.0 프린터 기기 — capability · attribute 를 적어 둔 칸
+                if ($d[3] === $cap && $d[4] === $attr && isset(self::PRINTER[$d[0]])) {
+                    $roles[] = $d[0];
+                }
+            } elseif ((self::SLOTS[$d[0]][0] ?? '') === $cap) {
+                $roles[] = self::SLOTS[$d[0]][3];
             }
         }
         if ($roles === []) {
             return null;
         }
+        $pr = isset(self::PRINTER[$roles[0]]) ? $roles[0] : '';
         $raw = $ev['value'] ?? null;
         if (is_bool($raw)) {
             $raw = $raw ? 'true' : 'false';
@@ -211,7 +228,44 @@ final class SmartThings
         $num = is_numeric($raw) ? (float) $raw : null;
         $value = mb_substr(trim(strip_tags((string) $raw)), 0, 60);
         $payload = [];
-        if ($cap === 'temperatureMeasurement' && $num !== null) {
+        if ($pr !== '') {
+            // 1.3.0 프린터 기기의 값 — 사이트 기기의 온습도(주변 값)로 넣지 않고 프린터 값으로 (HaService::ingest 가 내 프린터로 넘김)
+            $low = strtolower($value);
+            $none = $value === '' || in_array($low, ['-', '...', 'n/a', 'na', 'none', 'unknown', 'unavailable'], true);
+            if (in_array($pr, ['p_nozzle', 'p_bed', 'p_chamber'], true)) {
+                if ($num !== null) {
+                    $num = self::celsius($num, $unit !== '' ? $unit : $scale);
+                    $value = (string) $num;
+                    $unit = '°C';
+                    $payload[substr($pr, 2)] = $num;
+                }
+            } elseif ($pr === 'p_state') {
+                // contactSensor(칸 printing): 열림 = 출력 중 · 닫힘 = 쉬는 중 / 맞춤 상태 글(standby · printing · paused · complete · cancelled · error …)은 그대로
+                $payload['state'] = $cap === 'contactSensor' ? ($low === 'open' ? 'printing' : 'idle') : ($none ? null : $low);
+            } elseif ($pr === 'p_progress') {
+                if ($num !== null && $num >= 0 && $num <= 100) {
+                    $payload['progress'] = $num;
+                    $unit = '%';
+                }
+            } elseif ($pr === 'p_remaining') {
+                $payload['remaining'] = $none ? null : $value;
+            } elseif ($pr === 'p_job') {
+                $payload['job'] = $none ? null : $value;
+            } elseif ($pr === 'p_hum') {
+                if ($num !== null) {
+                    $payload['ams_humidity'] = $num;
+                    $unit = '%';
+                }
+            } elseif ($pr === 'p_fan') {
+                if ($num !== null) {
+                    $payload['fan'] = $num;
+                    $unit = '%';
+                }
+            } elseif ($pr === 'p_light' || $pr === 'p_online') {
+                $payload[substr($pr, 2)] = $low === 'on';
+            }
+            $payload = array_filter($payload, static fn ($x) => $x !== null) + ['_printer' => true];
+        } elseif ($cap === 'temperatureMeasurement' && $num !== null) {
             $num = self::celsius($num, $unit !== '' ? $unit : $scale);
             $value = (string) $num;
             $unit = '°C';
@@ -373,10 +427,27 @@ final class SmartThings
                     }
                 }
             }
+            $status = self::listStatus($it);
+            $label = Rules::text($it['label'] ?? '', 60) ?: (Rules::text($it['name'] ?? '', 60) ?: 'SmartThings 기기');
+            // 1.3.0 🖨️ 프린터 기기(커뮤니티 Edge 드라이버) — 칸마다 뜻이 달라(노즐 온도 · 베드 온도 · AMS 습도 · 연결 스위치) 온습도계 · 플러그처럼 읽으면 안 됨
+            $pt = self::printerTriples($id, $comps, $status);
+            if ($pt !== []) {
+                $values = [];
+                foreach ($pt as $t) {
+                    foreach (self::statusEvents($status, $id, $t[2], $t[3]) as $ev) {
+                        $r = $ev['attribute'] === $t[4] ? self::event($ev, [$t], $scale) : null;
+                        if ($r !== null) {
+                            $values[$t[0]] = self::showRole($t[0], $r['sensor']['capability'], $r['sensor']['value'], $r['sensor']['unit']);
+                        }
+                    }
+                }
+                $out[] = ['id' => $id, 'label' => $label, 'caps' => [], 'values' => $values, 'kind' => 'printer', 'triples' => $pt];
+
+                continue;
+            }
             if ($caps === []) {
                 continue;
             }
-            $status = self::listStatus($it);
             $values = [];
             foreach (self::triples($id, $caps) as $t) {
                 foreach (self::statusEvents($status, $id, $t[2], self::SLOTS[$t[0]][0]) as $ev) {
@@ -386,13 +457,113 @@ final class SmartThings
                     }
                 }
             }
-            $label = Rules::text($it['label'] ?? '', 60) ?: (Rules::text($it['name'] ?? '', 60) ?: 'SmartThings 기기');
             $kind = isset($caps['temperatureMeasurement']) || isset($caps['relativeHumidityMeasurement']) ? 'env' : (isset($caps['powerMeter']) || isset($caps['switch']) ? 'power' : 'other');
-            $out[] = ['id' => $id, 'label' => $label, 'caps' => $caps, 'values' => $values, 'kind' => $kind];
+            $out[] = ['id' => $id, 'label' => $label, 'caps' => $caps, 'values' => $values, 'kind' => $kind, 'triples' => self::triples($id, $caps)];
         }
-        usort($out, static fn ($a, $b) => [array_search($a['kind'], ['env', 'power', 'other'], true), $a['label']] <=> [array_search($b['kind'], ['env', 'power', 'other'], true), $b['label']]);
+        usort($out, static fn ($a, $b) => [array_search($a['kind'], ['printer', 'env', 'power', 'other'], true), $a['label']] <=> [array_search($b['kind'], ['printer', 'env', 'power', 'other'], true), $b['label']]);
 
         return $out;
+    }
+
+    /**
+     * 1.3.0 이 기기가 「프린터 기기」면 그 칸들 [역할, deviceId, componentId, capability, attribute] — 아니면 빈 목록.
+     *  프린터로 보는 때: 노즐 + 베드 온도가 같이 있거나 · 출력 상태 + 노즐/베드 온도 · 이름에 print · klipper … 가 든 맞춤 진행률/상태 capability 가 있을 때
+     *  (다른 기기의 맞춤 「…status」 · 「…progress」(세탁기 · 청소기)를 프린터로 잘못 보지 않게).
+     *
+     * @param  list<array<string, mixed>>  $comps  기기의 components (main 먼저)
+     * @param  array<string, mixed>  $status  listStatus() 모양
+     * @return list<array{0: string, 1: string, 2: string, 3: string, 4: string}>
+     */
+    public static function printerTriples(string $id, array $comps, array $status): array
+    {
+        $got = [];
+        $custom = false;
+        foreach ($comps as $c) {
+            $comp = self::comp($c['id'] ?? 'main');
+            $lc = strtolower($comp);
+            foreach (is_array($c['capabilities'] ?? null) ? $c['capabilities'] : [] as $capRow) {
+                $cap = is_array($capRow) && is_string($capRow['id'] ?? null) && preg_match('/^[A-Za-z0-9.]{1,60}$/', $capRow['id']) ? $capRow['id'] : '';
+                if ($cap === '') {
+                    continue;
+                }
+                $attrs = [];
+                foreach (is_array($status['components'][$comp][$cap] ?? null) ? $status['components'][$comp][$cap] : [] as $a => $st) {
+                    if (is_string($a) && preg_match('/^[A-Za-z0-9_]{1,60}$/', $a) && is_array($st) && (! array_key_exists('value', $st) || is_scalar($st['value']) || $st['value'] === null)) {
+                        $attrs[] = $a;
+                    }
+                }
+                $first = static function (string $re) use ($attrs): string {
+                    foreach ($attrs as $a) {
+                        if (preg_match($re, $a)) {
+                            return $a;
+                        }
+                    }
+
+                    return $attrs[0] ?? '';
+                };
+                $isCustom = str_contains($cap, '.');
+                $last = strtolower($isCustom ? substr($cap, (int) strrpos($cap, '.') + 1) : $cap);
+                $role = '';
+                $attr = '';
+                if ($isCustom) {
+                    if (preg_match('/progress|percent|completion/', $last)) {
+                        [$role, $attr] = ['p_progress', $first('/progress|percent|complet/i')];
+                    } elseif (preg_match('/remain|time|eta/', $last)) {
+                        $attr = $first('/remain|left/i');
+                        $role = preg_match('/remain|left/i', $attr) ? 'p_remaining' : '';
+                    } elseif (preg_match('/file|job|task|model/', $last)) {
+                        [$role, $attr] = ['p_job', $first('/name|file|job/i')];
+                    } elseif (preg_match('/fan/', $last)) {
+                        [$role, $attr] = ['p_fan', $first('/speed|fan/i')];
+                    } elseif (preg_match('/(status|state|stage)$/', $last)) {
+                        [$role, $attr] = ['p_state', $first('/print|state|status/i')];
+                    }
+                } elseif ($cap === 'contactSensor' && preg_match('/print/', $lc)) {
+                    [$role, $attr] = ['p_state', 'contact'];
+                } elseif ($cap === 'temperatureMeasurement') {
+                    $role = preg_match('/nozzle|hotend|hot_end|extruder|tool/', $lc) ? 'p_nozzle' : (preg_match('/bed|plate/', $lc) ? 'p_bed' : (preg_match('/chamber|enclosure|box/', $lc) ? 'p_chamber' : ''));
+                    $attr = 'temperature';
+                } elseif ($cap === 'relativeHumidityMeasurement') {
+                    [$role, $attr] = ['p_hum', 'humidity'];
+                } elseif ($cap === 'switch') {
+                    $role = preg_match('/light|lamp|led/', $lc) ? 'p_light' : ($lc === 'main' ? 'p_online' : '');
+                    $attr = 'switch';
+                }
+                if ($role !== '' && $attr !== '' && ! isset($got[$role])) {
+                    $got[$role] = [$role, $id, $comp, $cap, $attr];
+                    $custom = $custom || ($isCustom && in_array($role, ['p_progress', 'p_state'], true) && preg_match('/print|klipper|moonraker|octo/i', $cap) === 1);
+                }
+            }
+        }
+        $isPrinter = $custom || (isset($got['p_state']) && (isset($got['p_nozzle']) || isset($got['p_bed']))) || (isset($got['p_nozzle'], $got['p_bed']));
+
+        return $isPrinter ? array_values($got) : [];
+    }
+
+    /** 1.3.0 저장해 둔 칸에서 이 값의 역할 (프린터 기기만 — 아니면 빈 글) @param list<array<int, string>> $devices */
+    public static function roleOf(array $devices, string $dev, string $comp, string $cap, string $attr): string
+    {
+        foreach ($devices as $d) {
+            if (isset($d[4]) && $d[1] === $dev && $d[2] === $comp && $d[3] === $cap && $d[4] === $attr) {
+                return (string) $d[0];
+            }
+        }
+
+        return '';
+    }
+
+    /** 1.3.0 프린터 기기의 값 글 — 출력 상태(열림 = 출력 중) · 연결(켜짐 = 연결됨) 은 그 뜻으로 */
+    public static function showRole(string $role, string $cap, string $value, string $unit): string
+    {
+        $v = strtolower($value);
+        if ($role === 'p_state') {
+            return ['open' => '출력 중', 'closed' => '쉬는 중', 'printing' => '출력 중', 'paused' => '일시정지', 'standby' => '쉬는 중', 'idle' => '쉬는 중', 'complete' => '완료', 'cancelled' => '그만둠', 'error' => '오류'][$v] ?? $value;
+        }
+        if ($role === 'p_online') {
+            return $v === 'on' ? '연결됨' : '꺼짐 · 끊김';
+        }
+
+        return self::show($cap, $value, $unit);
     }
 
     /**
