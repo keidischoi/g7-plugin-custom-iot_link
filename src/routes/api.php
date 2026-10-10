@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Plugins\Custom\HaLink\Http\Controllers\AdminController;
 use Plugins\Custom\HaLink\Http\Controllers\AssetController;
 use Plugins\Custom\HaLink\Http\Controllers\HaController;
+use Plugins\Custom\HaLink\Http\Controllers\SmartThingsController;
 
 /*
 | PluginRouteServiceProvider prefix: api/plugins/custom-ha_link
@@ -17,6 +18,9 @@ Route::post('in/{token}', [HaController::class, 'ingest'])->where('token', '[a-f
 
 // 카메라 사진 (본문 = JPEG) — 1분에 6번까지, 서비스가 정한 간격보다 잦으면 버림
 Route::post('in/{token}/snap', [HaController::class, 'snap'])->where('token', '[a-f0-9]{32}')->middleware('throttle:6,1')->name('in.snap');
+
+// 0.2.0 SmartThings WebHook SmartApp → 사이트 (로그인 없음 — 모든 요청의 HTTP 서명을 확인). SmartThings 클라우드가 여러 회원 것을 같은 곳(IP)에서 보내므로 넉넉히 + 설치마다 1분 한도(서비스)
+Route::post('smartthings', [SmartThingsController::class, 'webhook'])->middleware('throttle:600,1')->name('smartthings');
 
 // 회원이 공개로 둔 카메라 사진 (로그인 없음)
 Route::get('snap/{id}.jpg', [HaController::class, 'snapPublic'])->whereNumber('id')->middleware('throttle:240,1')->name('snap.public');
@@ -37,6 +41,10 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () {
     Route::delete('devices/{id}', [HaController::class, 'delete'])->whereNumber('id')->name('devices.destroy');
     Route::get('devices/{id}/snap', [HaController::class, 'snapShow'])->whereNumber('id')->name('devices.snap');
     Route::post('link/rotate', [HaController::class, 'rotateLink'])->name('link.rotate');
+    // 0.2.0 SmartThings — 연결 코드(1분에 10번까지) · 이을 기기 바꾸기 · 끊기 (내 것만)
+    Route::post('smartthings/code', [SmartThingsController::class, 'code'])->middleware('throttle:10,1')->name('smartthings.code');
+    Route::put('smartthings/installs/{id}', [SmartThingsController::class, 'relink'])->whereNumber('id')->name('smartthings.relink');
+    Route::delete('smartthings/installs/{id}', [SmartThingsController::class, 'disconnect'])->whereNumber('id')->name('smartthings.disconnect');
 
     Route::get('admin/settings', [AdminController::class, 'show'])->middleware('permission:admin,core.plugins.read')->name('admin.settings.show');
     Route::put('admin/settings', [AdminController::class, 'save'])->middleware('permission:admin,core.plugins.update')->name('admin.settings.save');

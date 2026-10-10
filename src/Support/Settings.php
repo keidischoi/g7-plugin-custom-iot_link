@@ -32,7 +32,19 @@ final class Settings
         'company_link' => true,        // 업체검색(custom-companies) 보유 장비에 연결
         'timezone' => 'Asia/Seoul',    // 날짜 기준 시간대
         'hacs_repo' => 'keidischoi/ha-3ds-link',   // HACS 에 넣을 통합 저장소 (GitHub 주인/이름)
+        // 0.2.0 SmartThings (WebHook SmartApp) — Developer Workspace 에서 받은 값
+        'st_enabled' => false,         // SmartThings 연결 쓰기
+        'st_app_id' => '',             // App ID (요청의 appId 와 맞춰 봄 — 비우면 안 봄)
+        'st_client_id' => '',          // Client ID (토큰 새로 받기)
+        'st_client_secret' => '',      // Client Secret — 저장할 때 Crypt 로 암호화 ('enc:…'), 화면 · API 에는 내보내지 않음
+        'st_public_key' => '',         // (고급) 서명 공개 키 PEM — 비우면 key.smartthings.com 에서 keyId 로 받음
+        'st_ping_unsigned' => false,   // (예전 방식) 서명 없는 PING 에도 답하기 — 답은 challenge 를 그대로 돌려줄 뿐
+        'st_code_min' => 30,           // 연결 코드가 쓸 수 있는 시간 (분)
+        'st_max_events_min' => 120,    // 설치 하나가 1분에 보낼 수 있는 값 (넘으면 버림 — 답은 200)
     ];
+
+    /** 0.2.0 SmartThings 글 칸 (메뉴 이름 규칙과 따로) */
+    private const ST_TEXT = ['st_app_id', 'st_client_id', 'st_client_secret', 'st_public_key'];
 
     /** @var array<string, mixed>|null */
     private static ?array $memo = null;
@@ -68,8 +80,18 @@ final class Settings
         $out = [];
         foreach (self::DEFAULTS as $k => $d) {
             $v = $in[$k] ?? $d;
-            $out[$k] = is_bool($d) ? (is_bool($v) ? $v : (filter_var($v, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? $d)) : (is_string($d) ? self::label($v, $d) : (is_numeric($v) ? (int) $v : $d));
+            $out[$k] = is_bool($d) ? (is_bool($v) ? $v : (filter_var($v, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? $d)) : (in_array($k, self::ST_TEXT, true) ? (is_scalar($v) ? trim((string) $v) : '') : (is_string($d) ? self::label($v, $d) : (is_numeric($v) ? (int) $v : $d)));
         }
+        // 0.2.0 SmartThings
+        foreach (['st_app_id', 'st_client_id'] as $k) {
+            $out[$k] = preg_match('/^[A-Za-z0-9-]{1,64}$/', $out[$k]) ? $out[$k] : '';
+        }
+        $sec = $out['st_client_secret'];
+        $out['st_client_secret'] = str_starts_with($sec, 'enc:') && strlen($sec) < 4000 ? $sec : '';   // 암호화한 것만 둠 (AdminController 가 암호화)
+        $pem = str_replace("\r", '', $out['st_public_key']);
+        $out['st_public_key'] = strlen($pem) < 6000 && preg_match('/^-----BEGIN (PUBLIC KEY|CERTIFICATE|RSA PUBLIC KEY)-----[A-Za-z0-9+\/=\s]+-----END (PUBLIC KEY|CERTIFICATE|RSA PUBLIC KEY)-----$/', $pem) ? $pem : '';
+        $out['st_code_min'] = max(5, min(1440, $out['st_code_min']));
+        $out['st_max_events_min'] = max(10, min(2000, $out['st_max_events_min']));
         $out['max_devices'] = max(1, min(200, $out['max_devices']));
         $out['interval_min'] = max(1, min(60, $out['interval_min']));
         $out['send_mode'] = in_array($in['send_mode'] ?? '', ['change', 'interval'], true) ? (string) $in['send_mode'] : self::DEFAULTS['send_mode'];
@@ -113,6 +135,16 @@ final class Settings
         self::$memo = null;
 
         return self::all();
+    }
+
+    /** 0.2.0 화면 · API 로 내보낼 설정 — 비밀(Client Secret)은 빼고 「있음」만 */
+    public static function public(): array
+    {
+        $s = self::all();
+        $s['st_client_secret_set'] = $s['st_client_secret'] !== '';
+        $s['st_client_secret'] = '';
+
+        return $s;
     }
 
     public static function forget(): void

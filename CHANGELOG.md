@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.0 — 2026-10-10
+
+📡 **SmartThings 연결 (WebHook SmartApp)** — 회원이 SmartThings 앱에서 센서를 고르면 값이 바뀔 때마다 바로 사이트로 들어옴. SmartThings 는 그냥 또 하나의 「보내는 곳」이라 Home Assistant 와 **같은 받기**(온습도 기록 · 습도 경고 · 가동 시간 · 내 프린터로 넘기기)를 그대로 탐.
+
+- ✨ **받는 곳** `POST /api/plugins/custom-ha_link/smartthings` — PING(예전) · CONFIRMATION(confirmationUrl 을 사이트가 알아서 확인) · CONFIGURATION(INITIALIZE · PAGE) · INSTALL · UPDATE · EVENT · UNINSTALL (+ EVENT 안의 앱 지움 DELETE, 새 문서의 `messageType` 도 읽음)
+- 🔒 **모든 요청의 HTTP 서명 확인** — `Authorization: Signature …`(rsa-sha256) · `Digest`(본문 SHA-256) · `Date`(10분 안). 공개 키는 `key.smartthings.com` 에서 keyId 로 받아 하루 캐시 (관리자가 PEM 을 넣을 수도). 서명이 없거나 틀리면 401. App ID 를 정하면 다른 앱의 요청은 403
+- 🔑 **회원과 잇기** — /ha-link 의 SmartThings 카드에서 **일회용 연결 코드**(8글자 · 30분 · 한 번)를 만들고 SmartThings 앱의 설정 화면 1쪽에 적음 → 2쪽에서 센서 고르기 → 그 회원 · 고른 기기(없으면 새 「SmartThings」 기기)와 이어짐. 틀린 코드면 설정을 끝낼 수 없음
+- 🌡️ **센서 고르기 (capability 별)** — 온도 · 습도 → 기기의 온습도 / 전원 스위치 · 전력 측정(정한 W 넘으면) → 가동 상태 / 문 · 움직임 · 재실 · 누수 · 배터리 · 전력량 · 스위치 · 밝기 → 센서 값으로 화면에. **°F → °C** 자동 (이벤트 단위 → 위치의 온도 단위)
+- 🔁 **구독** — INSTALL · UPDATE 때 예전 구독을 지우고 고른 센서마다 `POST /v1/installedapps/{id}/subscriptions`, 기기 이름 · 지금 값도 바로 받아 옴 (응답을 보낸 뒤에 — SmartThings 를 기다리게 하지 않음)
+- 🔐 **토큰** — authToken · refreshToken 은 Laravel Crypt 로 암호화해 둠. 24시간 토큰이 끝나 가면 refresh_token 으로 새로 받음(둘 다 바꿈 · 한 번에 하나만). Client Secret 도 암호화해 두고 화면 · API 로 내보내지 않음. 로그에 토큰 · 서명 · 코드를 남기지 않음
+- 🖥️ **회원 화면** — SmartThings 카드: 연결 상태 · 이은 센서의 마지막 값 · 시각 · 값을 넘길 기기 바꾸기 · 연결 끊기(SmartThings 에서도 앱 지우기) · 연결 코드 · 앱에서 연결하는 방법. 기기 카드에도 📡 배지 · 센서 값. 다크 · 모바일
+- 🛠️ **관리자 화면** — App ID · Client ID · Client Secret 칸 + **Developer Workspace 등록 안내**(한 걸음씩 · Target URL · 권한 r:devices:* · r:locations:* 복사) · 주소 확인 상태
+- 🧱 새 표 `hal_st_installs` · `hal_st_sensors` · `hal_st_codes` + `hal_devices.source` (마이그레이션 `2026_10_10_000001`)
+- 🚦 받는 곳 1분 600번(IP) + 설치마다 1분 120번(넘으면 버리고 200), 연결 코드 만들기 1분 10번, 내 것만 바꾸고 끊을 수 있음
+
 ## 0.1.10 — 2026-10-10
 
 - ✨ **⚡ 알아서 찾아 연결** (통합 「3ds」 0.3.0+) 을 위해 허브가 내 프린터의 브랜드 · 기종 · 별명과, 이미 연결한 기기의 붙인 곳을 알려 줌 — 통합이 Home Assistant 기기 · 습도 센서와 이름을 맞춰 한 번에 연결. 연결 안내 글 · ❓ 그림도 그 방법으로

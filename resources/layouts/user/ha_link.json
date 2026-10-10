@@ -1,5 +1,5 @@
 {
-    "version": "0.1.10",
+    "version": "0.2.0",
     "layout_name": "ha_link",
     "extends": "_user_base",
     "meta": {
