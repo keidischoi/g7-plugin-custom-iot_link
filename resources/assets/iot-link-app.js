@@ -1,9 +1,9 @@
-/*! custom-iot_link 1.1.2 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.2.0 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.1.2';
-  var S = { root: null, key: '', d: null, ret: null };
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.2.0';
+  var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
   function token() {
@@ -72,6 +72,15 @@
     var more = list.length > max ? '<li class="more">… 그 밖에 ' + (list.length - max) + '개</li>' : '';
     return '<ul class="hal-sens">' + list.slice(0, max).map(function (x) { return '<li><span><b>' + esc(x.what) + '</b><small>' + esc(x.label) + '</small></span><em>' + esc(x.value) + '</em><time>' + esc(x.at ? agoText(x.at) : '–') + '</time></li>'; }).join('') + more + '</ul>';
   }
+  /* 1.2.0 붙인 곳 — 이름 옆 작은 글(잘려서 안 보였음) 대신 카드 한 줄을 다 쓰는 색 띠로. 🖨️ 내 프린터면 누르면 프린터 라운지로, 그 밖에는 누르면 「고치기」 */
+  var TO = { location: ['🧵', '보관함에 붙임'], printer: ['🖨️', '내 프린터에 붙임'], equipment: ['🏢', '업체 장비에 붙임'], other: ['📦', '아직 붙인 곳 없음'] };
+  function toRow(d) {
+    var t = TO[d.target] || TO.other, none = d.target === 'other', name = none ? S.d.targets.other : (d.where || S.d.targets[d.target] || '');
+    var lost = !none && !d.where;   // 붙였던 프린터 · 장비가 지워짐
+    var inner = '<i aria-hidden="true">' + t[0] + '</i><span><small>' + esc(lost ? '붙인 곳이 없어졌어요' : t[1]) + '</small><b>' + esc(name) + '</b></span>';
+    if (d.target === 'printer' && !lost) return '<a class="hal-to to-printer" href="/my-printer" data-go title="프린터 라운지에서 보기">' + inner + '<em>프린터 라운지 →</em></a>';
+    return '<button type="button" class="hal-to to-' + (lost ? 'other' : esc(d.target)) + '" data-edit="' + d.id + '" title="붙일 곳 바꾸기">' + inner + '<em>' + (none || lost ? '붙일 곳 정하기 →' : '바꾸기') + '</em></button>';
+  }
   function card(d) {
     var st = d.source === 'smartthings', hasHum = d.entities.hum || (st && d.humidity != null), hasTemp = d.entities.temp || (st && d.temp != null);
     var hasEnv = hasTemp || hasHum, hasState = !!d.entities.state || (st && !!d.state);
@@ -80,7 +89,7 @@
     var sens = all.filter(function (x) { return !((x.capability === 'temperatureMeasurement' && hasTemp && one(x.capability)) || (x.capability === 'relativeHumidityMeasurement' && hasHum && one(x.capability))); });
     var stt = d.never ? '<span class="hal-dot wait"></span>값을 기다리는 중' : d.stale ? '<span class="hal-dot off"></span>끊김 · ' + agoText(d.seen) : '<span class="hal-dot on"></span>' + agoText(d.seen);
     return '<article class="hal-card' + (d.over ? ' over' : '') + (d.stale && !d.never ? ' stale' : '') + '">' +
-      '<header><span class="hal-ico">' + ICON[d.target] + '</span><div><b>' + esc(d.name) + '</b><small>' + (st || (d.sensors && d.sensors.length) ? '<span class="hal-badge">' + stLogo() + ' SmartThings</span> ' : '') + esc(S.d.targets[d.target]) + (d.where && d.where !== d.name ? ' · ' + esc(d.where) : '') + '</small></div><button class="hal-icobtn" data-edit="' + d.id + '" title="고치기" aria-label="고치기">✏️</button></header>' +
+      '<header><span class="hal-ico">' + ICON[d.target] + '</span><div><b>' + esc(d.name) + '</b><small>' + (st || (d.sensors && d.sensors.length) ? '<span class="hal-badge">' + stLogo() + ' SmartThings</span>' : '🏠 Home Assistant') + '</small></div><button class="hal-icobtn" data-edit="' + d.id + '" title="고치기" aria-label="고치기">✏️</button></header>' + toRow(d) +
       '<div class="hal-vals">' +
         (hasHum ? '<div class="' + (d.humidity_max != null && d.humidity != null && d.humidity > d.humidity_max ? 'hot' : '') + '"><i>💧</i><b>' + (d.humidity == null ? '–' : d.humidity) + '</b><u>%</u>' + (d.humidity_max != null ? '<small>기준 ' + d.humidity_max + '%</small>' : '') + '</div>' : '') +
         (hasTemp ? '<div class="' + (d.temp_max != null && d.temp != null && d.temp > d.temp_max ? 'hot' : '') + '"><i>🌡️</i><b>' + (d.temp == null ? '–' : d.temp) + '</b><u>°C</u>' + (d.temp_max != null ? '<small>기준 ' + d.temp_max + '°C</small>' : '') + '</div>' : '') +
@@ -184,9 +193,11 @@
   }
   /* 1.1.0 ⚙️ 센서 고르기 — 그 위치의 SmartThings 기기 가운데 받을 것을 체크. 센서 하나가 기기 카드 하나 (이름이 같은 카드가 있으면 거기에 · 없으면 새 카드) */
   var PK_ICON = { '온도': '🌡️', '습도': '💧', '전력': '🔌', '스위치': '💡', '열림': '🚪', '움직임': '🏃', '재실': '🏠', '누수': '💦', '밝기': '☀️', '전력량': '📈', '배터리': '🔋' };
+  /* 1.2.0 붙일 곳 — 새 카드 · 🖨️ 내 프린터(프린터 라운지에 보임) · 이미 있는 카드. 프린터 라운지에서 넘어왔으면(S.pickPrinter) 그 프린터가 먼저 골라짐 */
   function stPick(id) {
+    var want = S.pickPrinter || 0; S.pickPrinter = 0; try { sessionStorage.removeItem('hal:st:printer'); } catch (e) {}   // 한 번만 씀
     var data = null, ov = modal('⚙️ SmartThings 센서 고르기', '<div class="hal-empty sm">SmartThings 에서 기기를 불러오는 중…</div>', { ok: '저장', onSave: function (o) {
-      var picks = Array.prototype.map.call(o.querySelectorAll('[data-pk]:checked'), function (c) { var to = o.querySelector('[data-pk-to="' + c.getAttribute('data-pk') + '"]'); return { id: c.getAttribute('data-pk'), site_device_id: to && to.value ? +to.value : null }; });
+      var picks = Array.prototype.map.call(o.querySelectorAll('[data-pk]:checked'), function (c) { var to = o.querySelector('[data-pk-to="' + c.getAttribute('data-pk') + '"]'); var v = to ? to.value : ''; return { id: c.getAttribute('data-pk'), site_device_id: v && v.charAt(0) !== 'p' ? +v : null, printer_id: v.charAt(0) === 'p' ? +v.slice(2) : null }; });
       var w = o.querySelector('[data-pk-w]');
       return api('PUT', '/smartthings/installs/' + id + '/devices', { devices: picks, power_on_w: w && w.value !== '' ? +w.value : null }).then(function (r) { toast(r.message); S.d = r.data.overview; draw(); });
     } });
@@ -200,15 +211,25 @@
     api('GET', '/smartthings/installs/' + id + '/devices').then(function (r) {
       data = r.data; var D = data.devices, first = !D.some(function (x) { return x.picked; });
       if (!D.length) { body.innerHTML = '<div class="hal-empty sm">이 위치에는 받을 수 있는 센서(온도 · 습도 · 플러그 · 문 · 움직임 …)가 없어요.<br>SmartThings 앱에 센서를 먼저 등록해 주세요.</div>'; return; }
-      var opts = function (x) { var cur = x.site_device_id || x.suggest || ''; return '<option value="">➕ 새 기기 카드로</option>' + S.d.devices.map(function (d) { return '<option value="' + d.id + '"' + (d.id === cur ? ' selected' : '') + '>' + ICON[d.target] + ' ' + esc(d.name) + '</option>'; }).join(''); };
-      body.innerHTML = '<p class="hal-guide-top">📍 <b>' + esc(data.location || 'SmartThings') + '</b> 의 센서예요. 받을 것을 체크하고 <b>저장</b>하면 값이 바뀔 때마다 바로 들어와요. 센서 하나가 기기 카드 하나가 돼요.</p>' +
+      var P = S.d.printers || [], wantOk = want && P.some(function (p) { return p.id === want; });
+      var wp = wantOk ? P.filter(function (p) { return p.id === want; })[0] : null;
+      var opts = function (x) {
+        // 이미 붙인 카드 → 프린터 라운지에서 고른 프린터(플러그 · 온습도계) → 이름이 같은 프린터 → 이름이 같은 카드 → 새 카드
+        var cur = x.site_device_id ? String(x.site_device_id) : wantOk && x.kind !== 'other' ? 'p:' + want : x.suggest_printer ? 'p:' + x.suggest_printer : x.suggest ? String(x.suggest) : '';
+        return '<option value="">➕ 새 기기 카드로</option>' +
+          (P.length ? '<optgroup label="🖨️ 내 프린터에 붙이기 (프린터 라운지에 보여요)">' + P.map(function (p) { return '<option value="p:' + p.id + '"' + (cur === 'p:' + p.id ? ' selected' : '') + '>🖨️ ' + esc(p.name) + '</option>'; }).join('') + '</optgroup>' : '') +
+          (S.d.devices.length ? '<optgroup label="이미 있는 기기 카드">' + S.d.devices.map(function (d) { return '<option value="' + d.id + '"' + (cur === String(d.id) ? ' selected' : '') + '>' + ICON[d.target] + ' ' + esc(d.name) + '</option>'; }).join('') + '</optgroup>' : '');
+      };
+      body.innerHTML = (wp ? '<p class="hal-to to-printer hal-pk-want"><i aria-hidden="true">🖨️</i><span><small>프린터 라운지에서 왔어요</small><b>「' + esc(wp.name) + '」에 붙일 플러그 · 온습도계를 체크해 주세요</b></span></p>' : '') +
+        '<p class="hal-guide-top">📍 <b>' + esc(data.location || 'SmartThings') + '</b> 의 센서예요. 받을 것을 체크하고 <b>저장</b>하면 값이 바뀔 때마다 바로 들어와요. 센서 하나가 기기 카드 하나가 돼요.</p>' +
         '<div class="hal-pk-tools"><b data-pk-count></b><span><button type="button" class="hal-chip" data-pk-env>🌡️ 온습도계 모두</button><button type="button" class="hal-chip" data-pk-none>모두 해제</button></span></div>' +
         '<ul class="hal-pk">' + D.map(function (x) {
-          var on = x.picked || (first && x.kind === 'env'), vals = x.values.map(function (v) { return esc(v.what) + (v.value !== '' ? ' <b>' + esc(v.value) + '</b>' : ''); }).join(' · ');
+          var on = x.picked || (first && !wp && x.kind === 'env'), vals = x.values.map(function (v) { return esc(v.what) + (v.value !== '' ? ' <b>' + esc(v.value) + '</b>' : ''); }).join(' · ');
           return '<li class="' + (on ? 'on' : '') + '" data-kind="' + esc(x.kind) + '"><label class="hal-pk-m"><input type="checkbox" data-pk="' + esc(x.id) + '"' + (on ? ' checked' : '') + '><span class="hal-ico">' + (x.kind === 'power' ? '🔌' : PK_ICON[(x.values[0] || {}).what] || '📟') + '</span><span class="hal-pk-t"><b>' + esc(x.label) + '</b><small>' + vals + '</small></span></label>' +
-            '<label class="hal-pk-to">붙일 기기 카드<select data-pk-to="' + esc(x.id) + '">' + opts(x) + '</select></label></li>';
+            '<label class="hal-pk-to">붙일 곳<select data-pk-to="' + esc(x.id) + '">' + opts(x) + '</select></label></li>';
         }).join('') + '</ul>' +
         (D.some(function (x) { return x.values.some(function (v) { return v.what === '전력'; }); }) ? '<section class="hal-sec"><label>🔌 플러그가 이 전력(W)보다 많이 쓰면 「가동 중」 <small>프린터 · 건조기의 대기 전력보다 조금 높게 — 가동 시간(정비 수첩)을 세요</small><input type="number" min="0.5" max="5000" step="0.5" inputmode="decimal" data-pk-w value="' + esc(data.power_on_w) + '"></label></section>' : '') +
+        (P.length ? '<p class="hal-hint">🖨️ <b>프린터 라운지에 보이게 하려면</b> 「붙일 곳」을 <b>내 프린터</b>로 골라 주세요 — 플러그는 전력으로 <b>출력 중 · 쉬는 중</b>이, 온습도계는 프린터 카드에 <b>주변 온도 · 습도</b>가 보여요 (진행률 · 남은 시간 · 카메라는 SmartThings 로는 알 수 없어요).</p>' : '') +
         '<p class="hal-hint">🔒 사이트는 값을 읽기만 해요. 체크를 풀어도 이미 만든 기기 카드와 기록은 남아요 (카드의 ✏️ 에서 지울 수 있어요). 카드의 ✏️ 에서 알림 기준 · 필라멘트 보관함 · 내 프린터에 붙일 수 있어요.' + (data.room < 3 ? ' 새 기기 카드는 ' + data.room + '개 더 만들 수 있어요.' : '') + '</p>' + stPay();
       ok.disabled = false; sync();
     }).catch(function (e) { body.innerHTML = '<div class="hal-empty sm">' + esc(e.message) + '</div>'; });
@@ -281,6 +302,7 @@
       '<li><b>센서를 더하거나 빼려면</b> SmartThings 카드의 <b>⚙️ 센서 고르기</b>에서 체크를 바꾸고 저장하세요. 다시 로그인할 필요는 없어요.</li>' +
       '<li><b>다른 집 · 사무실(위치)</b>의 센서도 받으려면 <b>➕ 다른 위치 연결</b>을 누르고 삼성 화면에서 그 위치를 고르세요.</li>' +
       '<li><b>전력을 재는 플러그</b>는 정한 W(기본 10W)보다 많이 쓰는 동안을 「가동 중」으로 봐요 — 프린터 · 건조기의 가동 시간이 정비 수첩에 쌓여요. 전력을 못 재는 플러그는 켜짐 = 가동 중.</li>' +
+      '<li><b>프린터 라운지에 보이게 하려면</b> ⚙️ 센서 고르기의 「붙일 곳」를 <b>🖨️ 내 프린터</b>로 고르세요. 프린터에 꽂은 <b>전력 플러그</b>는 출력 중 · 쉬는 중과 출력 기록을, <b>온습도계</b>는 프린터 카드의 주변 온도 · 습도를 보여 줘요.</li>' +
       '<li><b>필라멘트 보관함 습도</b>로 쓰려면 카드 ✏️ → 「필라멘트 · 레진 보관함」을 고르고 보관 위치를 필라멘트에 적은 것과 같게 적으세요. SmartThings 의 센서 이름이 보관 위치와 같으면 알아서 붙어요.</li>' +
       '<li><b>카드에 ⚠️ 가 보이면</b> 안내 글 옆의 <b>🔗 다시 연결</b>을 눌러 한 번 더 로그인하세요. 고른 센서는 그대로 있어요.</li>' +
       '<li><b>그만 쓰려면</b> <b>연결 끊기</b> — 기기 카드와 기록은 남아요. SmartThings 앱의 「연결된 서비스」에서 지워도 끊겨요.</li></ul>' +
@@ -516,7 +538,7 @@
     }
     if (ret && ret.error) toast(ret.error === 'access_denied' ? 'SmartThings 연결을 취소했어요.' : 'SmartThings 가 연결을 받아 주지 않았어요 (' + ret.error + ').', true);
     wrap('<div class="hal-empty">불러오는 중…</div>');
-    api('GET', '/me').then(function (r) { S.d = r.data; draw(); }).catch(function (e) {
+    api('GET', '/me').then(function (r) { S.d = r.data; draw(); if (S.deep) { S.deep = false; stDeepOpen(); } }).catch(function (e) {
       wrap(e.status === 401 ? '<section class="hal-hero"><div><h1>📡 IoT 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 정비 수첩과 내 프린터에 이어요.</p></div></section><div class="hal-empty">로그인하면 내 기기를 연결할 수 있어요. <a href="/login" data-go>로그인</a></div>' : '<div class="hal-empty">' + esc(e.message) + '</div>');
     });
   }
@@ -533,11 +555,33 @@
       return { code: code, state: st, error: err.replace(/[^\w.-]/g, '').slice(0, 40) };
     } catch (e) { return null; }
   }
+  /* 1.2.0 프린터 라운지의 「자동 연결 › SmartThings」에서 넘어옴 (/iot-link?st=pick&printer=7) — 값을 챙기고 주소 줄에서는 지움.
+   *   그 프린터는 삼성 로그인을 다녀와도 기억함 (sessionStorage) — 센서 고르기의 「붙일 곳」가 그 프린터로 미리 골라짐 */
+  function stDeep() {
+    try {
+      var p = new URLSearchParams(location.search); if (p.get('st') !== 'pick') return false;
+      var id = parseInt(p.get('printer') || '0', 10) || 0;
+      if (id > 0) { S.pickPrinter = id; try { sessionStorage.setItem('hal:st:printer', String(id)); } catch (e) {} }
+      if (history.replaceState) history.replaceState(history.state, '', location.pathname + location.hash);
+      return true;
+    } catch (e) { return false; }
+  }
+  function stDeepOpen() {
+    var T = S.d && S.d.smartthings; if (!T) return;
+    var oa = (T.installs || []).filter(function (x) { return x.mode === 'oauth'; });
+    if (oa.length) { stPick(oa[0].id); return; }
+    var card = q('.hal-stc'); if (card && card.scrollIntoView) card.scrollIntoView({ block: 'center' });
+    toast(T.oauth ? '먼저 「🔗 SmartThings 연결하기」를 눌러 주세요 — 연결하면 센서 고르기가 바로 열려요.' : '관리자가 아직 SmartThings 연결을 준비하지 않았어요.', !T.oauth);
+  }
   function tick() {
     var root = document.querySelector('[data-hal-app],[data-hal-admin]');
     if (!root) { S.root = null; return; }
     newPath();
-    if (root.hasAttribute('data-hal-app')) { var ret = stReturn(); if (ret) { S.ret = ret; S.key = ''; } }
+    if (root.hasAttribute('data-hal-app')) {
+      var ret = stReturn(); if (ret) { S.ret = ret; S.key = ''; }
+      if (stDeep()) { S.deep = true; S.key = ''; }
+      if (!S.pickPrinter) { try { S.pickPrinter = parseInt(sessionStorage.getItem('hal:st:printer') || '0', 10) || 0; } catch (e) {} }
+    }
     var key = location.pathname + location.search;
     if (root === S.root && key === S.key) return;
     S.root = root; S.key = key;

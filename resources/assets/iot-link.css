@@ -1,4 +1,4 @@
-/* custom-iot_link 1.1.2 — 📡 IoT 연결 */
+/* custom-iot_link 1.2.0 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -228,3 +228,20 @@ html.dark .hal-note-pay, .dark .hal-note-pay { background:#451a03; border-color:
 .hal-stc-logo { background:none; border-radius:0; } .hal-stc-logo .hal-stl { width:44px; height:44px; filter:drop-shadow(0 2px 5px rgba(21,191,255,.35)); }
 .hal-fake-logo.st { background:none; } .hal-fake-logo.st .hal-stl { width:38px; height:38px; }
 .hal-st-ah h2 .hal-stl { width:22px; height:22px; vertical-align:-4px; }
+
+/* 1.2.0 붙인 곳 띠 — 센서가 어디에 붙었는지 한눈에 (🖨️ 내 프린터 = 보라 · 🧵 보관함 = 노랑 · 🏢 업체 장비 = 초록 · 📦 없음 = 점선) */
+.hal-to { display:flex; align-items:center; gap:9px; width:100%; margin:0; padding:8px 11px; border:1px solid transparent; border-radius:13px; font:inherit; text-align:left; text-decoration:none; cursor:pointer; color:var(--ink); transition:filter .15s, transform .15s; }
+.hal-to:hover { filter:brightness(.97); transform:translateY(-1px); } .hal-to:focus-visible { outline:2px solid var(--a); outline-offset:2px; }
+.hal-to > i { flex:none; font-style:normal; font-size:19px; line-height:1; }
+.hal-to > span { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+.hal-to small { font-size:11px; font-weight:700; letter-spacing:.01em; opacity:.85; }
+.hal-to b { font-size:14.5px; line-height:1.3; overflow-wrap:anywhere; }
+.hal-to em { flex:none; font-style:normal; font-size:11.5px; font-weight:700; white-space:nowrap; opacity:.9; }
+.hal .hal-to.to-printer { background:#ede9fe; border-color:#c4b5fd; color:#4c1d95; }
+.hal-to.to-location { background:#fef3c7; border-color:#fcd34d; color:#78350f; }
+.hal-to.to-equipment { background:#d1fae5; border-color:#6ee7b7; color:#064e3b; }
+.hal-to.to-other { background:transparent; border:1.5px dashed var(--line); color:var(--mute); } .hal-to.to-other em { color:var(--a); }
+html.dark .hal .hal-to.to-printer, .dark .hal .hal-to.to-printer { background:#2e1065; border-color:#6d28d9; color:#ddd6fe; }
+html.dark .hal-to.to-location, .dark .hal-to.to-location { background:#451a03; border-color:#b45309; color:#fde68a; }
+html.dark .hal-to.to-equipment, .dark .hal-to.to-equipment { background:#022c22; border-color:#047857; color:#a7f3d0; }
+.hal-to.hal-pk-want { cursor:default; margin-bottom:10px; } .hal-to.hal-pk-want:hover { filter:none; transform:none; }

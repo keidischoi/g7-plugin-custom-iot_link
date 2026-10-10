@@ -63,6 +63,21 @@ namespace {
         $ok ? $pass++ : $fail++;
     }
 
+    /** 1.2.0 프린터 라운지 0.1.28+ 흉내 — SmartThings 표시(via st) · 주변 온습도(env)를 앎 */
+    final class FakePrinter28
+    {
+        public const IOT_CAPS = ['via_st', 'env'];
+
+        public static array $got = [];
+
+        public function hook(string $token, array $payload, string $via = 'ha'): array
+        {
+            self::$got[] = [$token, $payload, $via];
+
+            return [true, 'ok'];
+        }
+    }
+
     /** 내 프린터 서비스 흉내 — 넘겨받은 것을 적어 둠 */
     final class FakePrinter
     {
@@ -543,6 +558,41 @@ namespace {
         && count($js($r2)['data']['devices']) === 4 && $STC->devices($as(2, 'GET'), (int) $oi->id)->getStatusCode() === 422 && $r3->getStatusCode() === 200 && isset($js($r3)['data']['overview']['devices']) && str_contains($js($r3)['message'], '센서 4개')
         && $STC->pick($as(2, 'PUT', ['devices' => []]), (int) $oi->id)->getStatusCode() === 422 && $STC->oauthFinish($as(1, 'POST', ['code' => ['x'], 'state' => null]))->getStatusCode() === 422 && $r3->headers->get('Cache-Control') !== null
         && str_contains((string) $r3->headers->get('Cache-Control'), 'no-store'), '컨트롤러: 시작 · 목록 · 저장 (내 것만 · 이상한 입력은 422 · 캐시하지 않음)');
+
+    echo "  · 1.2.0 프린터 라운지 — 내 프린터에 붙이기 · 출력 상태 · 주변 온습도\n";
+    [, , $list] = $st->oauthDevices(1, (int) $oi->id);
+    t(array_key_exists('suggest_printer', $list['devices'][0]) && $st->forUser(1)['oauth'] === true && $svc->sources() === ['ha' => true, 'smartthings' => true], '목록에 「이름이 같은 내 프린터」 칸 · 보내는 곳: SmartThings 켜짐');
+    $devsBefore = DB::table('hal_devices')->where('user_id', 1)->count();
+    FakePrinter::$got = [];
+    [$ok, $msg] = $st->oauthPick(1, (int) $oi->id, [['id' => 'dev-th-0001', 'printer_id' => 5], ['id' => 'dev-plug-001', 'printer_id' => 5], ['id' => 'dev-door-001', 'printer_id' => 7], ['id' => 'dev-th-0002', 'printer_id' => 999]], 15);
+    $cfg = json_decode((string) DB::table('hal_st_installs')->where('id', $oi->id)->value('config'), true);
+    $onPrn = DB::table('hal_devices')->where('id', $cfg['map']['dev-plug-001'])->first();
+    t($ok && $cfg['map']['dev-th-0001'] === (int) $prn->id && $cfg['map']['dev-plug-001'] === (int) $prn->id && $onPrn->target === 'printer' && (int) $onPrn->printer_id === 5
+        && DB::table('hal_devices')->where('user_id', 1)->where('target', 'printer')->where('printer_id', 5)->count() === 1, '「🖨️ 내 프린터에 붙이기」: 그 프린터의 카드에 (이미 있으면 거기에 — 온습도계 + 플러그가 한 카드에)');
+    t($cfg['map']['dev-door-001'] !== (int) $prn->id && DB::table('hal_devices')->where('id', $cfg['map']['dev-door-001'])->value('target') !== 'printer' && DB::table('hal_devices')->where('id', $cfg['map']['dev-th-0002'])->value('target') !== 'printer',
+        '남의 프린터 · 없는 프린터로는 못 붙임 (예전 카드 · 새 카드로)');
+    $last = FakePrinter::$got[count(FakePrinter::$got) - 1] ?? null;
+    t($last !== null && $last[0] === str_repeat('a', 32) && $last[1]['state'] === 'printing' && (float) $last[1]['chamber'] === 25.0 && (float) $last[1]['humidity'] === 33.0, '전력 120W ≥ 15W → 프린터 라운지로 「출력 중」 (라운지가 예전 버전이면 온습도도 같이)');
+    FakePrinter::$got = [];
+    $send(['messageType' => 'EVENT', 'eventData' => ['installedApp' => ['installedAppId' => 'ia-oauth-0001'], 'events' => [$ev('dev-plug-001', 'powerMeter', 'power', 4.1)]]]);
+    t((FakePrinter::$got[0][1]['state'] ?? '') === 'done', '전력이 내려가면 「완료」로 넘김 (플러그는 진행률을 몰라 「쉬는 중」으로 넘기면 출력 기록이 늘 「그만둠」으로 닫힘)');
+    FakePrinter28::$got = [];
+    HaService::$printerService = FakePrinter28::class;
+    $send(['messageType' => 'EVENT', 'eventData' => ['installedApp' => ['installedAppId' => 'ia-oauth-0001'], 'events' => [$ev('dev-plug-001', 'powerMeter', 'power', 150)]]]);
+    $send(['messageType' => 'EVENT', 'eventData' => ['installedApp' => ['installedAppId' => 'ia-oauth-0001'], 'events' => [$ev('dev-th-0001', 'relativeHumidityMeasurement', 'humidity', 38)]]]);
+    HaService::$printerService = FakePrinter::class;
+    t(count(FakePrinter28::$got) === 1 && FakePrinter28::$got[0][2] === 'st' && FakePrinter28::$got[0][1] === ['state' => 'printing'], '프린터 라운지 0.1.28+: SmartThings 로 받았다고 표시(via st) · 온습도는 상태에 섞지 않음 · 상태 없는 값(습도)은 넘기지 않음');
+    $env = $svc->printerEnv(5);
+    $hk = Plugins\Custom\IotLink\Listeners\IntegrationListener::getSubscribedHooks();
+    t($env !== null && $env['humidity'] === 38.0 && $env['temp'] === 25.0 && $env['source'] === 'ha' && $env['name'] === $prn->name && $svc->printerEnv(7) === null && $svc->printerEnv(0) === null
+        && (new Plugins\Custom\IotLink\Listeners\IntegrationListener())->printerEnv(null, 5)['humidity'] === 38.0 && (new Plugins\Custom\IotLink\Listeners\IntegrationListener())->printerEnv('x', 7) === 'x'
+        && ($hk['custom-iot_link.printer_env']['type'] ?? '') === 'filter' && ($hk['custom-iot_link.sources']['method'] ?? '') === 'sources' && (new Plugins\Custom\IotLink\Listeners\IntegrationListener())->sources(null)['smartthings'] === true,
+        '주변 온습도 필터(custom-iot_link.printer_env): 그 프린터에 붙인 기기의 온도 · 습도 — 붙인 것이 없으면 받은 그대로');
+    HaService::$nowOverride = '2026-10-11 13:30:00';
+    t($svc->printerEnv(5) === null, '소식이 끊긴 기기의 온습도는 주지 않음');
+    HaService::$nowOverride = '2026-10-11 09:10:00';
+    [$ok] = $st->oauthPick(1, (int) $oi->id, [['id' => 'dev-th-0001', 'site_device_id' => (int) $box->id], ['id' => 'dev-plug-001', 'site_device_id' => (int) $plug->id], ['id' => 'dev-th-0002', 'site_device_id' => (int) $ams->id], ['id' => 'dev-door-001', 'site_device_id' => (int) $box->id]], 15);
+    t($ok && DB::table('hal_devices')->where('user_id', 1)->count() >= $devsBefore, '(다음 검사를 위해 붙인 곳을 되돌림)');
 
     echo "  · 한도 · 빼기 · 지우기 · 끊기 · 다시 연결\n";
     Settings::save(['max_devices' => DB::table('hal_devices')->where('user_id', 1)->count()]);
