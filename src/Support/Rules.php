@@ -96,6 +96,13 @@ final class Rules
             'progress' => self::num($pick(['progress', 'percent']), 0, 100),
             'remaining_min' => self::minutes($pick(['remaining_min', 'remaining'])),
             'job' => $job !== null ? mb_substr($job, 0, 40) : null,
+            // 1.3.0 프린터 값 (SmartThings 의 프린터 기기 · HA 도 보낼 수 있음) — 사이트 기기의 온습도와 따로, 내 프린터로만 넘김. 없는 것은 빠짐
+            'x' => array_filter([
+                'nozzle' => self::num($in['nozzle'] ?? null, -50, 600), 'bed' => self::num($in['bed'] ?? null, -50, 300), 'chamber' => self::num($in['chamber'] ?? null, -50, 200),
+                'ams_humidity' => self::num($in['ams_humidity'] ?? null, 0, 100), 'fan' => self::num($in['fan'] ?? null, 0, 100),
+                'light' => isset($in['light']) && (is_bool($in['light']) || is_scalar($in['light'])) ? filter_var($in['light'], FILTER_VALIDATE_BOOLEAN) : null,
+                'printer' => ! empty($in['_printer']) ? true : null,
+            ], static fn ($x) => $x !== null),
         ];
     }
 

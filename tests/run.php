@@ -171,17 +171,34 @@ check(str_contains($app, 'data-st-go') && str_contains($app, "'/smartthings/oaut
 // 1.1.2 SmartThings 로고 — 이모지 대신 공식 심볼(SVG). 카드 · 배지 · 연결 방법 · 관리자
 check(preg_match("/var ST_PATH = 'M[0-9a-zA-Z .\\-]+Z';/", $app) === 1 && substr_count($app, 'stLogo()') >= 9 && str_contains($app, 'fill="#15BFFF"') && ! str_contains($app, '>📡</span>') && ! preg_match('/[>\'"]\s*📡 SmartThings/u', $app)
     && str_contains((string) file_get_contents($root.'/resources/assets/iot-link.css'), '.hal-stl {'), 'SmartThings 로고: 공식 심볼(SVG) — 카드 · 배지 · 연결 방법 · 관리자 (이모지 없음)');
+// 1.3.0 🖨️ SmartThings 의 프린터 기기 (커뮤니티 Edge 드라이버) — DB 없이 보는 것: 알아보기 · 값 바꾸기
+$haSrc13 = (string) file_get_contents($root.'/src/Services/HaService.php');
+$S = 'Plugins\\Custom\\IotLink\\Support\\SmartThings';
+$bc = [['id' => 'main', 'capabilities' => [['id' => 'switch']]], ['id' => 'printing', 'capabilities' => [['id' => 'contactSensor']]], ['id' => 'progress', 'capabilities' => [['id' => 'flutefabric12437.printProgress']]],
+    ['id' => 'nozzle', 'capabilities' => [['id' => 'temperatureMeasurement']]], ['id' => 'bed', 'capabilities' => [['id' => 'temperatureMeasurement']]]];
+$bs = ['components' => ['progress' => ['flutefabric12437.printProgress' => ['printProgress' => ['value' => 0, 'unit' => '%']]]]];
+$pt = class_exists($S) ? $S::printerTriples('dev-bambu-01', $bc, $bs) : [];
+$roles = array_column($pt, 0);
+sort($roles);
+$e1 = $pt ? $S::event(['deviceId' => 'dev-bambu-01', 'componentId' => 'printing', 'capability' => 'contactSensor', 'attribute' => 'contact', 'value' => 'open'], $pt) : null;
+$e2 = $pt ? $S::event(['deviceId' => 'dev-bambu-01', 'componentId' => 'nozzle', 'capability' => 'temperatureMeasurement', 'attribute' => 'temperature', 'value' => 428, 'unit' => 'F'], $pt) : null;
+$e3 = $pt ? $S::event(['deviceId' => 'dev-bambu-01', 'componentId' => 'progress', 'capability' => 'flutefabric12437.printProgress', 'attribute' => 'printProgress', 'value' => 37], $pt) : null;
+check($roles === ['p_bed', 'p_nozzle', 'p_online', 'p_progress', 'p_state'] && ($e1['payload'] ?? []) === ['state' => 'printing', '_printer' => true] && ($e2['payload'] ?? []) === ['nozzle' => 220.0, '_printer' => true]
+    && ($e3['payload'] ?? []) === ['progress' => 37.0, '_printer' => true] && ($e3['sensor']['unit'] ?? '') === '%'
+    && $S::printerTriples('dev-th-0001', [['id' => 'main', 'capabilities' => [['id' => 'temperatureMeasurement'], ['id' => 'relativeHumidityMeasurement'], ['id' => 'acme.status']]]], []) === []
+    && str_contains($app, "x.kind === 'printer' ? '🖨️'") && str_contains($app, 'x.resave') && str_contains($app, 'class="hal-sec hal-sup"') && str_contains($app, 'guideSteps(steps) + sup + more') && str_contains($app, 'cancelled · error 실패') && str_contains($haSrc13, "! \$changed && ! in_array(\$state, ['printing', 'paused'], true)"),
+    '1.3.0 프린터 기기: Bambu 의 칸을 역할대로 (열림 = 출력 중 · 노즐 온도 °F → °C · 맞춤 진행률) · 온습도계는 프린터가 아님 · 「쉬는 중」은 바뀐 그때만 넘김 · 연결 방법에 지원 표 · 받는 상태 목록');
 // 1.2.0 🖨️ 프린터 라운지 — 센서 고르기에서 내 프린터에 붙이기 · 프린터 라운지에서 바로 오기 · 붙인 곳 띠 · 필터 두 개
 $haSrc = (string) file_get_contents($root.'/src/Services/HaService.php');
 $lsSrc = (string) file_get_contents($root.'/src/Listeners/IntegrationListener.php');
 check(str_contains($app, "value=\"p:' + p.id + '\"") && str_contains($app, "printer_id: v.charAt(0) === 'p' ? +v.slice(2) : null") && str_contains($app, 'function stDeep()') && str_contains($app, 'function stDeepOpen()')
     && str_contains($app, 'function toRow(d)') && str_contains($app, 'toRow(d) +') && str_contains($app, 'class="hal-to to-printer" href="/my-printer" data-go') && str_contains((string) file_get_contents($root.'/resources/assets/iot-link.css'), '.hal-to.to-other {')
-    && str_contains($haSrc, "public function ingest(string \$token, array \$payload, string \$via = 'ha'): array") && str_contains($haSrc, "\$this->forwardPrinter((int) \$d->printer_id, (int) \$d->user_id, \$v, \$via);")
+    && str_contains($haSrc, "public function ingest(string \$token, array \$payload, string \$via = 'ha'): array") && str_contains($haSrc, "\$this->forwardPrinter((int) \$d->printer_id, (int) \$d->user_id, \$v, \$via, ")
     && str_contains($svcSrc, "\$this->ha->ingest((string) \$tokens[\$site], \$payload, 'smartthings');") && str_contains($haSrc, "::IOT_CAPS'") && str_contains($lsSrc, "'custom-iot_link.printer_env'") && str_contains($lsSrc, "'custom-iot_link.sources'"),
     '1.2.0 프린터 라운지: 센서 고르기의 「내 프린터에 붙이기」 · 바로 오기(?st=pick&printer=) · 붙인 곳 띠 · 값을 보낸 곳(via)으로 가림 · 필터 printer_env · sources');
 // 1.1.0 💳 고지 — 삼성의 유료 이용제 전환으로 무료 이용이 중지될 수 있음: 연결하기 전(큰 단추 칸) · 연결한 뒤(카드) · 연결 방법 · 센서 고르기 · 관리자 화면 · 오류 글
 check(substr_count($app, 'stPay()') >= 5 && str_contains($app, '무료 이용이 중지되어 값이 더 들어오지 않게 될 수 있어요') && str_contains($app, '유료 이용제') && str_contains($app, "+ stPay() + '</div>' : '';") && str_contains($app, "(go ? '' : stPay())")
-    && str_contains($app, "+ stPay() + guideSteps(steps) + more;") && str_contains($app, '무료 이용이 중지되면 앱 등록 · 회원 연결 · 값 받기가 멈출 수 있어요') && str_contains($app, 'blog.smartthings.com/smartthings-updates/a-new-enhanced-smartthings-api-experience'),
+    && str_contains($app, "+ stPay() + guideSteps(steps) + sup + more;") && str_contains($app, '무료 이용이 중지되면 앱 등록 · 회원 연결 · 값 받기가 멈출 수 있어요') && str_contains($app, 'blog.smartthings.com/smartthings-updates/a-new-enhanced-smartthings-api-experience'),
     '고지: 무료 이용이 중지될 수 있음 — 회원 카드(연결 전 · 후) · 연결 방법 · 센서 고르기 · 관리자 화면');
 $hint = preg_match("/public const PAY_HINT = '([^']+)';/", $svcSrc, $hm) ? $hm[1] : '';
 check(str_contains($hint, '무료 이용이 중지') && substr_count($svcSrc, 'self::PAY_HINT') >= 3 && mb_strlen('SmartThings 토큰을 새로 받지 못했어요 (HTTP 401) — 앱에서 설정을 한 번 더 저장해 주세요.'.$hint) <= 160
