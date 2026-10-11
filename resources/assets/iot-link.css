@@ -1,4 +1,4 @@
-/* custom-iot_link 1.4.4 — 📡 IoT 연결 */
+/* custom-iot_link 1.4.5 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -224,6 +224,11 @@ html.dark .hal-note-pay, .dark .hal-note-pay { background:#451a03; border-color:
 }
 
 /* 1.1.2 SmartThings 로고 (공식 심볼) — 글 옆에서는 글자 크기, 카드 · 연결 방법 그림에서는 크게 */
+.hal-pick { display:flex; align-items:center; flex:none; cursor:pointer; } .hal-pick input { width:20px; height:20px; margin:0; accent-color:#dc2626; cursor:pointer; }
+.hal-card.picked { border-color:#f87171; box-shadow:0 0 0 2px rgba(248,113,113,.25); opacity:1; }
+.hal-selbar { position:sticky; top:8px; z-index:5; display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:14px; padding:10px 12px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 4px 14px rgba(0,0,0,.08); }
+.hal-selbar label { display:flex; align-items:center; gap:6px; font-weight:600; cursor:pointer; } .hal-selbar label input { width:18px; height:18px; margin:0; accent-color:#dc2626; }
+.hal-selbar span { flex:1; min-width:90px; color:var(--mute); font-size:13px; } .hal-selbar .hal-btn[disabled] { opacity:.45; cursor:default; }
 .hal-stl { display:inline-block; flex:none; width:1.15em; height:1.15em; vertical-align:-.2em; }
 .hal-badge.ha { background:#ffedd5; color:#c2410c; } html.dark .hal-badge.ha, .dark .hal-badge.ha { background:#431407; color:#fed7aa; } .hal-start h2 .hal-hal { width:1em; height:1em; vertical-align:-.12em; }
 .hal-stc-logo { background:none; border-radius:0; } .hal-stc-logo .hal-stl { width:44px; height:44px; filter:drop-shadow(0 2px 5px rgba(21,191,255,.35)); }

@@ -179,15 +179,31 @@ class HaService
     /** @return array{0: bool, 1: string} */
     public function delete(int $uid, int $id): array
     {
-        $n = Schema::ensure() ? DB::table(Schema::DEVICES)->where('id', $id)->where('user_id', $uid)->delete() : 0;
-        if ($n) {
-            @unlink(self::snapPath($id));
-            DB::table(Schema::READINGS)->where('device_id', $id)->delete();
-            DB::table(Schema::RUNS)->where('device_id', $id)->delete();
-            (new SmartThingsService($this))->deviceDeleted($uid, $id);   // 0.2.0 SmartThings 연결은 남김 · 1.1.0 로그인 연결은 그 센서를 고른 것에서 뺌
-        }
+        return $this->deleteMany($uid, [$id])[0] ? [true, '지웠어요.'] : [false, '기기를 찾을 수 없어요.'];
+    }
 
-        return $n ? [true, '지웠어요.'] : [false, '기기를 찾을 수 없어요.'];
+    /**
+     * 1.4.5 여러 기기 한 번에 지우기 (내 것만 · 한 번에 200개까지) — 기록 · 사진도. SmartThings 설정은 위치마다 한 번만 고침
+     *
+     * @param  list<mixed>  $ids
+     * @return array{0: bool, 1: string}
+     */
+    public function deleteMany(int $uid, array $ids): array
+    {
+        $ids = array_slice(array_values(array_unique(array_filter(array_map(static fn ($x) => is_numeric($x) ? (int) $x : 0, $ids), static fn ($x) => $x > 0))), 0, 200);
+        $own = $uid > 0 && $ids !== [] && Schema::ensure() ? DB::table(Schema::DEVICES)->where('user_id', $uid)->whereIn('id', $ids)->pluck('id')->map(fn ($x) => (int) $x)->all() : [];
+        if ($own === []) {
+            return [false, '지울 기기를 찾을 수 없어요.'];
+        }
+        DB::table(Schema::DEVICES)->where('user_id', $uid)->whereIn('id', $own)->delete();
+        DB::table(Schema::READINGS)->whereIn('device_id', $own)->delete();
+        DB::table(Schema::RUNS)->whereIn('device_id', $own)->delete();
+        foreach ($own as $id) {
+            @unlink(self::snapPath($id));
+        }
+        (new SmartThingsService($this))->devicesDeleted($uid, $own);   // 0.2.0 SmartThings 연결은 남김 · 1.1.0 로그인 연결은 그 센서를 고른 것에서 뺌
+
+        return [true, '기기 '.count($own).'개를 지웠어요.'];
     }
 
     /** 받는 주소 바꾸기 (주소가 새어 나갔을 때) @return array{0: bool, 1: string} */
