@@ -365,6 +365,7 @@ class SmartThingsService
     /**
      * 1.4.1 값이 오래(st_poll_min 분) 안 온 설치 — 지금 값을 직접 물어봄 (응답 뒤에 · 한 번에 다섯 설치까지 · 같은 설치는 st_poll_min 에 한 번)
      *  SmartThings 는 값이 바뀔 때만 보내서, 습도가 그대로인 센서도 시간이 지나면 「끊김」이 됐음. 끊긴 뒤에는 다시 잇지도 않았음
+     *  1.4.2 설치 전체가 아니라 기기 카드마다 봄 — 같은 위치에 자주 바뀌는 센서(움직임 · 전력)가 있으면 조용한 온습도계는 끝내 안 물어보던 것
      *
      * @param  list<int>  $uids
      */
@@ -376,9 +377,16 @@ class SmartThingsService
             return;
         }
         $cut = self::at(-$min * 60);
-        $ids = DB::table(Schema::ST_INSTALLS)->whereIn('user_id', $uids)->whereIn('status', ['active', 'error'])
-            ->where(fn ($w) => $w->where('last_event_at', '<', $cut)->orWhere(fn ($v) => $v->whereNull('last_event_at')->where('updated_at', '<', $cut)))   // 아직 값이 한 번도 안 왔으면 연결(저장)한 때부터 셈
-            ->where(fn ($w) => $w->whereNull('polled_at')->orWhere('polled_at', '<', $cut))->orderBy('id')->limit(5)->pluck('id')->map(fn ($x) => (int) $x)->all();
+        $ids = [];
+        foreach (DB::table(Schema::ST_INSTALLS)->whereIn('user_id', $uids)->whereIn('status', ['active', 'error'])
+            ->where(fn ($w) => $w->whereNull('polled_at')->orWhere('polled_at', '<', $cut))->orderBy('id')->get() as $i) {
+            if ($this->quiet($i, $cut)) {
+                $ids[] = (int) $i->id;
+            }
+            if (count($ids) >= 5) {
+                break;
+            }
+        }
         if ($ids === []) {
             return;
         }
@@ -390,26 +398,83 @@ class SmartThingsService
         });
     }
 
+    /** 1.4.2 그 설치에서 값이 오래 안 온 것이 있나 — 설치 전체 · 또는 이 설치가 값을 넘기는 사이트 기기 카드 하나라도 */
+    private function quiet(object $i, string $cut): bool
+    {
+        if ($i->last_event_at === null ? (string) $i->updated_at < $cut : (string) $i->last_event_at < $cut) {   // 아직 값이 한 번도 안 왔으면 연결(저장)한 때부터 셈
+            return true;
+        }
+        $cfg = self::config($i);
+        $devs = array_column($cfg['devices'], 1);
+        $site = $cfg['mode'] === 'oauth' ? array_values(array_unique(array_intersect_key($cfg['map'], array_flip($devs)))) : array_filter([(int) ($i->device_id ?? 0)]);
+
+        return $site !== [] && DB::table(Schema::DEVICES)->whereIn('id', $site)->where('user_id', $i->user_id)
+            ->where(fn ($w) => $w->whereNull('last_seen_at')->orWhere('last_seen_at', '<', $cut))->exists();
+    }
+
+    /**
+     * 1.4.2 「🔄 다시 잇기」 — 회원이 누르면 그 회원의 SmartThings 연결을 지금 바로 다시 이음 (기다리지 않음 · 구독은 모두 다시 확인)
+     *
+     * @return array{0: bool, 1: string}
+     */
+    public function reviveNow(int $uid): array
+    {
+        if ($uid <= 0 || ! self::ready() || ! Schema::ensure()) {
+            return [false, 'SmartThings 연결을 쓸 수 없어요.'];
+        }
+        $ids = DB::table(Schema::ST_INSTALLS)->where('user_id', $uid)->whereIn('status', ['active', 'error'])->orderBy('id')->limit(10)->pluck('id')->map(fn ($x) => (int) $x)->all();
+        if ($ids === []) {
+            return [false, '다시 이을 SmartThings 연결이 없어요 — 「➕ 기기 연결」에서 SmartThings 를 연결해 주세요.'];
+        }
+        DB::table(Schema::ST_INSTALLS)->whereIn('id', $ids)->update(['polled_at' => self::now()]);
+        $sum = ['token' => 0, 'offline' => 0, 'bad' => 0, 'got' => 0];
+        foreach ($ids as $id) {
+            foreach ($this->revive($id, true) as $k => $v) {
+                $sum[$k] += $v;
+            }
+        }
+        $oauth = DB::table(Schema::ST_INSTALLS)->whereIn('id', $ids)->get()->contains(fn ($i) => self::config($i)['mode'] === 'oauth');
+        if ($sum['token'] > 0) {
+            return [false, 'SmartThings 로그인이 끝났어요 — '.($oauth ? '「🔗 다시 연결」을 눌러 한 번 더 로그인해 주세요.' : '앱에서 설정을 한 번 더 저장해 주세요.')];
+        }
+        $msg = [];
+        if ($sum['got'] > 0) {
+            $msg[] = 'SmartThings 에서 지금 값을 받아 다시 이었어요.';
+        }
+        if ($sum['offline'] > 0) {
+            $msg[] = '기기 '.$sum['offline'].'개는 SmartThings 에서도 「오프라인」이에요 — 기기 전원 · 배터리 · 허브(와이파이)를 확인해 주세요. 켜지면 저절로 다시 이어요.';
+        }
+        if ($sum['bad'] > 0) {
+            $msg[] = '구독 '.$sum['bad'].'개를 만들지 못했어요 — 조금 뒤 다시 눌러 주세요.'.self::PAY_HINT;
+        }
+
+        return [$sum['got'] > 0 || $msg !== [], $msg !== [] ? implode(' ', $msg) : 'SmartThings 에서 값을 받지 못했어요 — 조금 뒤 다시 눌러 주세요.'];
+    }
+
     /**
      * 1.4.1 다시 잇기 — 구독 확인(로그인 연결: 빠진 것만 새로) · 기기 상태(ONLINE · OFFLINE) · 지금 값
      *  켜져 있는 기기는 값이 그대로여도 「받음」으로 (끊김이 풀림), SmartThings 가 OFFLINE 이라 하는 기기는 「끊김」 그대로 (정말 꺼짐)
+     *  1.4.2 $full — 회원이 「🔄 다시 잇기」를 눌렀을 때: 예전 방식(연결 코드)도 구독을 모두 다시 만듦
+     *
+     * @return array{token: int, offline: int, bad: int, got: int}
      */
-    public function revive(int $id): void
+    public function revive(int $id, bool $full = false): array
     {
+        $none = ['token' => 0, 'offline' => 0, 'bad' => 0, 'got' => 0];
         $i = DB::table(Schema::ST_INSTALLS)->where('id', $id)->first();
         if ($i === null || ! $i->user_id) {
-            return;
+            return $none;
         }
         $cfg = self::config($i);
         if ($cfg['devices'] === []) {
-            return;
+            return $none;
         }
         $tok = $this->token($i);
         if ($tok === null) {
-            return;   // 토큰 문제는 refresh 가 last_error 에 적음 — 회원이 「🔗 다시 연결」
+            return ['token' => 1] + $none;   // 토큰 문제는 refresh 가 last_error 에 적음 — 회원이 「🔗 다시 연결」
         }
         $oauth = $cfg['mode'] === 'oauth';
-        $bad = $oauth ? $this->resubscribe($tok, (string) $i->installed_app_id, $cfg) : 0;   // 예전 방식은 모두 지우고 새로 만들어야 해서 앱에서 저장할 때만
+        $bad = $oauth || $full ? $this->resubscribe($tok, (string) $i->installed_app_id, $cfg) : 0;   // 예전 방식은 모두 지우고 새로 만들어야 해서 앱에서 저장할 때 · 회원이 「다시 잇기」를 누를 때만
         $devs = array_values(array_unique(array_column($cfg['devices'], 1)));
         $status = [];
         $health = [];
@@ -444,7 +509,7 @@ class SmartThingsService
                 array_push($events, ...SmartThings::statusEvents($status[$dev], $dev, $comp, $t[3] ?? SmartThings::SLOTS[$slot][0]));
             }
         }
-        if ($oauth && $bad === 0 && (string) $i->status === 'error') {
+        if (($oauth || $full) && $bad === 0 && (string) $i->status === 'error') {
             DB::table(Schema::ST_INSTALLS)->where('id', $id)->update(['status' => 'active', 'last_error' => null, 'updated_at' => self::now()]);   // 구독을 다시 만들었음
         }
         $this->absorb($i, $events);
@@ -452,6 +517,8 @@ class SmartThingsService
         if ($off !== [] || $bad) {
             $this->log('다시 잇기', ['install' => $id, 'offline' => count($off), 'subs_failed' => $bad]);
         }
+
+        return ['token' => 0, 'offline' => count($off), 'bad' => $bad, 'got' => $events !== [] ? 1 : 0];
     }
 
     /** EVENT — DEVICE_EVENT 는 받기로 · 설치 지우기(INSTALLED_APP_LIFECYCLE_EVENT DELETE)는 정리 */

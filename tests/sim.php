@@ -637,6 +637,39 @@ namespace {
         && $STC->pick($as(2, 'PUT', ['devices' => []]), (int) $oi->id)->getStatusCode() === 422 && $STC->oauthFinish($as(1, 'POST', ['code' => ['x'], 'state' => null]))->getStatusCode() === 422 && $r3->headers->get('Cache-Control') !== null
         && str_contains((string) $r3->headers->get('Cache-Control'), 'no-store'), '컨트롤러: 시작 · 목록 · 저장 (내 것만 · 이상한 입력은 422 · 캐시하지 않음)');
 
+    echo "  · 1.4.2 기기 카드마다 봄 (자주 바뀌는 센서가 있어도) · 「🔄 다시 잇기」\n";
+    $keep = DB::table('hal_devices')->whereIn('id', [(int) $box->id, (int) $ams->id])->pluck('last_seen_at', 'id');
+    $keepI = DB::table('hal_st_installs')->where('id', $oi->id)->first();
+    HaService::$nowOverride = '2026-10-11 13:30:00';
+    DB::table('hal_devices')->whereIn('id', [(int) $box->id, (int) $ams->id])->update(['last_seen_at' => '2026-10-11 09:10:00']);
+    DB::table('hal_st_installs')->where('id', $oi->id)->update(['last_event_at' => '2026-10-11 13:20:00', 'polled_at' => null]);   // 문 센서 · 플러그는 10분 전에 값을 보냄 — 온습도계만 조용함
+    Settings::save(['st_poll_min' => 60]);
+    $st->pollDue([1]);
+    $polled = DB::table('hal_devices')->where('id', $box->id)->value('last_seen_at') === '2026-10-11 13:30:00';
+    DB::table('hal_st_installs')->where('id', $oi->id)->update(['polled_at' => null]);
+    DB::table('hal_devices')->whereIn('id', [(int) $box->id, (int) $ams->id])->update(['last_seen_at' => '2026-10-11 13:00:00']);
+    $calls = [];
+    $st->pollDue([1]);
+    t($polled && $calls === [], '같은 위치의 다른 센서가 값을 보내도, 조용한 기기 카드가 있으면 지금 값을 물어봄 · 모두 새 값이면 안 물음');
+    Settings::save(['st_poll_min' => 0]);
+    HaService::$nowOverride = '2026-10-11 15:00:00';
+    DB::table('hal_devices')->where('id', $box->id)->update(['last_seen_at' => '2026-10-11 09:10:00']);
+    DB::table('hal_st_installs')->where('id', $oi->id)->update(['status' => 'error', 'last_error' => '구독 1개를 만들지 못했어요', 'polled_at' => '2026-10-11 14:59:00']);
+    $fake['offline'] = ['dev-th-0002'];
+    [$rOk, $rMsg] = $st->reviveNow(1);
+    $in = DB::table('hal_st_installs')->where('id', $oi->id)->first();
+    $rv = $STC->revive($as(1, 'POST'));
+    t($rOk && str_contains($rMsg, '다시 이었어요') && str_contains($rMsg, '오프라인') && DB::table('hal_devices')->where('id', $box->id)->value('last_seen_at') === '2026-10-11 15:00:00' && $in->status === 'active' && $in->last_error === null
+        && $st->reviveNow(0)[0] === false && $rv->getStatusCode() === 200 && isset($js($rv)['data']['overview']['devices']) && $STC->revive($as(0, 'POST'))->getStatusCode() === 422,
+        '「🔄 다시 잇기」: 끈 설정(st_poll_min 0)이어도 바로 · 켜진 기기는 지금 값 · 오프라인 기기는 알려 줌 · 오류 풀림 · 로그인 안 했으면 422');
+    unset($fake['offline']);
+    DB::table('hal_readings')->where('at', '>=', '2026-10-11 10:00:00')->where('at', '<', '2026-10-11 16:00:00')->delete();
+    foreach ($keep as $kid => $kv) {
+        DB::table('hal_devices')->where('id', $kid)->update(['last_seen_at' => $kv]);
+    }
+    DB::table('hal_st_installs')->where('id', $oi->id)->update(['status' => $keepI->status, 'last_error' => $keepI->last_error, 'last_event_at' => $keepI->last_event_at, 'polled_at' => $keepI->polled_at]);
+    HaService::$nowOverride = '2026-10-11 09:10:00';
+
     echo "  · 1.2.0 프린터 라운지 — 내 프린터에 붙이기 · 출력 상태 · 주변 온습도\n";
     [, , $list] = $st->oauthDevices(1, (int) $oi->id);
     t(array_key_exists('suggest_printer', $list['devices'][0]) && $st->forUser(1)['oauth'] === true && $svc->sources() === ['ha' => true, 'smartthings' => true], '목록에 「이름이 같은 내 프린터」 칸 · 보내는 곳: SmartThings 켜짐');

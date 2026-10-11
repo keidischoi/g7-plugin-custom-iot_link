@@ -90,6 +90,14 @@ class SmartThingsController extends Controller
         return $this->result($this->st->relink($this->uid($r), $id, (int) $r->input('device_id', 0)), $r);
     }
 
+    /** 1.4.2 「🔄 다시 잇기」 — 끊긴 SmartThings 기기를 지금 바로 다시 이음 */
+    public function revive(Request $r): JsonResponse
+    {
+        $res = $this->st->reviveNow($this->uid($r));
+
+        return new JsonResponse(['success' => $res[0], 'message' => $res[1], 'data' => ['overview' => $this->ha->overview($this->uid($r))]], $res[0] ? 200 : 422, ['Cache-Control' => 'no-store']);
+    }
+
     public function disconnect(Request $r, int $id): JsonResponse
     {
         return $this->result($this->st->disconnect($this->uid($r), $id), $r);

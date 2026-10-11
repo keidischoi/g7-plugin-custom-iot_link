@@ -47,6 +47,7 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () {
     // 0.2.0 SmartThings — 연결 코드(1분에 10번까지) · 이을 기기 바꾸기 · 끊기 (내 것만)
     Route::post('smartthings/code', [SmartThingsController::class, 'code'])->middleware('throttle:10,1')->name('smartthings.code');
     Route::put('smartthings/installs/{id}', [SmartThingsController::class, 'relink'])->whereNumber('id')->name('smartthings.relink');
+    Route::post('smartthings/revive', [SmartThingsController::class, 'revive'])->middleware('throttle:6,1')->name('smartthings.revive');   // 1.4.2 「🔄 다시 잇기」
     Route::delete('smartthings/installs/{id}', [SmartThingsController::class, 'disconnect'])->whereNumber('id')->name('smartthings.disconnect');
     // 1.1.0 SmartThings 로그인 연결 (API Access App · OAuth) — 로그인 주소 받기 · 돌아와서 잇기(state 가 그 회원 것일 때만) · 센서 목록 · 고른 것 저장
     Route::post('smartthings/oauth/start', [SmartThingsController::class, 'oauthStart'])->middleware('throttle:10,1')->name('smartthings.oauth.start');
