@@ -18,7 +18,7 @@ use Plugins\Custom\IotLink\Support\Settings;
  */
 final class Ha
 {
-    public const VERSION = '1.4.0';
+    public const VERSION = '1.4.1';
 
     public static function active(): bool
     {
@@ -40,6 +40,10 @@ final class Ha
         $ids = self::ids($userIds);
         if ($ids === [] || ! self::active()) {
             return [];
+        }
+        try {
+            (new \Plugins\Custom\IotLink\Services\SmartThingsService())->pollDue($ids);   // 1.4.1 SmartThings 값이 오래 안 왔으면 지금 값을 물어봄 (응답 뒤에)
+        } catch (\Throwable) {
         }
         try {
             return DB::table(Schema::DEVICES)->whereIn('user_id', $ids)->where('target', 'location')->whereNotNull('location')->where('location', '!=', '')

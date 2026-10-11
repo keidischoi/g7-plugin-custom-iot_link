@@ -42,6 +42,7 @@ final class Settings
         'st_code_flow' => false,       // 1.1.0 (예전 방식) SmartApp 연결 코드도 화면에 보이기 — 기본은 로그인 연결(API Access App · OAuth)만
         'st_code_min' => 30,           // 연결 코드가 쓸 수 있는 시간 (분)
         'st_max_events_min' => 120,    // 설치 하나가 1분에 보낼 수 있는 값 (넘으면 버림 — 답은 200)
+        'st_poll_min' => 60,           // 1.4.1 SmartThings 가 이만큼(분) 값을 안 보내면 지금 값을 직접 물어보고 구독을 다시 확인 (0 = 끔 · 15~1440). 값이 그대로라 소식이 없는 기기가 「끊김」이 되지 않게 · 끊긴 뒤 다시 잇기
     ];
 
     /** 0.2.0 SmartThings 글 칸 (메뉴 이름 규칙과 따로) */
@@ -99,6 +100,7 @@ final class Settings
         $out['st_public_key'] = strlen($pem) < 6000 && preg_match('/^-----BEGIN (PUBLIC KEY|CERTIFICATE|RSA PUBLIC KEY)-----[A-Za-z0-9+\/=\s]+-----END (PUBLIC KEY|CERTIFICATE|RSA PUBLIC KEY)-----$/', $pem) ? $pem : '';
         $out['st_code_min'] = max(5, min(1440, $out['st_code_min']));
         $out['st_max_events_min'] = max(10, min(2000, $out['st_max_events_min']));
+        $out['st_poll_min'] = $out['st_poll_min'] <= 0 ? 0 : max(15, min(1440, $out['st_poll_min']));
         $out['max_devices'] = max(1, min(200, $out['max_devices']));
         $out['interval_min'] = max(1, min(60, $out['interval_min']));
         $out['send_mode'] = in_array($in['send_mode'] ?? '', ['change', 'interval'], true) ? (string) $in['send_mode'] : self::DEFAULTS['send_mode'];

@@ -157,6 +157,11 @@ final class Schema
                 $t->timestamps();
             });
         }
+        if (S::hasTable(self::ST_INSTALLS) && ! S::hasColumn(self::ST_INSTALLS, 'polled_at')) {
+            S::table(self::ST_INSTALLS, function (Blueprint $t) {
+                $t->dateTime('polled_at')->nullable()->comment('1.4.1 값이 오래 안 와서 지금 값을 직접 물어본 때');
+            });
+        }
         if (! S::hasTable(self::ST_SENSORS)) {
             S::create(self::ST_SENSORS, function (Blueprint $t) {
                 $t->id();
