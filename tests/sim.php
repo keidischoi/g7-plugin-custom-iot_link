@@ -1046,6 +1046,20 @@ namespace {
     $js8 = (string) file_get_contents(dirname(__DIR__).'/resources/assets/iot-link-app.js');
     t(str_contains($js8, 'function slotBox()') && str_contains($js8, "'/slots/buy'") && str_contains($js8, "['slot_coin_price10',"), '화면 — 💳 칸 늘리기 · 관리자 값 (1개 · 10개)');
     Settings::save(['slot_enabled' => false, 'max_devices_company' => 0]);
+    echo "■ 1.4.9 관리자 예외\n";
+    $L9 = \Plugins\Custom\IotLink\Support\Limits::class;
+    $L9::$adminOverride = [1];
+    $cnt9 = DB::table('hal_devices')->where('user_id', 1)->count();
+    Settings::save(['max_devices' => 1, 'max_devices_company' => 1, 'slot_enabled' => true]);
+    [$a9] = $svc->save(1, null, ['target' => 'location', 'location' => '관리자 선반', 'ent_hum' => 'sensor.adm', 'grp' => 'c10']);
+    $o9a = $svc->overview(1);
+    t($a9 && $L9::member(1) === $L9::FREE && $L9::companyFull(10, 5, [], '', 1) === null && $o9a['limits']['admin'] === true && $o9a['slots'] === ['enabled' => false], '관리자는 회원 · 업체 한도를 넘겨 붙임 · 칸 사기 안 보임');
+    Settings::save(['limit_admin_free' => false, 'slot_enabled' => false]);
+    [$a9b, $m9b] = $svc->save(1, null, ['target' => 'location', 'location' => '관리자 선반 2', 'ent_hum' => 'sensor.adm2']);
+    t(! $a9b && str_contains($m9b, '개까지') && $L9::member(1) === 1 && $svc->overview(1)['limits']['admin'] === false, '「관리자 예외」를 끄면 관리자도 한도대로');
+    $L9::$adminOverride = null;
+    t(! $L9::exempt(2), '관리자가 아니면 예외 없음');
+    Settings::save(['limit_admin_free' => true, 'max_devices' => 20, 'max_devices_company' => 0, 'slot_enabled' => false]);
     echo "\n통과 {$pass} · 실패 {$fail}\n";
     exit($fail ? 1 : 0);
 }

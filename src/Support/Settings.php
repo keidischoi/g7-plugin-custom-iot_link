@@ -16,6 +16,7 @@ final class Settings
         'max_devices' => 20,           // 회원 한 명이 연결할 수 있는 기기
         'max_devices_company' => 0,    // 1.4.7 업체 하나에 둘 수 있는 기기 (📁 그 업체로 분류된 것 · 회원 모두 합쳐) — 0 = 따로 막지 않음
         'max_devices_members' => '',   // 1.4.7 회원마다 다르게 「회원번호 또는 이메일:개수」 쉼표로 (예: 12:50, kim@ex.com:100)
+        'limit_admin_free' => true,    // 1.4.9 관리자(최고 관리자 · 관리자 역할)는 기기 수 한도 · 업체 한도에서 빼기
         'slot_enabled' => false,       // 1.4.8 💳 한도를 넘는 센서 칸을 코인 · 마일리지로 사기 (회원 · 업체)
         'slot_mode' => 'once',         // 1.4.8 once: 한 번 사면 계속 · monthly: 달마다 결제 (자동 연장 · 모자라면 칸이 끝남 — 기기는 지우지 않고 새로 못 붙임)
         'slot_coin_price' => 0,        // 1.4.8 센서 1개 값 (코인 · 0 = 안 팖)
