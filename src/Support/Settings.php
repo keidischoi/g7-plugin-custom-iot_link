@@ -14,6 +14,9 @@ final class Settings
         'menu_enabled' => true,        // 헤더 메인 메뉴에 넣기 (홈 디자인 「메인 메뉴 보이기」와 서로 맞춤)
         'menu_label' => 'IoT 연결',      // 헤더 메뉴 이름 (12글자까지)
         'max_devices' => 20,           // 회원 한 명이 연결할 수 있는 기기
+        'max_devices_company' => 0,    // 1.4.7 업체 하나에 둘 수 있는 기기 (📁 그 업체로 분류된 것 · 회원 모두 합쳐) — 0 = 따로 막지 않음
+        'max_devices_members' => '',   // 1.4.7 회원마다 다르게 「회원번호 또는 이메일:개수」 쉼표로 (예: 12:50, kim@ex.com:100)
+        'max_devices_companies' => '', // 1.4.7 업체마다 다르게 「업체번호:개수」 쉼표로 (예: 3:100, 7:0 — 0 = 막지 않음)
         'send_mode' => 'change',       // 0.1.6 전송 방식 — change: 값이 변하면 보냄 (+ 변화가 없어도 idle_min 마다 한 번) · interval: interval_min 마다 보냄
         'change_hum' => 1,             // 0.1.6 「변하면」: 습도가 이만큼(%) 변하면 보냄 (온도는 0.5°C)
         'idle_min' => 30,              // 0.1.6 「변하면」: 변화가 없어도 이만큼(분)마다 한 번 (살아 있다는 신호)
@@ -46,7 +49,7 @@ final class Settings
     ];
 
     /** 0.2.0 SmartThings 글 칸 (메뉴 이름 규칙과 따로) */
-    private const ST_TEXT = ['st_app_id', 'st_client_id', 'st_client_secret', 'st_public_key'];
+    private const ST_TEXT = ['st_app_id', 'st_client_id', 'st_client_secret', 'st_public_key', 'max_devices_members', 'max_devices_companies'];   // 1.4.7 한도 목록도 (12글자로 자르지 않음)
 
     /** @var array<string, mixed>|null */
     private static ?array $memo = null;
@@ -101,7 +104,10 @@ final class Settings
         $out['st_code_min'] = max(5, min(1440, $out['st_code_min']));
         $out['st_max_events_min'] = max(10, min(2000, $out['st_max_events_min']));
         $out['st_poll_min'] = $out['st_poll_min'] <= 0 ? 0 : max(15, min(1440, $out['st_poll_min']));
-        $out['max_devices'] = max(1, min(200, $out['max_devices']));
+        $out['max_devices'] = max(1, min(1000, $out['max_devices']));   // 1.4.7 200 → 1000
+        $out['max_devices_company'] = max(0, min(10000, $out['max_devices_company']));
+        $out['max_devices_members'] = self::limitList($out['max_devices_members'], true);
+        $out['max_devices_companies'] = self::limitList($out['max_devices_companies'], false);
         $out['interval_min'] = max(1, min(60, $out['interval_min']));
         $out['send_mode'] = in_array($in['send_mode'] ?? '', ['change', 'interval'], true) ? (string) $in['send_mode'] : self::DEFAULTS['send_mode'];
         $out['change_hum'] = max(1, min(10, $out['change_hum']));
@@ -125,6 +131,38 @@ final class Settings
     }
 
     /** 메뉴 이름 — 태그 · 줄바꿈 빼고 12글자, 비면 기본 */
+    /** 1.4.7 「키:개수」 목록 다듬기 — 회원(번호 · 이메일) · 업체(번호) · 200개까지 · 개수 0~10000 */
+    public static function limitList(string $s, bool $member): string
+    {
+        $out = [];
+        preg_match_all('/([^\s:=,;]+)\s*[:=]\s*(\d+)/u', $s, $m, PREG_SET_ORDER);
+        foreach ($m as $x) {
+            $k = mb_strtolower(trim($x[1]));
+            if ($member ? (ctype_digit($k) || filter_var($k, FILTER_VALIDATE_EMAIL)) : ctype_digit($k)) {
+                $out[$k] = min(10000, (int) $x[2]);
+            }
+            if (count($out) >= 200) {
+                break;
+            }
+        }
+
+        return implode(', ', array_map(static fn ($k, $v) => $k.':'.$v, array_keys($out), $out));
+    }
+
+    /** @return array<string, int> 1.4.7 목록 → [키 => 개수] */
+    public static function limitMap(string $key): array
+    {
+        $out = [];
+        foreach (array_filter(array_map('trim', explode(',', (string) self::get($key)))) as $p) {
+            [$k, $v] = array_pad(explode(':', $p, 2), 2, '');
+            if ($k !== '' && is_numeric($v)) {
+                $out[$k] = (int) $v;
+            }
+        }
+
+        return $out;
+    }
+
     private static function label(mixed $v, string $d): string
     {
         $s = is_scalar($v) ? mb_substr(trim((string) preg_replace('/\s+/u', ' ', strip_tags((string) $v))), 0, 12) : '';

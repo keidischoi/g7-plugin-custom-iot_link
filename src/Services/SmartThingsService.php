@@ -4,6 +4,7 @@ namespace Plugins\Custom\IotLink\Services;
 
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Plugins\Custom\IotLink\Support\Limits;
 use Plugins\Custom\IotLink\Support\Rules;
 use Plugins\Custom\IotLink\Support\Schema;
 use Plugins\Custom\IotLink\Support\Settings;
@@ -273,7 +274,7 @@ class SmartThingsService
     /** SmartThings 용 새 기기 (기기 수 한도 안에서). 1.1.0 이름 = SmartThings 기기 이름 · 필라멘트 보관 위치와 이름이 같으면 그 보관함에 붙임 */
     private function newDevice(int $uid, string $name = 'SmartThings', ?string $location = null, ?int $printerId = null): ?int
     {
-        if (DB::table(Schema::DEVICES)->where('user_id', $uid)->count() >= (int) Settings::get('max_devices')) {
+        if (DB::table(Schema::DEVICES)->where('user_id', $uid)->count() >= Limits::member($uid)) {   // 1.4.7 회원마다 한도
             return null;
         }
 
@@ -1147,7 +1148,7 @@ class SmartThingsService
         }
 
         return [true, 'ok', ['install_id' => (int) $i->id, 'location' => (string) ($i->location_name ?? ''), 'devices' => $rows, 'max' => SmartThings::MAX_PICKS, 'power_on_w' => $cfg['power_on_w'],
-            'room' => max(0, (int) Settings::get('max_devices') - count($mine))]];
+            'room' => max(0, Limits::member($uid) - count($mine))]];
     }
 
     /**
@@ -1245,7 +1246,7 @@ class SmartThingsService
         $n = count($map);
         $msg = $n === 0 ? '고른 센서가 없어요 — 값을 받지 않아요.' : '센서 '.$n.'개를 이었어요'.($made > 0 ? ' (새 기기 '.$made.'개)' : '').' — 값이 바뀔 때마다 바로 들어와요.';
 
-        return [true, $msg.($skip !== [] ? ' 기기 수 한도('.Settings::get('max_devices').'개)라 못 만든 것: '.implode(' · ', array_slice($skip, 0, 5)) : '')];
+        return [true, $msg.($skip !== [] ? ' 기기 수 한도('.Limits::member($uid).'개)라 못 만든 것: '.implode(' · ', array_slice($skip, 0, 5)) : '')];
     }
 
     /**
