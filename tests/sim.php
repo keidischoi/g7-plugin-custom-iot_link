@@ -252,6 +252,18 @@ namespace {
     t($svc->linkUser($code) === 0 && $svc->linkUser($svc->linkCode(1)) === 1 && $svc->ingest($nd['token'], ['humidity' => 21])[0], '연결 코드를 새로 만들면 옛 코드는 안 됨 — 이미 만든 기기는 계속 보냄');
     $svc->delete(1, (int) $nd['id']);
 
+    echo "■ 1.4.5 여러 기기 한 번에 지우기\n";
+    $mk = fn (int $u, string $n) => (int) DB::table('hal_devices')->insertGetId(['user_id' => $u, 'token' => bin2hex(random_bytes(16)), 'name' => $n, 'target' => 'other', 'entities' => '{}', 'created_at' => '2026-10-11 00:00:00', 'updated_at' => '2026-10-11 00:00:00']);
+    [$x1, $x2, $x3] = [$mk(1, '지울 1'), $mk(1, '지울 2'), $mk(2, '남의 것')];
+    DB::table('hal_readings')->insert([['device_id' => $x1, 'at' => '2026-10-11 01:00:00', 'humidity' => 40], ['device_id' => $x3, 'at' => '2026-10-11 01:00:00', 'humidity' => 41]]);
+    DB::table('hal_runs')->insert(['device_id' => $x2, 'started_at' => '2026-10-11 01:00:00']);
+    [$dOk, $dMsg] = $svc->deleteMany(1, [$x1, (string) $x2, $x3, 'abc', 0, -5, $x1]);
+    t($dOk && str_contains($dMsg, '2개') && ! DB::table('hal_devices')->whereIn('id', [$x1, $x2])->exists() && DB::table('hal_devices')->where('id', $x3)->exists()
+        && ! DB::table('hal_readings')->where('device_id', $x1)->exists() && ! DB::table('hal_runs')->where('device_id', $x2)->exists() && DB::table('hal_readings')->where('device_id', $x3)->exists()
+        && ! $svc->deleteMany(1, [])[0] && ! $svc->deleteMany(1, [$x3])[0] && ! $svc->deleteMany(0, [$x3])[0], '내 것만 지움 (남의 것 · 이상한 번호는 건너뜀) · 기록 · 가동 시간도 · 고른 게 없으면 안 됨');
+    DB::table('hal_devices')->where('id', $x3)->delete();
+    DB::table('hal_readings')->where('device_id', $x3)->delete();
+
     echo "■ 카메라 사진\n";
     $jpg = (string) base64_decode('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=');   // 1×1 JPEG (GD 없이)
     HaService::$nowOverride = '2026-10-10 11:10:00';
@@ -321,7 +333,7 @@ namespace {
 
             return [200, $j($fake['subs'][$iid][$sid])];
         }
-        if (str_contains($url, '/devices?includeStatus=true')) return [200, $j(['items' => array_merge($fakeDevices, $fake['extra'] ?? []), '_links' => new stdClass()])];
+        if (str_contains($url, '/devices?includeStatus=true')) return [200, $j(['items' => array_map(fn ($it) => in_array($it['deviceId'] ?? '', $fake['dead'] ?? [], true) ? ['components' => []] + $it : $it, array_merge($fakeDevices, $fake['extra'] ?? [])), '_links' => new stdClass()])];
         if (str_ends_with($url, '/v1/apps') && $m === 'POST') return $fake['apps'] === 201 ? [200, $j(['app' => ['appId' => 'app-auto-7777', 'appType' => 'API_ONLY'], 'oauthClientId' => 'cid-auto-7777', 'oauthClientSecret' => 'sec-auto-7777'])] : [$fake['apps'], '{"requestId":"r","error":{"code":"ForbiddenError","message":"Plan required","details":[]}}'];
         if (preg_match('#/v1/apps/[\w-]+/register$#', $url) && $m === 'PUT') return [202, '{}'];
         if (str_starts_with($url, 'https://key.smartthings.com/pl/')) return [200, $cert];
@@ -330,6 +342,7 @@ namespace {
         if (preg_match('#/locations/#', $url)) return [200, $j(['name' => '우리집', 'temperatureScale' => 'F'])];
         if (str_ends_with($url, '/subscriptions')) return $m === 'POST' && $stFail['subs'] ? [403, '{}'] : [200, '{}'];
         if (preg_match('#/devices/([^/]+)/health$#', $url, $x)) return [200, $j(['deviceId' => $x[1], 'state' => in_array($x[1], $fake['offline'] ?? [], true) ? 'OFFLINE' : 'ONLINE'])];   // 1.4.1
+        if (preg_match('#/devices/([^/]+)/status$#', $url, $x) && in_array($x[1], $fake['dead'] ?? [], true)) return [404, '{}'];   // 1.4.5 정말 꺼짐
         if (preg_match('#/devices/([^/]+)/status$#', $url, $x)) {
             return [200, $j(['components' => ['main' => ['temperatureMeasurement' => ['temperature' => ['value' => 77, 'unit' => 'F']], 'relativeHumidityMeasurement' => ['humidity' => ['value' => 33, 'unit' => '%']],
                 'contactSensor' => ['contact' => ['value' => 'closed']], 'powerMeter' => ['power' => ['value' => 2.5, 'unit' => 'W']]]]])];
@@ -590,7 +603,7 @@ namespace {
     $keep = DB::table('hal_devices')->whereIn('id', [(int) $box->id, (int) $ams->id])->pluck('last_seen_at', 'id');
     HaService::$nowOverride = '2026-10-11 13:30:00';   // 마지막 값 09:10 — 4시간 넘게 소식 없음 (값이 그대로라 SmartThings 가 안 보냄)
     DB::table('hal_st_installs')->where('id', $oi->id)->update(['status' => 'error', 'last_error' => '구독 1개를 만들지 못했어요']);
-    $fake['offline'] = ['dev-th-0002'];   // AMS 쪽 온습도계는 정말 꺼짐
+    $fake['offline'] = $fake['dead'] = ['dev-th-0002'];   // AMS 쪽 온습도계는 정말 꺼짐 (값도 못 받음)
     $fake['subs']['ia-oauth-0001'] = array_slice($fake['subs']['ia-oauth-0001'] ?? [], 0, 1, true);   // 구독이 빠짐
     Settings::save(['st_poll_min' => 60]);
     $calls = [];
@@ -612,7 +625,7 @@ namespace {
     Settings::save(['st_poll_min' => 5]);
     t(Settings::get('st_poll_min') === 15, '설정 st_poll_min (15~1440)');
     Settings::save(['st_poll_min' => 0]);
-    unset($fake['offline']);
+    unset($fake['offline'], $fake['dead']);
     DB::table('hal_readings')->where('at', '>=', '2026-10-11 10:00:00')->where('at', '<', '2026-10-11 14:00:00')->delete();   // 이 검사가 넣은 시간별 기록
     foreach ($keep as $kid => $kv) {
         DB::table('hal_devices')->where('id', $kid)->update(['last_seen_at' => $kv]);
@@ -655,14 +668,14 @@ namespace {
     HaService::$nowOverride = '2026-10-11 15:00:00';
     DB::table('hal_devices')->where('id', $box->id)->update(['last_seen_at' => '2026-10-11 09:10:00']);
     DB::table('hal_st_installs')->where('id', $oi->id)->update(['status' => 'error', 'last_error' => '구독 1개를 만들지 못했어요', 'polled_at' => '2026-10-11 14:59:00']);
-    $fake['offline'] = ['dev-th-0002'];
+    $fake['offline'] = $fake['dead'] = ['dev-th-0002'];
     [$rOk, $rMsg] = $st->reviveNow(1);
     $in = DB::table('hal_st_installs')->where('id', $oi->id)->first();
     $rv = $STC->revive($as(1, 'POST'));
     t($rOk && str_contains($rMsg, '다시 이었어요') && str_contains($rMsg, '오프라인') && DB::table('hal_devices')->where('id', $box->id)->value('last_seen_at') === '2026-10-11 15:00:00' && $in->status === 'active' && $in->last_error === null
         && $st->reviveNow(0)[0] === false && $rv->getStatusCode() === 200 && isset($js($rv)['data']['overview']['devices']) && $STC->revive($as(0, 'POST'))->getStatusCode() === 422,
         '「🔄 다시 잇기」: 끈 설정(st_poll_min 0)이어도 바로 · 켜진 기기는 지금 값 · 오프라인 기기는 알려 줌 · 오류 풀림 · 로그인 안 했으면 422');
-    unset($fake['offline']);
+    unset($fake['offline'], $fake['dead']);
     DB::table('hal_readings')->where('at', '>=', '2026-10-11 10:00:00')->where('at', '<', '2026-10-11 16:00:00')->delete();
     foreach ($keep as $kid => $kv) {
         DB::table('hal_devices')->where('id', $kid)->update(['last_seen_at' => $kv]);
@@ -686,6 +699,24 @@ namespace {
     t($back && $a1['polled'] >= 1 && $a2['polled'] === 0 && $calls === [] && $a3['polled'] === 0,
         '15분마다: 회원이 화면을 안 봐도 조용한 기기는 지금 값으로 끊김이 풀림 · 방금 물은 것은 다시 안 물음 · st_poll_min 0 이면 끔');
     DB::table('hal_readings')->where('at', '>=', '2026-10-11 16:00:00')->where('at', '<', '2026-10-11 19:00:00')->delete();
+    foreach ($keep as $kid => $kv) {
+        DB::table('hal_devices')->where('id', $kid)->update(['last_seen_at' => $kv]);
+    }
+    DB::table('hal_st_installs')->where('id', $oi->id)->update(['status' => $keepI->status, 'last_error' => $keepI->last_error, 'last_event_at' => $keepI->last_event_at, 'polled_at' => $keepI->polled_at, 'token_checked_at' => $keepI->token_checked_at]);
+    HaService::$nowOverride = '2026-10-11 09:10:00';
+
+    echo "  · 1.4.5 SmartThings 가 OFFLINE 이라 해도 값을 받으면 다시 이음 (클라우드 센서)\n";
+    $keep = DB::table('hal_devices')->whereIn('id', [(int) $box->id, (int) $ams->id])->pluck('last_seen_at', 'id');
+    $keepI = DB::table('hal_st_installs')->where('id', $oi->id)->first();
+    HaService::$nowOverride = '2026-10-11 20:00:00';
+    DB::table('hal_devices')->whereIn('id', [(int) $box->id, (int) $ams->id])->update(['last_seen_at' => '2026-10-11 12:00:00']);
+    $fake['offline'] = ['dev-th-0001', 'dev-th-0002'];   // 둘 다 OFFLINE 이라 나옴 — 0001 은 값을 주고(클라우드 센서), 0002 는 정말 꺼짐
+    $fake['dead'] = ['dev-th-0002'];
+    [$rOk, $rMsg] = $st->reviveNow(1);
+    t($rOk && DB::table('hal_devices')->where('id', $box->id)->value('last_seen_at') === '2026-10-11 20:00:00' && DB::table('hal_devices')->where('id', $ams->id)->value('last_seen_at') === '2026-10-11 12:00:00'
+        && str_contains($rMsg, '1개는') && str_contains($rMsg, '오프라인'), 'OFFLINE 이어도 지금 값을 받으면 끊김이 풀림 (센서 고르기 저장과 같게) · 값도 못 받은 것만 오프라인으로 알림');
+    unset($fake['offline'], $fake['dead']);
+    DB::table('hal_readings')->where('at', '>=', '2026-10-11 19:00:00')->where('at', '<', '2026-10-11 21:00:00')->delete();
     foreach ($keep as $kid => $kv) {
         DB::table('hal_devices')->where('id', $kid)->update(['last_seen_at' => $kv]);
     }

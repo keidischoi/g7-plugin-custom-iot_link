@@ -44,6 +44,14 @@ class HaController extends Controller
         return $this->off() ?? $this->result($this->svc->delete($this->uid($r), $id), $r);
     }
 
+    /** 1.4.5 여러 기기 한 번에 지우기 — {ids: [번호…]} */
+    public function deleteMany(Request $r): JsonResponse
+    {
+        $ids = $r->input('ids');
+
+        return $this->off() ?? $this->result($this->svc->deleteMany($this->uid($r), is_array($ids) ? array_values($ids) : []), $r);
+    }
+
     public function rotate(Request $r, int $id): JsonResponse
     {
         return $this->off() ?? $this->result($this->svc->rotate($this->uid($r), $id), $r);

@@ -501,6 +501,7 @@ class SmartThingsService
     /**
      * 1.4.1 다시 잇기 — 구독 확인(로그인 연결: 빠진 것만 새로) · 기기 상태(ONLINE · OFFLINE) · 지금 값
      *  켜져 있는 기기는 값이 그대로여도 「받음」으로 (끊김이 풀림), SmartThings 가 OFFLINE 이라 하는 기기는 「끊김」 그대로 (정말 꺼짐)
+     *  1.4.5 SmartThings 의 OFFLINE 은 믿지 않음 — 클라우드로 이은 센서(Tuya · Aqara …)는 잘 되는데도 OFFLINE 으로 나와 다시 잇지 못했음. 지금 값을 받으면 받음, 못 받은 것만 오프라인
      *  1.4.2 $full — 회원이 「🔄 다시 잇기」를 눌렀을 때: 예전 방식(연결 코드)도 구독을 모두 다시 만듦
      *
      * @return array{token: int, offline: int, bad: int, got: int}
@@ -541,7 +542,7 @@ class SmartThingsService
                 [$st, $h] = $this->api($tok, 'GET', '/devices/'.$dev.'/health');
                 $health[$dev] = $st === 200 ? strtoupper((string) ($h['state'] ?? '')) : '';
             }
-            if ($health[$dev] === 'OFFLINE' || isset($status[$dev])) {
+            if (isset($status[$dev])) {   // 1.4.5 OFFLINE 이어도 지금 값을 물어봄 — 클라우드로 이은 센서는 잘 되는데도 OFFLINE 으로 나오는 일이 많음 (「⚙️ 센서 고르기」 저장과 같게)
                 continue;
             }
             [$st, $x] = $this->api($tok, 'GET', '/devices/'.$dev.'/status');
@@ -552,7 +553,7 @@ class SmartThingsService
         $events = [];
         foreach ($cfg['devices'] as $t) {
             [$slot, $dev, $comp] = $t;
-            if (($health[$dev] ?? '') !== 'OFFLINE' && isset($status[$dev])) {
+            if (isset($status[$dev])) {
                 array_push($events, ...SmartThings::statusEvents($status[$dev], $dev, $comp, $t[3] ?? SmartThings::SLOTS[$slot][0]));
             }
         }
@@ -560,7 +561,7 @@ class SmartThingsService
             DB::table(Schema::ST_INSTALLS)->where('id', $id)->update(['status' => 'active', 'last_error' => null, 'updated_at' => self::now()]);   // 구독을 다시 만들었음
         }
         $this->absorb($i, $events);
-        $off = array_keys(array_filter($health, static fn ($h) => $h === 'OFFLINE'));
+        $off = array_keys(array_filter($health, static fn ($h, $dev) => $h === 'OFFLINE' && ! isset($status[$dev]), ARRAY_FILTER_USE_BOTH));   // 1.4.5 값도 못 받은 것만 「오프라인」
         if ($off !== [] || $bad) {
             $this->log('다시 잇기', ['install' => $id, 'offline' => count($off), 'subs_failed' => $bad]);
         }
@@ -1294,10 +1295,19 @@ class SmartThingsService
      */
     public function deviceDeleted(int $uid, int $deviceId): void
     {
-        DB::table(Schema::ST_INSTALLS)->where('device_id', $deviceId)->update(['device_id' => null, 'last_error' => '이은 기기를 지웠어요 — 값을 넘길 기기를 골라 주세요.']);
+        $this->devicesDeleted($uid, [$deviceId]);
+    }
+
+    /** 1.4.5 여러 기기를 한 번에 지웠을 때 — 위치(설치)마다 설정 고치기 · 다시 맞추기는 한 번만 @param list<int> $deviceIds */
+    public function devicesDeleted(int $uid, array $deviceIds): void
+    {
+        if ($deviceIds === []) {
+            return;
+        }
+        DB::table(Schema::ST_INSTALLS)->whereIn('device_id', $deviceIds)->update(['device_id' => null, 'last_error' => '이은 기기를 지웠어요 — 값을 넘길 기기를 골라 주세요.']);
         foreach (DB::table(Schema::ST_INSTALLS)->where('user_id', $uid)->get() as $i) {
             $cfg = self::config($i);
-            $gone = $cfg['mode'] === 'oauth' ? array_map('strval', array_keys($cfg['map'], $deviceId, true)) : [];
+            $gone = $cfg['mode'] === 'oauth' ? array_map('strval', array_keys(array_filter($cfg['map'], static fn ($site) => in_array($site, $deviceIds, true)))) : [];
             if ($gone === []) {
                 continue;
             }
