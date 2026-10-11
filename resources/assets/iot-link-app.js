@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.4.1 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.4.2 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.4.1';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.4.2';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -87,7 +87,7 @@
     // 1.1.0 위에 크게 보이는 온도 · 습도와 같은 줄은 센서 목록에서 뺌 (두 센서가 한 카드에 붙었으면 견줘 볼 수 있게 둠)
     var all = d.sensors || [], one = function (cap) { return all.filter(function (x) { return x.capability === cap; }).length === 1; };
     var sens = all.filter(function (x) { return !((x.capability === 'temperatureMeasurement' && hasTemp && one(x.capability)) || (x.capability === 'relativeHumidityMeasurement' && hasHum && one(x.capability))); });
-    var stt = d.never ? '<span class="hal-dot wait"></span>값을 기다리는 중' : d.stale ? '<span class="hal-dot off" title="' + (st || (d.sensors && d.sensors.length) ? 'SmartThings 에서 기기가 꺼져 있거나 빠졌어요 — 사이트가 가끔 지금 값을 물어보고, 켜지면 저절로 다시 이어요' : 'Home Assistant 가 값을 안 보내요 — HA 가 켜져 있고 인터넷에 이어져 있는지 봐 주세요 (다시 보내면 저절로 풀려요)') + '"></span>끊김 · ' + agoText(d.seen) : '<span class="hal-dot on"></span>' + agoText(d.seen);
+    var stt = d.never ? '<span class="hal-dot wait"></span>값을 기다리는 중' : d.stale ? '<span class="hal-dot off" title="' + (st || (d.sensors && d.sensors.length) ? 'SmartThings 가 값을 안 보냈어요 — 「🔄 다시 잇기」를 누르면 지금 값을 물어봐요 (기기가 꺼져 있으면 켜진 뒤 저절로 다시 이어요)' : 'Home Assistant 가 값을 안 보내요 — HA 가 켜져 있고 인터넷에 이어져 있는지 봐 주세요 (다시 보내면 저절로 풀려요)') + '"></span>끊김 · ' + agoText(d.seen) : '<span class="hal-dot on"></span>' + agoText(d.seen);
     return '<article class="hal-card' + (d.over ? ' over' : '') + (d.stale && !d.never ? ' stale' : '') + '">' +
       '<header><span class="hal-ico">' + ICON[d.target] + '</span><div><b>' + esc(d.name) + '</b><small>' + (st || (d.sensors && d.sensors.length) ? '<span class="hal-badge">' + stLogo() + ' SmartThings</span>' : '🏠 Home Assistant') + '</small></div><button class="hal-icobtn" data-edit="' + d.id + '" title="고치기" aria-label="고치기">✏️</button></header>' + toRow(d) +
       '<div class="hal-vals">' +
@@ -96,7 +96,7 @@
         (hasState ? '<div class="st' + (d.is_on ? ' run' : '') + '"><i>' + (d.is_on ? '⚙️' : '⏸') + '</i><b>' + (d.is_on ? '가동 중' : '쉬는 중') + '</b><small>' + (d.state ? esc(d.state) + ' · ' : '') + '30일 ' + d.hours_30d + '시간</small></div>' : '') +
       '</div>' + (d.snap_at ? '<button type="button" class="hal-snap" data-snap="' + d.id + '" data-at="' + esc(d.snap_at) + '" title="크게 보기"><span>📷 ' + esc(agoText(d.snap_at)) + ' · ' + (d.snap_public ? '🌐 공개' : '🔒 나만') + '</span></button>' : '') + (hasEnv ? spark(d) : '') + sensList(sens, 6) +
       (d.over ? '<p class="hal-warn">⚠️ 기준을 넘었어요' + (d.target === 'location' ? ' — 여기 둔 필라멘트 건조를 챙겨 주세요' : '') + '</p>' : '') +
-      '<footer><span class="hal-st">' + stt + '</span>' + (st ? '<small class="hal-hint">값이 바뀌면 바로 들어와요</small>' : '<button class="hal-btn sm" data-yaml="' + d.id + '">📋 설정 글</button>') + '</footer></article>';
+      '<footer><span class="hal-st">' + stt + '</span>' + ((st || (d.sensors && d.sensors.length)) && d.stale ? '<button type="button" class="hal-btn sm pri" data-revive>🔄 다시 잇기</button>' : st ? '<small class="hal-hint">값이 바뀌면 바로 들어와요</small>' : '<button class="hal-btn sm" data-yaml="' + d.id + '">📋 설정 글</button>') + '</footer></article>';
   }
   function draw() {
     var d = S.d, live = d.devices.filter(function (x) { return !x.stale; }).length, over = d.devices.filter(function (x) { return x.over; }).length;
@@ -112,6 +112,7 @@
     qa('[data-new]').forEach(function (b) { b.onclick = function () { connectBox(); }; });
     qa('[data-edit]').forEach(function (b) { b.onclick = function () { form(find(b.getAttribute('data-edit'))); }; });
     qa('[data-yaml]').forEach(function (b) { b.onclick = function () { yamlBox(find(b.getAttribute('data-yaml'))); }; });
+    qa('[data-revive]').forEach(function (b) { b.onclick = function () { revive(b); }; });
   }
 
   /* 1.1.2 SmartThings 로고 (공식 심볼 — 하늘색 둥근 네모 안의 흰 허브 · 연결점). 그림 파일 없이 SVG 한 줄: 흰 바탕 + 심볼. 상표는 삼성의 것 — 연결 대상을 가리키는 데에만 씀
@@ -144,7 +145,7 @@
     var list = oa.map(function (x) {
       var s = ST_STATUS[x.status] || ['', x.status], names = (x.site_devices || []).map(find).filter(Boolean);
       return '<article class="hal-stc-i"><div class="hal-stc-ih"><div><b>📍 ' + esc(x.location || 'SmartThings 위치') + '</b><small><span class="hal-dot ' + s[0] + '"></span>' + s[1] + ' · 센서 ' + (x.picked || 0) + '개' + (x.last_event_at ? ' · 마지막 값 ' + esc(agoText(x.last_event_at)) : '') + '</small></div>' +
-        '<div class="hal-row"><button type="button" class="hal-btn sm' + (x.status === 'choose' ? ' pri' : '') + '" data-st-pick="' + x.id + '">⚙️ 센서 고르기</button><button type="button" class="hal-btn sm danger" data-st-del="' + x.id + '">연결 끊기</button></div></div>' +
+        '<div class="hal-row">' + (x.status === 'active' || x.status === 'error' ? '<button type="button" class="hal-btn sm" data-revive title="구독을 다시 확인하고 지금 값을 물어봐요">🔄 다시 잇기</button>' : '') + '<button type="button" class="hal-btn sm' + (x.status === 'choose' ? ' pri' : '') + '" data-st-pick="' + x.id + '">⚙️ 센서 고르기</button><button type="button" class="hal-btn sm danger" data-st-del="' + x.id + '">연결 끊기</button></div></div>' +
         (x.last_error ? '<p class="hal-warn">' + esc(x.last_error) + (T.oauth ? ' <button type="button" class="hal-btn sm" data-st-go>🔗 다시 연결</button>' : '') + '</p>' : '') +
         (names.length ? '<div class="hal-stc-devs">' + names.map(function (d) { return '<span>' + ICON[d.target] + ' ' + esc(d.name) + '</span>'; }).join('') + '</div>'
           : '<p class="hal-hint">' + (x.status === 'choose' ? '아직 고른 센서가 없어요 — <b>⚙️ 센서 고르기</b>를 눌러 받을 센서를 체크해 주세요.' : '센서 값을 기다리는 중이에요.') + '</p>') + '</article>';
@@ -174,6 +175,12 @@
   function stGo(btn) {
     if (btn) { btn.disabled = true; btn.textContent = 'SmartThings 로 가는 중…'; }
     api('POST', '/smartthings/oauth/start', {}).then(function (r) { location.href = r.data.url; }).catch(function (e) { fail(e); draw(); });
+  }
+  /* 1.4.2 🔄 다시 잇기 — 끊긴 SmartThings 기기를 지금 바로 (구독 다시 확인 · 지금 값 물어보기). 기다리는 동안 단추를 막음 */
+  function revive(b) {
+    qa('[data-revive]').forEach(function (x) { x.disabled = true; x.textContent = '다시 잇는 중…'; });
+    api('POST', '/smartthings/revive', {}).then(function (r) { toast(r.message); S.d = r.data.overview; draw(); })
+      .catch(function (e) { fail(e); api('GET', '/me').then(function (r) { S.d = r.data; draw(); }).catch(function () { draw(); }); });
   }
   function stBind() {
     var root = q('.hal-stc'); if (!root) return;
