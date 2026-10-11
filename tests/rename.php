@@ -64,7 +64,7 @@ namespace {
     check(str_contains($admin, '/api/plugins/custom-iot_link/assets/iot-link-app.js?v='.$pj['version']) && str_contains($admin, '$t:custom-iot_link.settings.title') && ! str_contains($admin, 'custom-ha_link'), '관리자 레이아웃 — 새 식별자 · 새 자산');
 
     echo "■ 그대로 둔 것 (데이터가 이어짐)\n";
-    check(Plugin::TABLES === ['hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links', 'hal_st_installs', 'hal_st_sensors', 'hal_st_codes', 'hal_st_states'] && Plugin::TABLES === \Plugins\Custom\IotLink\Support\Schema::TABLES, '표 이름 hal_* 그대로 (1.1.0 hal_st_states 더함) · 플러그인 = 표 정의');
+    check(Plugin::TABLES === ['hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links', 'hal_st_installs', 'hal_st_sensors', 'hal_st_codes', 'hal_st_states', 'hal_slots'] && Plugin::TABLES === \Plugins\Custom\IotLink\Support\Schema::TABLES, '표 이름 hal_* 그대로 (1.1.0 hal_st_states · 1.4.8 hal_slots 더함) · 플러그인 = 표 정의');
     $defs = (new Plugin())->getNotificationDefinitions();
     check(Notify::TYPE === 'custom_ha_link_alert' && $defs[0]['type'] === Notify::TYPE && $defs[0]['hook_prefix'] === 'custom-iot_link', '알림 종류 키 그대로 (관리자가 고친 문구가 이어짐) · hook_prefix 는 새 식별자');
     check(MenuListener::KEY === 'ha_link' && MenuListener::PATH === '/iot-link', '홈 디자인 메뉴 키 ha_link 그대로 · 메뉴 주소 /iot-link');

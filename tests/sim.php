@@ -1000,6 +1000,52 @@ namespace {
     $js7 = (string) file_get_contents(dirname(__DIR__).'/resources/assets/iot-link-app.js');
     t(str_contains($js7, 'function srcOf(x)') && str_contains($js7, 'data-src=') && str_contains($js7, 'IntersectionObserver') && str_contains($js7, 'var PAGE = 24') && str_contains($js7, "['max_devices_members',") && str_contains($js7, 'function coLimit(k)'), '화면 — Home Assistant · SmartThings 거르기 · 무한 스크롤 · 관리자 한도 칸 · 업체 쓴 수');
 
+    echo "■ 1.4.8 💳 센서 칸 — 1개 · 10개 묶음 · 코인 · 마일리지 · 회원 · 업체\n";
+    eval('class FakeHM148 { public static function applyFilters($hook, $d = null, ...$a) {
+        [$plug, $what] = explode(".", $hook, 2); $cur = $plug === "custom-coin" ? "coin" : "mileage";
+        if ($what === "api") return ["spend" => true, "available" => true];
+        if ($what === "balance") return $GLOBALS["wallet148"][$cur][$a[0]] ?? 0;
+        if ($what === "settings") return ["name" => "코인"];
+        if ($what === "format") return null;
+        if ($what === "spend") { [$uid, $amt, $reason, $opt] = $a; if (isset($GLOBALS["spent148"][$opt["ref"]])) return ["ok" => true, "duplicate" => true];
+            if (($GLOBALS["wallet148"][$cur][$uid] ?? 0) < $amt) return ["ok" => false, "status" => "insufficient"];
+            $GLOBALS["wallet148"][$cur][$uid] -= $amt; $GLOBALS["spent148"][$opt["ref"]] = $amt; return ["ok" => true, "amount" => $amt]; }
+        return $d; } }');
+    \Plugins\Custom\IotLink\Support\Points::$hookManager = 'FakeHM148';
+    \Plugins\Custom\IotLink\Support\Points::reset();
+    $GLOBALS['wallet148'] = ['coin' => [1 => 1000], 'mileage' => [1 => 50]];
+    $sl = new \Plugins\Custom\IotLink\Services\SlotService();
+    $cos1 = $svc->companies(1);
+    Settings::save(['max_devices' => 20, 'max_devices_members' => '', 'max_devices_companies' => '', 'max_devices_company' => 0, 'slot_enabled' => false, 'slot_coin_price' => 100, 'slot_coin_price10' => 800, 'slot_mileage_price' => 0, 'slot_mileage_price10' => 0, 'slot_mode' => 'once']);
+    t($sl->info(1, $cos1) === ['enabled' => false] && ! $sl->buy(1, 'coin', 1, 'me', $cos1)[0], '팔기를 끄면 화면 · 사기 없음');
+    Settings::save(['slot_enabled' => true]);
+    $in8 = $sl->info(1, $cos1);
+    t(count($in8['currencies']) === 1 && $in8['currencies'][0]['key'] === 'coin' && array_column($in8['currencies'][0]['prices'], 'n') === [1, 10] && $in8['currencies'][0]['balance'] === 1000 && count($in8['targets']) === 1, '값 0 인 마일리지는 빠짐 · 1개 · 10개 묶음 · 잔액 · 업체 한도가 없으면 「나」만');
+    [$b1, $m1] = $sl->buy(1, 'coin', 10, 'me', $cos1);
+    t($b1 && $GLOBALS['wallet148']['coin'][1] === 200 && \Plugins\Custom\IotLink\Support\Limits::member(1) === 30 && str_contains($m1, '30개'), '10개 묶음 800 → 회원 한도 20 + 10 = 30');
+    [$b2, , $d2] = $sl->buy(1, 'coin', 10, 'me', $cos1);
+    t(! $b2 && ($d2['reason'] ?? '') === 'insufficient' && DB::table('hal_slots')->count() === 1, '모자라면 거절 · 기록 안 남음');
+    t(! $sl->buy(1, 'coin', 5, 'me', $cos1)[0] && ! $sl->buy(1, 'mileage', 1, 'me', $cos1)[0], '1 · 10 밖 · 팔지 않는 수단은 거절');
+    Settings::save(['max_devices_company' => 3]);
+    t(! $sl->buy(1, 'coin', 1, 'c11', $cos1)[0] && count($sl->info(1, $cos1)['targets']) === 2, '남의 업체엔 못 삼 · 업체 한도가 있으면 「🏢 업체」도 고름');
+    [$b3] = $sl->buy(1, 'coin', 1, 'c10', $cos1);
+    t($b3 && \Plugins\Custom\IotLink\Support\Limits::company(10) === 4 && \Plugins\Custom\IotLink\Support\Limits::member(1) === 30 && $GLOBALS['wallet148']['coin'][1] === 100, '업체 칸 1개 → 업체 한도 3 + 1 (회원 한도는 그대로)');
+    Settings::save(['slot_mode' => 'monthly']);
+    [$b4] = $sl->buy(1, 'coin', 1, 'me', $cos1);
+    $mid = (int) DB::table('hal_slots')->where('mode', 'monthly')->value('id');
+    DB::table('hal_slots')->where('id', $mid)->update(['expires_at' => now()->subDay()]);
+    $GLOBALS['wallet148']['coin'][1] = 150;
+    $rn = $sl->renew();
+    $st1 = DB::table('hal_slots')->find($mid);
+    DB::table('hal_slots')->where('id', $mid)->update(['expires_at' => now()->subDay()]);
+    $sl->setAuto(1, $mid, false);
+    $sl->renew();
+    t($b4 && $rn === 1 && $GLOBALS['wallet148']['coin'][1] === 50 && $st1->status === 'active' && DB::table('hal_slots')->find($mid)->status === 'expired' && \Plugins\Custom\IotLink\Support\Limits::member(1) === 30, '달마다 — 기한이 지나면 연장 결제 · 자동 연장을 끄면 끝나고 한도에서 빠짐');
+    $ov8 = $svc->overview(1);
+    t($ov8['slots']['enabled'] === true && count($ov8['slots']['slots']) === 3 && $ov8['limits']['member'] === 30, '화면에 산 칸 목록 · 한도');
+    $js8 = (string) file_get_contents(dirname(__DIR__).'/resources/assets/iot-link-app.js');
+    t(str_contains($js8, 'function slotBox()') && str_contains($js8, "'/slots/buy'") && str_contains($js8, "['slot_coin_price10',"), '화면 — 💳 칸 늘리기 · 관리자 값 (1개 · 10개)');
+    Settings::save(['slot_enabled' => false, 'max_devices_company' => 0]);
     echo "\n통과 {$pass} · 실패 {$fail}\n";
     exit($fail ? 1 : 0);
 }

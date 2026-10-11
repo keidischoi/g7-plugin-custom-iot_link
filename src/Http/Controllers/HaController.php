@@ -6,6 +6,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Plugins\Custom\IotLink\Services\HaService;
+use Plugins\Custom\IotLink\Services\SlotService;
 use Plugins\Custom\IotLink\Support\Settings;
 
 /** 회원 화면 API (로그인, 내 기기만) + 받는 주소 (로그인 없음 — 주소의 비밀 키로) */
@@ -50,6 +51,20 @@ class HaController extends Controller
         $ids = $r->input('ids');
 
         return $this->off() ?? $this->result($this->svc->deleteMany($this->uid($r), is_array($ids) ? array_values($ids) : []), $r);
+    }
+
+    /** 1.4.8 💳 센서 칸 사기 — {currency: coin|mileage, n: 1|10, for: me|c{업체}} */
+    public function slotBuy(Request $r): JsonResponse
+    {
+        $uid = $this->uid($r);
+
+        return $this->off() ?? $this->result((new SlotService())->buy($uid, (string) $r->input('currency', ''), (int) $r->input('n', 1), (string) $r->input('for', 'me'), $this->svc->companies($uid)), $r);
+    }
+
+    /** 1.4.8 💳 자동 연장 켜고 끄기 */
+    public function slotAuto(Request $r, int $id): JsonResponse
+    {
+        return $this->off() ?? $this->result((new SlotService())->setAuto($this->uid($r), $id, $r->boolean('auto_renew')), $r);
     }
 
     /** 1.4.6 📁 여러 기기 분류 옮기기 */

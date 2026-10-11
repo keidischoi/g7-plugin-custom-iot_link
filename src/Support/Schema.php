@@ -42,7 +42,9 @@ final class Schema
 
     public const ST_STATES = 'hal_st_states';
 
-    public const TABLES = [self::DEVICES, self::READINGS, self::RUNS, self::SETTINGS, self::LINKS, self::ST_INSTALLS, self::ST_SENSORS, self::ST_CODES, self::ST_STATES];
+    public const SLOTS = 'hal_slots';   // 1.4.8 💳 산 센서 칸
+
+    public const TABLES = [self::DEVICES, self::READINGS, self::RUNS, self::SETTINGS, self::LINKS, self::ST_INSTALLS, self::ST_SENSORS, self::ST_CODES, self::ST_STATES, self::SLOTS];
 
     private static bool $ok = false;
 
@@ -154,6 +156,21 @@ final class Schema
                 $t->string('status', 16)->default('syncing')->comment('syncing · active · unlinked · error');
                 $t->string('last_error', 160)->nullable();
                 $t->dateTime('last_event_at')->nullable();
+                $t->timestamps();
+            });
+        }
+        if (! S::hasTable(self::SLOTS)) {   // 1.4.8 💳
+            S::create(self::SLOTS, function (Blueprint $t) {
+                $t->id();
+                $t->unsignedBigInteger('user_id')->index()->comment('산 회원');
+                $t->unsignedBigInteger('company_id')->nullable()->index()->comment('업체 칸이면 그 업체 (없으면 회원 칸)');
+                $t->unsignedInteger('size')->default(1)->comment('센서 몇 개 (1 · 10)');
+                $t->string('currency', 10);
+                $t->unsignedBigInteger('amount')->default(0);
+                $t->string('mode', 10)->default('once')->comment('once · monthly');
+                $t->string('status', 10)->default('pending')->comment('pending · active · expired');
+                $t->dateTime('expires_at')->nullable();
+                $t->boolean('auto_renew')->default(true);
                 $t->timestamps();
             });
         }

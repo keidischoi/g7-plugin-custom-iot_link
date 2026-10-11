@@ -24,13 +24,31 @@ final class Limits
             }
         }
 
-        return $n ?? (int) Settings::get('max_devices');
+        return min(10000, ($n ?? (int) Settings::get('max_devices')) + self::bought($uid, null));   // 1.4.8 + 산 칸
+    }
+
+    /** 1.4.8 💳 산 센서 칸 (쓰는 중 · 달마다는 기한 안) — $cid 없으면 회원 칸, 있으면 그 업체 칸 (누가 샀든) */
+    public static function bought(int $uid, ?int $cid): int
+    {
+        if (! Settings::get('slot_enabled')) {
+            return 0;
+        }
+        try {
+            $q = DB::table(Schema::SLOTS)->where('status', 'active')->where(fn ($w) => $w->whereNull('expires_at')->orWhere('expires_at', '>', now()));
+            $cid ? $q->where('company_id', $cid) : $q->where('user_id', $uid)->whereNull('company_id');
+
+            return (int) $q->sum('size');
+        } catch (\Throwable) {
+            return 0;
+        }
     }
 
     /** 0 = 막지 않음 */
     public static function company(int $cid): int
     {
-        return Settings::limitMap('max_devices_companies')[(string) $cid] ?? (int) Settings::get('max_devices_company');
+        $base = Settings::limitMap('max_devices_companies')[(string) $cid] ?? (int) Settings::get('max_devices_company');
+
+        return $base > 0 ? min(100000, $base + self::bought(0, $cid)) : 0;   // 1.4.8 + 산 칸 (0 = 막지 않음은 그대로)
     }
 
     /** 업체에 든 기기 수 (회원 모두) — $except 는 빼고 셈 (고치는 기기) */
