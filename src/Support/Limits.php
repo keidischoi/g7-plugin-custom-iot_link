@@ -12,8 +12,42 @@ use Illuminate\Support\Facades\DB;
  */
 final class Limits
 {
+    /** 1.4.9 관리자가 한도에서 빠질 때 쓰는 값 (사실상 무제한) */
+    public const FREE = 100000;
+
+    /** @var array<int, bool> */
+    private static array $admin = [];
+
+    /** 검사용 — 관리자로 볼 회원 번호 (비우면 진짜로 확인) @var list<int>|null */
+    public static ?array $adminOverride = null;
+
+    /** 1.4.9 관리자인가 (최고 관리자 · 관리자 역할) — 설정 「관리자 예외」가 켜져 있을 때만 */
+    public static function exempt(int $uid): bool
+    {
+        if ($uid <= 0 || ! Settings::get('limit_admin_free')) {
+            return false;
+        }
+        if (self::$adminOverride !== null) {
+            return in_array($uid, self::$adminOverride, true);
+        }
+        if (isset(self::$admin[$uid])) {
+            return self::$admin[$uid];
+        }
+        try {
+            $m = 'App\\Models\\User';
+            $u = class_exists($m) ? $m::find($uid) : null;
+
+            return self::$admin[$uid] = $u !== null && ((bool) ($u->is_super ?? false) || (method_exists($u, 'isAdmin') && $u->isAdmin()));
+        } catch (\Throwable) {
+            return self::$admin[$uid] = false;
+        }
+    }
+
     public static function member(int $uid): int
     {
+        if (self::exempt($uid)) {
+            return self::FREE;   // 1.4.9 관리자 예외
+        }
         $map = Settings::limitMap('max_devices_members');
         $n = $map[(string) $uid] ?? null;
         if ($n === null && $map !== []) {
@@ -64,8 +98,11 @@ final class Limits
     }
 
     /** 업체에 $add 개를 더 둘 수 있나 — 안 되면 알림 글 · 되면 null */
-    public static function companyFull(int $cid, int $add = 1, array $except = [], string $name = ''): ?string
+    public static function companyFull(int $cid, int $add = 1, array $except = [], string $name = '', int $uid = 0): ?string
     {
+        if (self::exempt($uid)) {
+            return null;   // 1.4.9 관리자는 업체 한도도 넘길 수 있음
+        }
         $lim = self::company($cid);
         if ($lim <= 0) {
             return null;

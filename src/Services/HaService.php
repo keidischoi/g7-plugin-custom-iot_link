@@ -77,8 +77,8 @@ class HaService
             'printers' => $printers, 'companies' => $companies, 'equipment' => array_values($equip), 'locations' => $this->locations($uid),
             'targets' => Rules::TARGETS,
             'link' => ['code' => $this->linkCode($uid), 'site' => rtrim((string) config('app.url'), '/'), 'repo' => (string) Settings::get('hacs_repo')],
-            'slots' => (new SlotService())->info($uid, $companies),   // 1.4.8 💳
-            'limits' => ['member' => Limits::member($uid), 'companies' => array_map(fn ($c) => ['id' => $c['id'], 'max' => Limits::company($c['id']), 'used' => Limits::companyUsed($c['id'])], $companies)],   // 1.4.7
+            'slots' => Limits::exempt($uid) ? ['enabled' => false] : (new SlotService())->info($uid, $companies),   // 1.4.8 💳 · 1.4.9 관리자는 살 필요 없음
+            'limits' => ['admin' => Limits::exempt($uid), 'member' => Limits::member($uid), 'companies' => array_map(fn ($c) => ['id' => $c['id'], 'max' => Limits::company($c['id']), 'used' => Limits::companyUsed($c['id'])], $companies)],   // 1.4.7
             'config' => ['max_devices' => Limits::member($uid), 'interval_min' => (int) Settings::get('interval_min'), 'refresh_sec' => (int) Settings::get('refresh_sec'), 'send_mode' => (string) Settings::get('send_mode'), 'change_hum' => (int) Settings::get('change_hum'), 'idle_min' => (int) Settings::get('idle_min'), 'stale_hours' => (int) Settings::get('stale_hours'), 'base' => rtrim((string) config('app.url'), '/').'/api/plugins/custom-iot_link/in/',
                 'printer_link' => $printers !== [] || ((bool) Settings::get('printer_link') && $this->hasTable('mpr_printers')), 'inventory' => Links::inventoryOn()],
         ];
@@ -154,7 +154,7 @@ class HaService
         if (str_starts_with($grp, 'c')) {   // 1.4.7 업체 한도
             $own = DB::table(Schema::DEVICES)->where('user_id', $uid)->whereIn('id', $ids)->pluck('id')->map(fn ($x) => (int) $x)->all();
             $cos = $this->companies($uid);
-            if ($own !== [] && ($full = Limits::companyFull((int) substr($grp, 1), count($own), $own, (string) (collect($cos)->firstWhere('id', (int) substr($grp, 1))['name'] ?? '')))) {
+            if ($own !== [] && ($full = Limits::companyFull((int) substr($grp, 1), count($own), $own, (string) (collect($cos)->firstWhere('id', (int) substr($grp, 1))['name'] ?? ''), $uid))) {
                 return [false, $full];
             }
         }
@@ -217,7 +217,7 @@ class HaService
         $cids = array_column($cos, 'id');
         $ng = self::group((string) (array_key_exists('grp', $row) ? ($row['grp'] ?? '') : ($old->grp ?? '')), $target, $row['company_id'], $cids);
         $og = $old ? self::group((string) ($old->grp ?? ''), (string) $old->target, $old->company_id ? (int) $old->company_id : null, $cids) : '';
-        if ($ng !== $og && str_starts_with($ng, 'c') && ($full = Limits::companyFull((int) substr($ng, 1), 1, $old ? [(int) $old->id] : [], (string) (collect($cos)->firstWhere('id', (int) substr($ng, 1))['name'] ?? '')))) {
+        if ($ng !== $og && str_starts_with($ng, 'c') && ($full = Limits::companyFull((int) substr($ng, 1), 1, $old ? [(int) $old->id] : [], (string) (collect($cos)->firstWhere('id', (int) substr($ng, 1))['name'] ?? ''), $uid))) {
             return [false, $full];
         }
         $name = Rules::text($in['name'] ?? '', 60) ?: ($old->name ?? $auto);
