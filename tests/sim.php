@@ -329,6 +329,7 @@ namespace {
         if (str_ends_with($url, '/oauth/token')) return $stFail['token'] ? [401, '{"error":"invalid_grant"}'] : [200, $j(['access_token' => 'AT-NEW-'.count($calls), 'refresh_token' => 'RT-NEW-'.count($calls), 'expires_in' => 86399])];
         if (preg_match('#/locations/#', $url)) return [200, $j(['name' => '우리집', 'temperatureScale' => 'F'])];
         if (str_ends_with($url, '/subscriptions')) return $m === 'POST' && $stFail['subs'] ? [403, '{}'] : [200, '{}'];
+        if (preg_match('#/devices/([^/]+)/health$#', $url, $x)) return [200, $j(['deviceId' => $x[1], 'state' => in_array($x[1], $fake['offline'] ?? [], true) ? 'OFFLINE' : 'ONLINE'])];   // 1.4.1
         if (preg_match('#/devices/([^/]+)/status$#', $url, $x)) {
             return [200, $j(['components' => ['main' => ['temperatureMeasurement' => ['temperature' => ['value' => 77, 'unit' => 'F']], 'relativeHumidityMeasurement' => ['humidity' => ['value' => 33, 'unit' => '%']],
                 'contactSensor' => ['contact' => ['value' => 'closed']], 'powerMeter' => ['power' => ['value' => 2.5, 'unit' => 'W']]]]])];
@@ -356,6 +357,7 @@ namespace {
     };
     HaService::$nowOverride = '2026-10-10 11:20:00';
     t($send(['lifecycle' => 'PING', 'pingData' => ['challenge' => 'abc']])[0] === 404, 'SmartThings 를 안 켰으면 404');
+    Settings::save(['st_poll_min' => 0]);   // 1.4.1 시간을 건너뛰는 검사라 — 「값이 오래 안 오면 물어보기」는 그 검사에서만 켬
     Settings::save(['st_enabled' => true, 'st_client_id' => 'cid-1234-abcd', 'st_client_secret' => 'enc:'.Illuminate\Support\Facades\Crypt::encryptString('sec-ret')]);
     t(SmartThingsService::clientSecret() === 'sec-ret' && Settings::public()['st_client_secret'] === '' && Settings::public()['st_client_secret_set'] === true && ! str_contains(json_encode(Settings::public()), 'sec-ret'), 'Client Secret 은 암호화해 두고 밖으로 안 내보냄');
 
@@ -583,6 +585,40 @@ namespace {
     t($me['picked'] === 4 && $me['status'] === 'active' && count($me['site_devices']) === 3 && $me['sensors'] === [] && array_column($onBox, 'what') === ['배터리', '습도', '온도', '열림'] && array_column($onBox, 'value') === ['90%', '61%', '20°C', '열림']
         && count($card((int) $box->id)['sensors']) >= 4 && array_column($card((int) $plug->id)['sensors'], 'value') === ['3.2 W', '켜짐'] && $card((int) $plug->id)['source'] === 'smartthings' && ! str_contains(json_encode($o), 'OAUTH-CODE'),
         '화면: 기기 카드마다 그 센서 값 (문 센서 + 온습도계가 한 카드에 · 단위 없는 값에도 W) · 토큰은 안 나감');
+
+    echo "  · 1.4.1 값이 오래 안 오면 지금 값을 물어봄 (끊김 풀기 · 다시 잇기)\n";
+    $keep = DB::table('hal_devices')->whereIn('id', [(int) $box->id, (int) $ams->id])->pluck('last_seen_at', 'id');
+    HaService::$nowOverride = '2026-10-11 13:30:00';   // 마지막 값 09:10 — 4시간 넘게 소식 없음 (값이 그대로라 SmartThings 가 안 보냄)
+    DB::table('hal_st_installs')->where('id', $oi->id)->update(['status' => 'error', 'last_error' => '구독 1개를 만들지 못했어요']);
+    $fake['offline'] = ['dev-th-0002'];   // AMS 쪽 온습도계는 정말 꺼짐
+    $fake['subs']['ia-oauth-0001'] = array_slice($fake['subs']['ia-oauth-0001'] ?? [], 0, 1, true);   // 구독이 빠짐
+    Settings::save(['st_poll_min' => 60]);
+    $calls = [];
+    $st->pollDue([1]);
+    $bx = DB::table('hal_devices')->where('id', $box->id)->first();
+    $am = DB::table('hal_devices')->where('id', $ams->id)->first();
+    $in = DB::table('hal_st_installs')->where('id', $oi->id)->first();
+    $healthAsked = count(array_filter($calls, fn ($c) => str_contains($c[1], '/health')));
+    $reSub = count(array_filter($calls, fn ($c) => $c[0] === 'POST' && str_ends_with($c[1], '/subscriptions')));
+    t($bx->last_seen_at === '2026-10-11 13:30:00' && $am->last_seen_at === $keep[(int) $ams->id] && $in->polled_at === '2026-10-11 13:30:00' && $in->status === 'active' && $in->last_error === null && $healthAsked >= 2 && $reSub >= 1,
+        '오래 소식 없는 설치 → 켜진 기기는 지금 값으로 「받음」(끊김 풀림) · OFFLINE 기기는 끊김 그대로 · 빠진 구독은 다시 만들고 오류 풀림');
+    $calls = [];
+    $st->pollDue([1]);
+    $st->pollDue([2, 0]);
+    Settings::save(['st_poll_min' => 0]);
+    HaService::$nowOverride = '2026-10-11 20:00:00';
+    $st->pollDue([1]);
+    t($calls === [] && Settings::get('st_poll_min') === 0, '같은 설치는 st_poll_min 안에 다시 안 물음 · 다른 회원 것은 안 건드림 · 0 이면 끔');
+    Settings::save(['st_poll_min' => 5]);
+    t(Settings::get('st_poll_min') === 15, '설정 st_poll_min (15~1440)');
+    Settings::save(['st_poll_min' => 0]);
+    unset($fake['offline']);
+    DB::table('hal_readings')->where('at', '>=', '2026-10-11 10:00:00')->where('at', '<', '2026-10-11 14:00:00')->delete();   // 이 검사가 넣은 시간별 기록
+    foreach ($keep as $kid => $kv) {
+        DB::table('hal_devices')->where('id', $kid)->update(['last_seen_at' => $kv]);
+    }
+    DB::table('hal_st_installs')->where('id', $oi->id)->update(['last_event_at' => '2026-10-11 09:10:00', 'polled_at' => null]);
+    HaService::$nowOverride = '2026-10-11 09:10:00';
 
     // 컨트롤러 — 로그인한 회원의 것만 · 답에 화면 값(overview)을 같이
     $STC = new Plugins\Custom\IotLink\Http\Controllers\SmartThingsController($st, $svc);
