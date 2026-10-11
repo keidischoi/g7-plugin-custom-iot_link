@@ -313,3 +313,12 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
   .hal-v-banner .hal-card > .hal-snap, .hal-v-banner .hal-card > .hal-spark, .hal-v-banner .hal-card > .hal-sens { grid-column:3; }
   .hal-v-banner .hal-card footer { margin-top:0; }
 }
+/* 1.4.7 업체 한도 */
+.hal-lim { font-size:11px; font-weight:700; color:var(--mute); padding-left:6px; border-left:1px solid var(--line); } .hal-lim.full { color:#dc2626; }
+/* 1.4.7 출처 줄 (Home Assistant · SmartThings) — 분류 줄 위에 한 줄 다 씀 */
+.hal-src { flex-basis:100%; } .hal-src button i .hal-stl { width:15px; height:15px; vertical-align:-3px; }
+/* 1.4.7 무한 스크롤 표시 */
+.hal-more { display:flex; justify-content:center; gap:6px; padding:18px 0 6px; }
+.hal-more span { width:8px; height:8px; border-radius:50%; background:var(--a); animation:halDot 1s ease-in-out infinite; } .hal-more span:nth-child(2) { animation-delay:.15s; } .hal-more span:nth-child(3) { animation-delay:.3s; }
+@keyframes halDot { 0%,80%,100% { opacity:.25; transform:scale(.8); } 40% { opacity:1; transform:scale(1); } }
+.hal-more-btn { display:block; margin:14px auto 0; }

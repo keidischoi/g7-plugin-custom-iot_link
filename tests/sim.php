@@ -979,6 +979,27 @@ namespace {
     t($okM && str_contains($msgM, '옮겼어요') && $allNone && $okM2 && $back === 'mine' && ! $svc->groupMany(2, $ids6, 'none')[0] && ! $svc->groupMany(1, $ids6, 'c11')[0], '여러 기기 한 번에 옮기기 · 자동으로 되돌리기 · 남의 기기 · 남의 업체는 안 됨');
     $js6 = (string) file_get_contents(dirname(__DIR__).'/resources/assets/iot-link-app.js');
     t(str_contains($js6, 'function grouped()') && str_contains($js6, "'/devices/group'") && str_contains($js6, '<select name="grp">') && str_contains($js6, "['all', '📡', '전체'") && str_contains($js6, "['banner', '▬', '배너']"), '화면 — 분류 묶음 · 고치기의 분류 · 여러 개 옮기기 · 전체 · 카드 · 한 줄 · 배너');
+    echo "■ 1.4.7 기기 수 한도 — 회원마다 · 업체마다\n";
+    $L = \Plugins\Custom\IotLink\Support\Limits::class;
+    $s7 = Settings::save(['max_devices_members' => "1:30, Foo@Ex.com:9, bad, x:5\n2=4", 'max_devices_companies' => '10:2, abc:3, 11:0', 'max_devices_company' => 5]);
+    t($s7['max_devices_members'] === '1:30, foo@ex.com:9, 2:4' && $s7['max_devices_companies'] === '10:2, 11:0' && $L::member(1) === 30 && $L::member(2) === 4 && $L::member(3) === 20 && $L::company(10) === 2 && $L::company(11) === 0 && $L::company(99) === 5, '목록 다듬기 (번호 · 이메일 · = 도) · 회원 · 업체마다 · 없으면 기본');
+    $used10 = $L::companyUsed(10);
+    Settings::save(['max_devices_companies' => '10:'.$used10]);
+    [$okF, $msgF] = $svc->save(1, null, ['target' => 'location', 'location' => '창고 둘째', 'ent_hum' => 'sensor.z2', 'grp' => 'c10']);
+    $loose = collect($svc->overview(1)['devices'])->firstWhere('group', 'mine');
+    [$okMv, $msgMv] = $svc->groupMany(1, [$loose['id']], 'c10');
+    Settings::save(['max_devices_companies' => '10:'.($used10 + 1)]);
+    [$okMv2] = $svc->groupMany(1, [$loose['id']], 'c10');
+    $ov7 = $svc->overview(1);
+    $c10 = collect($ov7['limits']['companies'])->firstWhere('id', 10);
+    t(! $okF && str_contains($msgF, '삼디 공방') && ! $okMv && $okMv2 && $c10['max'] === $used10 + 1 && $c10['used'] === $used10 + 1 && $ov7['limits']['member'] === 30 && $ov7['config']['max_devices'] === 30, '업체 한도가 차면 새 기기 · 분류 옮기기를 막음 · 화면에 업체 쓴 수 / 한도');
+    Settings::save(['max_devices_members' => '1:'.DB::table('hal_devices')->where('user_id', 1)->count()]);
+    [$okMem, $msgMem] = $svc->save(1, null, ['target' => 'location', 'location' => '하나 더', 'ent_hum' => 'sensor.z3']);
+    t(! $okMem && str_contains($msgMem, '개까지'), '회원마다 정한 한도로 막음');
+    Settings::save(['max_devices_members' => '', 'max_devices_companies' => '', 'max_devices_company' => 0]);
+    $js7 = (string) file_get_contents(dirname(__DIR__).'/resources/assets/iot-link-app.js');
+    t(str_contains($js7, 'function srcOf(x)') && str_contains($js7, 'data-src=') && str_contains($js7, 'IntersectionObserver') && str_contains($js7, 'var PAGE = 24') && str_contains($js7, "['max_devices_members',") && str_contains($js7, 'function coLimit(k)'), '화면 — Home Assistant · SmartThings 거르기 · 무한 스크롤 · 관리자 한도 칸 · 업체 쓴 수');
+
     echo "\n통과 {$pass} · 실패 {$fail}\n";
     exit($fail ? 1 : 0);
 }

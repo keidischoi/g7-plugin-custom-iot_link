@@ -5,6 +5,7 @@ namespace Plugins\Custom\IotLink\Services;
 use Illuminate\Support\Facades\DB;
 use Plugins\Custom\IotLink\Support\Links;
 use Plugins\Custom\IotLink\Support\Notify;
+use Plugins\Custom\IotLink\Support\Limits;
 use Plugins\Custom\IotLink\Support\Rules;
 use Plugins\Custom\IotLink\Support\Schema;
 use Plugins\Custom\IotLink\Support\Settings;
@@ -76,7 +77,8 @@ class HaService
             'printers' => $printers, 'companies' => $companies, 'equipment' => array_values($equip), 'locations' => $this->locations($uid),
             'targets' => Rules::TARGETS,
             'link' => ['code' => $this->linkCode($uid), 'site' => rtrim((string) config('app.url'), '/'), 'repo' => (string) Settings::get('hacs_repo')],
-            'config' => ['max_devices' => (int) Settings::get('max_devices'), 'interval_min' => (int) Settings::get('interval_min'), 'refresh_sec' => (int) Settings::get('refresh_sec'), 'send_mode' => (string) Settings::get('send_mode'), 'change_hum' => (int) Settings::get('change_hum'), 'idle_min' => (int) Settings::get('idle_min'), 'stale_hours' => (int) Settings::get('stale_hours'), 'base' => rtrim((string) config('app.url'), '/').'/api/plugins/custom-iot_link/in/',
+            'limits' => ['member' => Limits::member($uid), 'companies' => array_map(fn ($c) => ['id' => $c['id'], 'max' => Limits::company($c['id']), 'used' => Limits::companyUsed($c['id'])], $companies)],   // 1.4.7
+            'config' => ['max_devices' => Limits::member($uid), 'interval_min' => (int) Settings::get('interval_min'), 'refresh_sec' => (int) Settings::get('refresh_sec'), 'send_mode' => (string) Settings::get('send_mode'), 'change_hum' => (int) Settings::get('change_hum'), 'idle_min' => (int) Settings::get('idle_min'), 'stale_hours' => (int) Settings::get('stale_hours'), 'base' => rtrim((string) config('app.url'), '/').'/api/plugins/custom-iot_link/in/',
                 'printer_link' => $printers !== [] || ((bool) Settings::get('printer_link') && $this->hasTable('mpr_printers')), 'inventory' => Links::inventoryOn()],
         ];
     }
@@ -148,6 +150,13 @@ class HaService
         if (! $this->grpOk($uid, $grp)) {
             return [false, '분류를 다시 골라 주세요.'];
         }
+        if (str_starts_with($grp, 'c')) {   // 1.4.7 업체 한도
+            $own = DB::table(Schema::DEVICES)->where('user_id', $uid)->whereIn('id', $ids)->pluck('id')->map(fn ($x) => (int) $x)->all();
+            $cos = $this->companies($uid);
+            if ($own !== [] && ($full = Limits::companyFull((int) substr($grp, 1), count($own), $own, (string) (collect($cos)->firstWhere('id', (int) substr($grp, 1))['name'] ?? '')))) {
+                return [false, $full];
+            }
+        }
         $n = DB::table(Schema::DEVICES)->where('user_id', $uid)->whereIn('id', $ids)->update(['grp' => $grp === '' ? null : $grp, 'updated_at' => now()]);
 
         return $n ? [true, '기기 '.$n.'개를 옮겼어요.'] : [false, '옮길 기기를 찾을 수 없어요.'];
@@ -166,8 +175,8 @@ class HaService
         if ($id && ! $old) {
             return [false, '기기를 찾을 수 없어요.'];
         }
-        if (! $old && DB::table(Schema::DEVICES)->where('user_id', $uid)->count() >= (int) Settings::get('max_devices')) {
-            return [false, '기기는 '.Settings::get('max_devices').'개까지 연결할 수 있어요.'];
+        if (! $old && DB::table(Schema::DEVICES)->where('user_id', $uid)->count() >= Limits::member($uid)) {   // 1.4.7 회원마다 한도
+            return [false, '기기는 '.Limits::member($uid).'개까지 연결할 수 있어요.'];
         }
         $target = isset(Rules::TARGETS[$in['target'] ?? '']) ? (string) $in['target'] : ($old->target ?? 'location');
         $row = ['target' => $target, 'location' => null, 'printer_id' => null, 'company_id' => null, 'equipment_id' => null];
@@ -201,6 +210,14 @@ class HaService
                 return [false, '분류를 다시 골라 주세요.'];
             }
             $row['grp'] = $g === '' ? null : $g;
+        }
+        // 1.4.7 업체 한도 — 새로 그 업체에 들어가면 (새 기기 · 분류 · 붙인 곳을 바꿔서)
+        $cos = $this->companies($uid);
+        $cids = array_column($cos, 'id');
+        $ng = self::group((string) (array_key_exists('grp', $row) ? ($row['grp'] ?? '') : ($old->grp ?? '')), $target, $row['company_id'], $cids);
+        $og = $old ? self::group((string) ($old->grp ?? ''), (string) $old->target, $old->company_id ? (int) $old->company_id : null, $cids) : '';
+        if ($ng !== $og && str_starts_with($ng, 'c') && ($full = Limits::companyFull((int) substr($ng, 1), 1, $old ? [(int) $old->id] : [], (string) (collect($cos)->firstWhere('id', (int) substr($ng, 1))['name'] ?? '')))) {
+            return [false, $full];
         }
         $name = Rules::text($in['name'] ?? '', 60) ?: ($old->name ?? $auto);
         if ($name === '') {
