@@ -964,6 +964,21 @@ namespace {
     t(! $H::active() && $H::locationSensors([3]) === [] && $H::runHours('equipment_id', 100, '2026-10-19 05:00:00') === null, 'HA 연결을 끄면 빈 값');
     Settings::save(['enabled' => true]);
 
+    echo "■ 1.4.6 📁 분류 (장비 · 개인 재고 · 업체마다 · 미분류)\n";
+    $G = HaService::class;
+    t($G::group('', 'printer', null, [10]) === 'equip' && $G::group('', 'location', null, [10]) === 'mine' && $G::group('', 'equipment', 10, [10]) === 'c10' && $G::group('', 'equipment', 11, [10]) === 'equip' && $G::group('', 'other', null, [10]) === 'none'
+        && $G::group('mine', 'printer', null, []) === 'mine' && $G::group('c10', 'other', null, [10]) === 'c10' && $G::group('c11', 'location', null, [10]) === 'mine' && $G::group('zzz', 'other', null, []) === 'none', '붙인 곳 따라 자동 · 고른 것이 맞으면 그것 · 남의 업체 · 모르는 값은 자동');
+    [$okG, , $xg] = $svc->save(1, null, ['target' => 'location', 'location' => '창고 선반', 'ent_hum' => 'sensor.shelf_h', 'grp' => 'c10']);
+    $og = collect($svc->overview(1)['devices'])->firstWhere('id', $xg['id'] ?? 0);
+    t($okG && $og['grp'] === 'c10' && $og['group'] === 'c10' && $og['group_auto'] === 'mine' && ! $svc->save(1, null, ['target' => 'location', 'location' => '창고', 'ent_hum' => 'sensor.y', 'grp' => 'c11'])[0], '기기에 분류 고르기 (내 업체만) · 자동이면 어디였을지도');
+    $ids6 = collect($svc->overview(1)['devices'])->pluck('id')->all();
+    [$okM, $msgM] = $svc->groupMany(1, $ids6, 'none');
+    $allNone = collect($svc->overview(1)['devices'])->every(fn ($d) => $d['group'] === 'none');
+    [$okM2] = $svc->groupMany(1, $ids6, '');
+    $back = collect($svc->overview(1)['devices'])->firstWhere('id', $xg['id'])['group'];
+    t($okM && str_contains($msgM, '옮겼어요') && $allNone && $okM2 && $back === 'mine' && ! $svc->groupMany(2, $ids6, 'none')[0] && ! $svc->groupMany(1, $ids6, 'c11')[0], '여러 기기 한 번에 옮기기 · 자동으로 되돌리기 · 남의 기기 · 남의 업체는 안 됨');
+    $js6 = (string) file_get_contents(dirname(__DIR__).'/resources/assets/iot-link-app.js');
+    t(str_contains($js6, 'function grouped()') && str_contains($js6, "'/devices/group'") && str_contains($js6, '<select name="grp">') && str_contains($js6, "['all', '📡', '전체'") && str_contains($js6, "['banner', '▬', '배너']"), '화면 — 분류 묶음 · 고치기의 분류 · 여러 개 옮기기 · 전체 · 카드 · 한 줄 · 배너');
     echo "\n통과 {$pass} · 실패 {$fail}\n";
     exit($fail ? 1 : 0);
 }
