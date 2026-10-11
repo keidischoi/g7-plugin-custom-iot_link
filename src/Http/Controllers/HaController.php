@@ -52,6 +52,14 @@ class HaController extends Controller
         return $this->off() ?? $this->result($this->svc->deleteMany($this->uid($r), is_array($ids) ? array_values($ids) : []), $r);
     }
 
+    /** 1.4.6 📁 여러 기기 분류 옮기기 */
+    public function groupMany(Request $r): JsonResponse
+    {
+        $ids = $r->input('ids');
+
+        return $this->off() ?? $this->result($this->svc->groupMany($this->uid($r), is_array($ids) ? array_values($ids) : [], (string) $r->input('grp', '')), $r);
+    }
+
     public function rotate(Request $r, int $id): JsonResponse
     {
         return $this->off() ?? $this->result($this->svc->rotate($this->uid($r), $id), $r);

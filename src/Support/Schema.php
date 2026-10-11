@@ -157,6 +157,11 @@ final class Schema
                 $t->timestamps();
             });
         }
+        if (S::hasTable(self::DEVICES) && ! S::hasColumn(self::DEVICES, 'grp')) {   // 1.4.6 📁 분류
+            S::table(self::DEVICES, function (Blueprint $t) {
+                $t->string('grp', 20)->nullable()->comment('1.4.6 분류 — 비우면 붙인 곳 따라 · equip(장비) · mine(개인 재고) · c{업체 번호} · none(미분류)');
+            });
+        }
         if (S::hasTable(self::ST_INSTALLS) && ! S::hasColumn(self::ST_INSTALLS, 'polled_at')) {
             S::table(self::ST_INSTALLS, function (Blueprint $t) {
                 $t->dateTime('polled_at')->nullable()->comment('1.4.1 값이 오래 안 와서 지금 값을 직접 물어본 때');

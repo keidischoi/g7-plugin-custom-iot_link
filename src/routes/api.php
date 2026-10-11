@@ -41,6 +41,7 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () {
     Route::post('devices', [HaController::class, 'save'])->name('devices.store');
     Route::put('devices/{id}', [HaController::class, 'save'])->whereNumber('id')->name('devices.update');
     Route::post('devices/{id}/rotate', [HaController::class, 'rotate'])->whereNumber('id')->name('devices.rotate');
+    Route::post('devices/group', [HaController::class, 'groupMany'])->middleware('throttle:30,1')->name('devices.group_many');   // 1.4.6 📁 분류 옮기기
     Route::post('devices/delete', [HaController::class, 'deleteMany'])->middleware('throttle:20,1')->name('devices.destroy_many');   // 1.4.5 여러 기기 한 번에
     Route::delete('devices/{id}', [HaController::class, 'delete'])->whereNumber('id')->name('devices.destroy');
     Route::get('devices/{id}/snap', [HaController::class, 'snapShow'])->whereNumber('id')->name('devices.snap');

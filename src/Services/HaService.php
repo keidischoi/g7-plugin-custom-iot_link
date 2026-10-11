@@ -71,7 +71,7 @@ class HaService
 
         return [
             'now' => self::now(),
-            'devices' => $rows->map(fn ($d) => $this->device($d, $hist[(int) $d->id] ?? [], $pn, $equip) + ['sensors' => $byDev[(int) $d->id] ?? []])->all(),
+            'devices' => $rows->map(fn ($d) => $this->device($d, $hist[(int) $d->id] ?? [], $pn, $equip) + ['sensors' => $byDev[(int) $d->id] ?? [], 'group' => self::group((string) ($d->grp ?? ''), (string) $d->target, $d->company_id ? (int) $d->company_id : null, array_column($companies, 'id')), 'group_auto' => self::group('', (string) $d->target, $d->company_id ? (int) $d->company_id : null, array_column($companies, 'id'))])->all(),
             'smartthings' => $st,
             'printers' => $printers, 'companies' => $companies, 'equipment' => array_values($equip), 'locations' => $this->locations($uid),
             'targets' => Rules::TARGETS,
@@ -100,13 +100,57 @@ class HaService
             default => '',
         };
 
-        return ['id' => (int) $d->id, 'token' => (string) $d->token, 'name' => (string) $d->name, 'target' => (string) $d->target, 'where' => $where, 'source' => (string) ($d->source ?? 'ha'), 'location' => (string) ($d->location ?? ''),
+        return ['id' => (int) $d->id, 'token' => (string) $d->token, 'name' => (string) $d->name, 'target' => (string) $d->target, 'grp' => (string) ($d->grp ?? ''), 'where' => $where, 'source' => (string) ($d->source ?? 'ha'), 'location' => (string) ($d->location ?? ''),
             'printer_id' => $d->printer_id ? (int) $d->printer_id : null, 'company_id' => $d->company_id ? (int) $d->company_id : null, 'equipment_id' => $d->equipment_id ? (int) $d->equipment_id : null,
             'entities' => array_merge(array_fill_keys(Rules::ENTITIES, ''), array_intersect_key((array) json_decode((string) ($d->entities ?? ''), true), array_flip(Rules::ENTITIES))),
             'temp' => $temp, 'humidity' => $hum, 'state' => (string) ($d->state ?? ''), 'is_on' => (bool) $d->is_on && ! $stale,
             'humidity_max' => $d->humidity_max !== null ? (int) $d->humidity_max : null, 'temp_max' => $d->temp_max !== null ? (int) $d->temp_max : null, 'notify' => (bool) $d->notify,
             'over' => ! $stale && (($d->humidity_max !== null && $hum !== null && $hum > (int) $d->humidity_max) || ($d->temp_max !== null && $temp !== null && $temp > (int) $d->temp_max)),
             'snap_public' => (bool) ($d->snap_public ?? false), 'snap_at' => ! empty($d->snap_at) && is_file(self::snapPath((int) $d->id)) ? (string) $d->snap_at : null, 'seen' => $seen, 'stale' => $stale, 'never' => $seen === null, 'hours_30d' => $this->hours([(int) $d->id], self::ago(30 * 86400)), 'history' => $hist];
+    }
+
+    /**
+     * 1.4.6 📁 분류 — 회원이 고른 것(grp)이 맞으면 그것, 아니면 붙인 곳 따라:
+     *  내 프린터 → equip(🛠 장비) · 업체 장비 → c{업체}(🏢 그 업체) · 보관 위치 → mine(📦 개인 재고) · 없음 → none(❓ 미분류)
+     *
+     * @param  list<int>  $cids  내가 대표 · 관리자인 업체
+     */
+    public static function group(string $grp, string $target, ?int $cid, array $cids): string
+    {
+        if (in_array($grp, ['equip', 'mine', 'none'], true)) {
+            return $grp;
+        }
+        if (preg_match('/^c(\d+)$/', $grp, $m) && in_array((int) $m[1], $cids, true)) {
+            return $grp;
+        }
+
+        return match ($target) {
+            'printer' => 'equip',
+            'equipment' => $cid && in_array($cid, $cids, true) ? 'c'.$cid : 'equip',
+            'location' => 'mine',
+            default => 'none',
+        };
+    }
+
+    /** 1.4.6 고를 수 있는 분류인지 ('' = 자동) */
+    private function grpOk(int $uid, string $g): bool
+    {
+        return $g === '' || in_array($g, ['equip', 'mine', 'none'], true) || (preg_match('/^c(\d+)$/', $g, $m) && in_array((int) $m[1], array_column($this->companies($uid), 'id'), true));
+    }
+
+    /** 1.4.6 여러 기기 분류 한 번에 @param list<mixed> $ids @return array{0: bool, 1: string} */
+    public function groupMany(int $uid, array $ids, string $grp): array
+    {
+        $ids = array_slice(array_values(array_unique(array_filter(array_map(static fn ($x) => is_numeric($x) ? (int) $x : 0, $ids), static fn ($x) => $x > 0))), 0, 200);
+        if ($uid <= 0 || $ids === [] || ! Schema::ensure()) {
+            return [false, '옮길 기기를 골라 주세요.'];
+        }
+        if (! $this->grpOk($uid, $grp)) {
+            return [false, '분류를 다시 골라 주세요.'];
+        }
+        $n = DB::table(Schema::DEVICES)->where('user_id', $uid)->whereIn('id', $ids)->update(['grp' => $grp === '' ? null : $grp, 'updated_at' => now()]);
+
+        return $n ? [true, '기기 '.$n.'개를 옮겼어요.'] : [false, '옮길 기기를 찾을 수 없어요.'];
     }
 
     /* ───────── 기기 넣기 · 고치기 ───────── */
@@ -150,6 +194,13 @@ class HaService
             $row['equipment_id'] = $e['id'];
             $row['company_id'] = $e['company_id'];
             $auto = $e['name'];
+        }
+        if (array_key_exists('grp', $in)) {   // 1.4.6 📁 분류
+            $g = trim((string) $in['grp']);
+            if (! $this->grpOk($uid, $g)) {
+                return [false, '분류를 다시 골라 주세요.'];
+            }
+            $row['grp'] = $g === '' ? null : $g;
         }
         $name = Rules::text($in['name'] ?? '', 60) ?: ($old->name ?? $auto);
         if ($name === '') {
