@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.4.3 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.4.4 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.4.3';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.4.4';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -87,7 +87,7 @@
     // 1.1.0 위에 크게 보이는 온도 · 습도와 같은 줄은 센서 목록에서 뺌 (두 센서가 한 카드에 붙었으면 견줘 볼 수 있게 둠)
     var all = d.sensors || [], one = function (cap) { return all.filter(function (x) { return x.capability === cap; }).length === 1; };
     var sens = all.filter(function (x) { return !((x.capability === 'temperatureMeasurement' && hasTemp && one(x.capability)) || (x.capability === 'relativeHumidityMeasurement' && hasHum && one(x.capability))); });
-    var stt = d.never ? '<span class="hal-dot wait"></span>값을 기다리는 중' : d.stale ? '<span class="hal-dot off" title="' + (st || (d.sensors && d.sensors.length) ? 'SmartThings 가 값을 안 보냈어요 — 「🔄 다시 잇기」를 누르면 지금 값을 물어봐요 (기기가 꺼져 있으면 켜진 뒤 저절로 다시 이어요)' : 'Home Assistant 가 값을 안 보내요 — HA 가 켜져 있고 인터넷에 이어져 있는지 봐 주세요 (다시 보내면 저절로 풀려요)') + '"></span>끊김 · ' + agoText(d.seen) : '<span class="hal-dot on"></span>' + agoText(d.seen);
+    var stt = d.never ? '<span class="hal-dot wait"></span>값을 기다리는 중' : d.stale ? '<span class="hal-dot off" title="' + (st || (d.sensors && d.sensors.length) ? 'SmartThings 가 값을 안 보냈어요 — 사이트가 15분마다 저절로 지금 값을 물어 다시 이어요 (바로 하려면 「🔄 다시 잇기」 · 기기가 꺼져 있으면 켜진 뒤 저절로)' : 'Home Assistant 가 값을 안 보내요 — HA 가 켜져 있고 인터넷에 이어져 있는지 봐 주세요 (다시 보내면 저절로 풀려요)') + '"></span>끊김 · ' + agoText(d.seen) : '<span class="hal-dot on"></span>' + agoText(d.seen);
     return '<article class="hal-card' + (d.over ? ' over' : '') + (d.stale && !d.never ? ' stale' : '') + '">' +
       '<header><span class="hal-ico">' + ICON[d.target] + '</span><div><b>' + esc(d.name) + '</b><small>' + (st || (d.sensors && d.sensors.length) ? '<span class="hal-badge">' + stLogo() + ' SmartThings</span>' : '<span class="hal-badge ha">' + haLogo() + ' Home Assistant</span>') + '</small></div><button class="hal-icobtn" data-edit="' + d.id + '" title="고치기" aria-label="고치기">✏️</button></header>' + toRow(d) +
       '<div class="hal-vals">' +
@@ -525,7 +525,7 @@
    *  1.1.0 API Access App (OAuth-In) — ⚡ 자동 등록(개인 액세스 토큰을 한 번 붙여 넣기) · 📝 직접 등록(Developer Center 또는 SmartThings CLI)
    *  0.2.0 의 Developer Workspace · WebHook SmartApp(연결 코드) 방식은 「고급」에 */
   var ST_FIELDS = [['st_enabled', 'SmartThings 연결 쓰기', 'bool'], ['st_client_id', 'Client ID', 'text'], ['st_client_secret', 'Client Secret', 'secret']];
-  var ST_MORE = [['st_app_id', 'App ID (비워 두면 회원이 처음 연결할 때 알아서 채워요)', 'text'], ['st_max_events_min', '위치 하나가 1분에 보낼 수 있는 값 (넘으면 버림, 10~2000)', 'num'], ['st_poll_min', '값이 이만큼(분) 안 오면 지금 값을 직접 물어보고 구독도 다시 확인 — 값이 그대로인 센서가 「끊김」이 되지 않게 · 끊긴 뒤 다시 잇기 (15~1440 · 0 = 끔)', 'num'],
+  var ST_MORE = [['st_app_id', 'App ID (비워 두면 회원이 처음 연결할 때 알아서 채워요)', 'text'], ['st_max_events_min', '위치 하나가 1분에 보낼 수 있는 값 (넘으면 버림, 10~2000)', 'num'], ['st_poll_min', '값이 이만큼(분) 안 오면 지금 값을 직접 물어보고 구독도 다시 확인 — 값이 그대로인 센서가 「끊김」이 되지 않게 · 끊긴 뒤 저절로 다시 잇기 (스케줄 15분마다 · 15~1440 · 0 = 끔)', 'num'],
     ['st_code_flow', '(예전 방식) 연결 코드로 잇기도 보이기 — WebHook SmartApp 으로 등록했을 때만', 'bool'], ['st_code_min', '(예전 방식) 연결 코드를 쓸 수 있는 시간 (분, 5~1440)', 'num'],
     ['st_ping_unsigned', '(예전 방식) 서명 없는 PING 에도 답하기 — 보통은 끔', 'bool'], ['st_public_key', '서명 공개 키 PEM — 비우면 key.smartthings.com 에서 받아요', 'area']];
   function stField(s, f) {

@@ -398,6 +398,53 @@ class SmartThingsService
         });
     }
 
+    /**
+     * 1.4.4 스케줄(15분마다 · custom-iot_link:st-poll) — 회원이 화면을 보지 않아도 끊긴 기기를 저절로 다시 이음
+     *  · 로그인 토큰: 6시간 넘게 확인하지 않은 설치는 곧 끝나면 미리 새로 받음 (refresh_token 이 살아 있게)
+     *  · 값이 오래(st_poll_min) 안 온 기기가 있는 설치: 오래 안 물어본 것부터 — 구독 다시 확인 · 기기 상태 · 지금 값 (pollDue 와 같은 기준 · 같은 polled_at)
+     *
+     * @return array{polled: int, fresh: int}
+     */
+    public function pollAll(int $max = 50): array
+    {
+        $out = ['polled' => 0, 'fresh' => 0];
+        if (! self::ready() || ! Schema::ensure()) {
+            return $out;
+        }
+        foreach (DB::table(Schema::ST_INSTALLS)->whereNotNull('user_id')->where(fn ($w) => $w->whereNull('token_checked_at')->orWhere('token_checked_at', '<', self::at(-6 * 3600)))
+            ->orderBy('id')->limit($max)->pluck('id') as $id) {
+            try {
+                $this->keepFresh((int) $id);
+                $out['fresh']++;
+            } catch (\Throwable $e) {
+                $this->log('토큰 확인 실패', ['install' => (int) $id, 'error' => mb_substr(get_class($e), 0, 80)]);
+            }
+        }
+        $min = (int) Settings::get('st_poll_min');
+        if ($min <= 0) {
+            return $out;
+        }
+        $cut = self::at(-$min * 60);
+        foreach (DB::table(Schema::ST_INSTALLS)->whereNotNull('user_id')->whereIn('status', ['active', 'error'])
+            ->where(fn ($w) => $w->whereNull('polled_at')->orWhere('polled_at', '<', $cut))->orderBy('polled_at')->orderBy('id')->limit($max * 4)->get() as $i) {
+            if ($out['polled'] >= $max) {
+                break;
+            }
+            if (! $this->quiet($i, $cut)) {
+                continue;
+            }
+            DB::table(Schema::ST_INSTALLS)->where('id', $i->id)->update(['polled_at' => self::now()]);
+            try {
+                $this->revive((int) $i->id);
+            } catch (\Throwable $e) {
+                $this->log('자동 다시 잇기 실패', ['install' => (int) $i->id, 'error' => mb_substr(get_class($e), 0, 80)]);
+            }
+            $out['polled']++;
+        }
+
+        return $out;
+    }
+
     /** 1.4.2 그 설치에서 값이 오래 안 온 것이 있나 — 설치 전체 · 또는 이 설치가 값을 넘기는 사이트 기기 카드 하나라도 */
     private function quiet(object $i, string $cut): bool
     {

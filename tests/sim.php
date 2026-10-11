@@ -670,6 +670,28 @@ namespace {
     DB::table('hal_st_installs')->where('id', $oi->id)->update(['status' => $keepI->status, 'last_error' => $keepI->last_error, 'last_event_at' => $keepI->last_event_at, 'polled_at' => $keepI->polled_at]);
     HaService::$nowOverride = '2026-10-11 09:10:00';
 
+    echo "  · 1.4.4 스케줄 — 화면을 안 봐도 저절로 다시 잇기 (custom-iot_link:st-poll)\n";
+    $keep = DB::table('hal_devices')->whereIn('id', [(int) $box->id, (int) $ams->id])->pluck('last_seen_at', 'id');
+    $keepI = DB::table('hal_st_installs')->where('id', $oi->id)->first();
+    HaService::$nowOverride = '2026-10-11 18:00:00';
+    DB::table('hal_devices')->where('id', $box->id)->update(['last_seen_at' => '2026-10-11 12:00:00']);
+    DB::table('hal_st_installs')->where('id', $oi->id)->update(['last_event_at' => '2026-10-11 17:55:00', 'polled_at' => null, 'token_checked_at' => '2026-10-11 17:00:00']);
+    Settings::save(['st_poll_min' => 60]);
+    $a1 = $st->pollAll();
+    $back = DB::table('hal_devices')->where('id', $box->id)->value('last_seen_at') === '2026-10-11 18:00:00';
+    $calls = [];
+    $a2 = $st->pollAll();
+    Settings::save(['st_poll_min' => 0]);
+    $a3 = $st->pollAll();
+    t($back && $a1['polled'] >= 1 && $a2['polled'] === 0 && $calls === [] && $a3['polled'] === 0,
+        '15분마다: 회원이 화면을 안 봐도 조용한 기기는 지금 값으로 끊김이 풀림 · 방금 물은 것은 다시 안 물음 · st_poll_min 0 이면 끔');
+    DB::table('hal_readings')->where('at', '>=', '2026-10-11 16:00:00')->where('at', '<', '2026-10-11 19:00:00')->delete();
+    foreach ($keep as $kid => $kv) {
+        DB::table('hal_devices')->where('id', $kid)->update(['last_seen_at' => $kv]);
+    }
+    DB::table('hal_st_installs')->where('id', $oi->id)->update(['status' => $keepI->status, 'last_error' => $keepI->last_error, 'last_event_at' => $keepI->last_event_at, 'polled_at' => $keepI->polled_at, 'token_checked_at' => $keepI->token_checked_at]);
+    HaService::$nowOverride = '2026-10-11 09:10:00';
+
     echo "  · 1.2.0 프린터 라운지 — 내 프린터에 붙이기 · 출력 상태 · 주변 온습도\n";
     [, , $list] = $st->oauthDevices(1, (int) $oi->id);
     t(array_key_exists('suggest_printer', $list['devices'][0]) && $st->forUser(1)['oauth'] === true && $svc->sources() === ['ha' => true, 'smartthings' => true], '목록에 「이름이 같은 내 프린터」 칸 · 보내는 곳: SmartThings 켜짐');
