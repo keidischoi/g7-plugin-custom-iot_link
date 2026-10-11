@@ -2,7 +2,8 @@
 
 ## 1.4.3 — 2026-10-11
 
-- 🎨 **Home Assistant 표시를 실제 로고로** — 기기 카드의 「🏠 Home Assistant」 · 「➕ 기기 연결」 · 「❓ 연결 방법」의 Home Assistant 탭 · 처음 화면 제목의 🏠 이모지를 Home Assistant 공식 심볼(하늘색 집 · 회로, SVG 한 줄)로. 카드의 Home Assistant 표시도 SmartThings 처럼 배지로
+- 🎨 **Home Assistant 표시를 실제 로고로** — 기기 카드의 「🏠 Home Assistant」 · 「➕ 기기 연결」 · 「❓ 연결 방법」의 Home Assistant 탭 · 처음 화면 제목의 🏠 이모지를 Home Assistant 공식 심볼(집 · 회로, SVG 한 줄)로. 카드의 Home Assistant 표시도 SmartThings 처럼 배지로
+  - **색으로 구분** — Home Assistant 는 주황(로고 · 배지), SmartThings 는 하늘색 그대로
   - 심볼 모양 출처: Simple Icons (CC0) — 상표는 Home Assistant 의 것, 연결 대상 표시로만 씀
 
 배포: DB 변경 없음. 스크립트 주소가 바뀜 — `--layout-strategy=overwrite`.
