@@ -156,6 +156,14 @@ class Plugin extends AbstractPlugin
         ]];
     }
 
+    /** @return array<int, array<string, mixed>> 1.4.4 SmartThings 자동 다시 잇기 — 회원이 화면을 보지 않아도 */
+    public function getSchedules(): array
+    {
+        return [
+            ['command' => 'custom-iot_link:st-poll', 'schedule' => '*/15 * * * *', 'description' => 'IoT 연결 — SmartThings 끊긴 기기 자동 다시 잇기 (값이 오래 안 오면 지금 값 · 빠진 구독) · 토큰 미리 새로 받기'],
+        ];
+    }
+
     /** @return array<int, class-string> */
     public function getHookListeners(): array
     {
