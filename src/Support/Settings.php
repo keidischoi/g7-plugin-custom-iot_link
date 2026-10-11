@@ -16,6 +16,12 @@ final class Settings
         'max_devices' => 20,           // 회원 한 명이 연결할 수 있는 기기
         'max_devices_company' => 0,    // 1.4.7 업체 하나에 둘 수 있는 기기 (📁 그 업체로 분류된 것 · 회원 모두 합쳐) — 0 = 따로 막지 않음
         'max_devices_members' => '',   // 1.4.7 회원마다 다르게 「회원번호 또는 이메일:개수」 쉼표로 (예: 12:50, kim@ex.com:100)
+        'slot_enabled' => false,       // 1.4.8 💳 한도를 넘는 센서 칸을 코인 · 마일리지로 사기 (회원 · 업체)
+        'slot_mode' => 'once',         // 1.4.8 once: 한 번 사면 계속 · monthly: 달마다 결제 (자동 연장 · 모자라면 칸이 끝남 — 기기는 지우지 않고 새로 못 붙임)
+        'slot_coin_price' => 0,        // 1.4.8 센서 1개 값 (코인 · 0 = 안 팖)
+        'slot_coin_price10' => 0,      // 1.4.8 센서 10개 묶음 값 (코인 · 0 = 안 팖)
+        'slot_mileage_price' => 0,     // 1.4.8 센서 1개 값 (마일리지)
+        'slot_mileage_price10' => 0,   // 1.4.8 센서 10개 묶음 값 (마일리지)
         'max_devices_companies' => '', // 1.4.7 업체마다 다르게 「업체번호:개수」 쉼표로 (예: 3:100, 7:0 — 0 = 막지 않음)
         'send_mode' => 'change',       // 0.1.6 전송 방식 — change: 값이 변하면 보냄 (+ 변화가 없어도 idle_min 마다 한 번) · interval: interval_min 마다 보냄
         'change_hum' => 1,             // 0.1.6 「변하면」: 습도가 이만큼(%) 변하면 보냄 (온도는 0.5°C)
@@ -106,6 +112,10 @@ final class Settings
         $out['st_poll_min'] = $out['st_poll_min'] <= 0 ? 0 : max(15, min(1440, $out['st_poll_min']));
         $out['max_devices'] = max(1, min(1000, $out['max_devices']));   // 1.4.7 200 → 1000
         $out['max_devices_company'] = max(0, min(10000, $out['max_devices_company']));
+        $out['slot_mode'] = in_array($in['slot_mode'] ?? '', ['once', 'monthly'], true) ? (string) $in['slot_mode'] : self::DEFAULTS['slot_mode'];   // 1.4.8
+        foreach (['slot_coin_price', 'slot_coin_price10', 'slot_mileage_price', 'slot_mileage_price10'] as $k) {
+            $out[$k] = max(0, min(100000000, $out[$k]));
+        }
         $out['max_devices_members'] = self::limitList($out['max_devices_members'], true);
         $out['max_devices_companies'] = self::limitList($out['max_devices_companies'], false);
         $out['interval_min'] = max(1, min(60, $out['interval_min']));

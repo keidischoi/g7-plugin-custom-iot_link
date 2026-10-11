@@ -35,7 +35,7 @@ class Plugin extends AbstractPlugin
 
     public const USER_LAYOUT = 'custom-iot_link.iot_link';
 
-    public const TABLES = ['hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links', 'hal_st_installs', 'hal_st_sensors', 'hal_st_codes', 'hal_st_states'];
+    public const TABLES = ['hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links', 'hal_st_installs', 'hal_st_sensors', 'hal_st_codes', 'hal_st_states', 'hal_slots'];   // 1.4.8 💳 센서 칸
 
     private static bool $autoload = false;
 

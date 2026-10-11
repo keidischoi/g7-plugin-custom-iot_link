@@ -19,6 +19,7 @@ class StPollCommand extends Command
     {
         $r = (new SmartThingsService())->pollAll(max(1, min(500, (int) $this->option('max'))));
         $this->info('다시 이은 위치 '.$r['polled'].'곳 · 토큰 확인 '.$r['fresh'].'곳');
+        $this->info('💳 연장한 센서 칸 '.(new \Plugins\Custom\IotLink\Services\SlotService())->renew().'개');   // 1.4.8 달마다 칸
 
         return self::SUCCESS;
     }

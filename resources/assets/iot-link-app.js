@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.4.7 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.4.8 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.4.7';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.4.8';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -112,6 +112,36 @@
   function pref(k, def) { try { return localStorage.getItem('hal:' + k) || def; } catch (e) { return def; } }
   function setPref(k, v) { try { localStorage.setItem('hal:' + k, v); } catch (e) {} }
   var VIEWS = [['card', '▦', '카드'], ['row', '☰', '한 줄'], ['banner', '▬', '배너']];
+  /* 1.4.8 💳 센서 칸 사기 — 1개 · 10개 묶음 · 코인 · 마일리지 · 나 또는 내 업체 */
+  function slotBox() {
+    var T = S.d.slots || {};
+    if (!T.enabled) return;
+    var tg = T.targets || [], cur = T.currencies || [];
+    var mode = T.mode === 'monthly' ? '달마다 결제 (자동 연장 · 끄면 기한까지)' : '한 번 사면 계속';
+    var html = '<p class="hal-hint">기기 수 한도를 넘어 센서를 더 붙이려면 칸을 사요 — <b>' + mode + '</b>. 칸이 끝나도 붙인 기기는 지우지 않아요 (새로 붙이는 것만 막혀요).</p>' +
+      (tg.length > 1 ? '<label>어디에 쓸까요<select data-slot-for>' + tg.map(function (t) { return '<option value="' + esc(t.key) + '">' + esc(t.label) + '</option>'; }).join('') + '</select></label>' : '') +
+      (cur.length ? cur.map(function (c) {
+        return '<div class="hal-slotc"><div class="hal-slotc-h"><b>' + esc(c.label) + '</b><small>' + (c.balance != null ? '내 잔액 ' + n(c.balance) : '') + (c.charge_url ? ' · <a href="' + esc(c.charge_url) + '" data-go>충전하기 →</a>' : '') + '</small></div>' +
+          '<div class="hal-slotc-b">' + c.prices.map(function (pr) { var each = pr.n > 1 ? ' <small>(1개당 ' + n(Math.round(pr.price / pr.n)) + ')</small>' : ''; return '<button type="button" class="hal-btn' + (pr.n === 10 ? ' pri' : '') + '" data-slot-buy="' + c.key + '" data-n="' + pr.n + '">센서 ' + pr.n + '개 · ' + esc(pr.text) + each + '</button>'; }).join('') + '</div></div>';
+      }).join('') : '<p class="hal-warn">지금 쓸 수 있는 결제 수단이 없어요 (코인 · 마일리지 확장이 꺼져 있거나 값이 정해지지 않았어요).</p>') +
+      ((T.slots || []).length ? '<h4 class="hal-slot-t">산 칸</h4><ul class="hal-slotl">' + T.slots.map(function (x) {
+        var st = x.status === 'active' ? (x.expires_at ? '🟢 ' + x.expires_at.slice(0, 10) + '까지' : '🟢 계속') : '⚪ 끝남';
+        return '<li><b>' + esc(x.for) + ' · 센서 ' + x.size + '개</b><span>' + esc(x.amount_text) + ' · ' + st + '</span>' + (x.mode === 'monthly' && x.status === 'active' && x.mine ? '<label class="hal-chk"><input type="checkbox" data-slot-auto="' + x.id + '"' + (x.auto_renew ? ' checked' : '') + '> 자동 연장</label>' : '') + '</li>';
+      }).join('') + '</ul>' : '');
+    var ov = modal('💳 센서 칸 늘리기', html);
+    ov.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-slot-buy]'); if (!b) return;
+      var f = ov.querySelector('[data-slot-for]'), forv = f ? f.value : 'me';
+      if (!confirm((f ? f.options[f.selectedIndex].text + ' — ' : '') + b.textContent.replace(/\s+/g, ' ').trim() + ' 을(를) 살까요?')) return;
+      b.disabled = true;
+      api('POST', '/slots/buy', { currency: b.getAttribute('data-slot-buy'), n: +b.getAttribute('data-n'), for: forv }).then(function (r) { toast(r.message); S.d = r.data.overview; draw(); ov.__close(); })
+        .catch(function (e) { b.disabled = false; fail(e); });
+    });
+    ov.addEventListener('change', function (ev) {
+      var a = ev.target.closest('[data-slot-auto]'); if (!a) return;
+      api('PUT', '/slots/' + a.getAttribute('data-slot-auto'), { auto_renew: a.checked }).then(function (r) { toast(r.message); S.d = r.data.overview; }).catch(function (e) { a.checked = !a.checked; fail(e); });
+    });
+  }
   /* 1.4.7 무한 스크롤 — 처음 PAGE 개 · 끝에 닿으면 PAGE 개씩 더 (분류 · 출처 · 모양을 바꾸면 처음부터) */
   var PAGE = 24;
   function moreBind() {
@@ -184,7 +214,7 @@
     if (S.sel) { var have = {}; S.d.devices.forEach(function (x) { have[x.id] = 1; }); Object.keys(S.sel).forEach(function (k) { if (!have[k]) delete S.sel[k]; }); if (!S.d.devices.length) S.sel = null; }
     var d = S.d, live = d.devices.filter(function (x) { return !x.stale; }).length, over = d.devices.filter(function (x) { return x.over; }).length;
     wrap('<section class="hal-hero"><div><h1>📡 IoT 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 재고 관리 · 정비 수첩 · 내 프린터에 이어요.</p></div>' +
-      '<div class="hal-stats"><span title="연결할 수 있는 기기 (관리자가 정함)">기기 <b>' + d.devices.length + '</b>' + (d.limits ? ' / ' + d.limits.member : '') + '</span><span>🟢 연결됨 <b>' + live + '</b></span>' + (over ? '<span class="hot">⚠️ 기준 넘음 <b>' + over + '</b></span>' : '') + '<button class="hal-btn ghost" data-guide title="연결 방법 보기" aria-label="연결 방법 보기">❓ 연결 방법</button>' + (d.devices.length > 1 && !S.sel ? '<button class="hal-btn ghost" data-sel-on title="체크 박스로 골라 한 번에 분류 옮기기 · 지우기">☑️ 여러 개 고르기</button>' : '') + ' <button class="hal-btn light" data-new>➕ 기기 연결</button></div></section>' +
+      '<div class="hal-stats"><span title="연결할 수 있는 기기 (관리자가 정함)">기기 <b>' + d.devices.length + '</b>' + (d.limits ? ' / ' + d.limits.member : '') + '</span><span>🟢 연결됨 <b>' + live + '</b></span>' + (over ? '<span class="hot">⚠️ 기준 넘음 <b>' + over + '</b></span>' : '') + '<button class="hal-btn ghost" data-guide title="연결 방법 보기" aria-label="연결 방법 보기">❓ 연결 방법</button>' + (d.devices.length > 1 && !S.sel ? '<button class="hal-btn ghost" data-sel-on title="체크 박스로 골라 한 번에 분류 옮기기 · 지우기">☑️ 여러 개 고르기</button>' : '') + (d.slots && d.slots.enabled ? ' <button class="hal-btn ghost" data-slot title="코인 · 마일리지로 센서 칸 사기">💳 칸 늘리기</button>' : '') + ' <button class="hal-btn light" data-new>➕ 기기 연결</button></div></section>' +
       stCard() +
       (d.devices.length ? (S.sel ? selBar() : '') + tools() + grouped() +
         '<p class="hal-note">' + (liveSec() ? '🔄 이 화면은 ' + (liveSec() >= 60 && liveSec() % 60 === 0 ? liveSec() / 60 + '분' : liveSec() + '초') + '마다 스스로 새 값을 받아 와요' : '🔄 새 값을 보려면 화면을 새로 고쳐 주세요') + ' (Home Assistant 는 ' + (d.config.send_mode === 'change' ? '값이 변하면' : (d.config.interval_min || 10) + '분마다') + ' · 상태가 바뀌면 바로 보내요).</p><p class="hal-note">🔒 받는 주소는 비밀번호와 같아요 — 남에게 보이지 마세요. 사이트가 내 집으로 접속하지 않고, 내 Home Assistant 가 보내는 값만 받아요.' + (d.config.inventory ? ' · <a href="/inventory?tab=drawer" data-go>🧵 필라멘트 서랍 보기 (재고 관리)</a>' : '') + '</p>'
@@ -198,6 +228,7 @@
     stBind();
     qa('[data-snap]').forEach(function (b) { snapLoad(b); b.onclick = function () { var u = SNAP[b.getAttribute('data-snap')]; if (u && u.url) modal('📷 ' + esc(find(b.getAttribute('data-snap')).name), '<img class="hal-snapbig" src="' + u.url + '" alt="">'); }; });
     qa('[data-new]').forEach(function (b) { b.onclick = function () { connectBox(); }; });
+    qa('[data-slot]').forEach(function (b) { b.onclick = function () { slotBox(); }; });   // 1.4.8 💳
     qa('[data-edit]').forEach(function (b) { b.onclick = function () { form(find(b.getAttribute('data-edit'))); }; });
     qa('[data-yaml]').forEach(function (b) { b.onclick = function () { yamlBox(find(b.getAttribute('data-yaml'))); }; });
     qa('[data-revive]').forEach(function (b) { b.onclick = function () { revive(b); }; });
@@ -607,6 +638,8 @@
   // ── 관리자 ──
   var FIELDS = [['enabled', 'IoT 연결 쓰기', 'bool'], ['menu_enabled', '헤더 메인 메뉴에 「IoT 연결」 넣기 (홈 디자인 「메인 메뉴 보이기」와 같은 값)', 'bool'], ['menu_label', '헤더 메뉴 이름 (12글자까지)', 'text'],
     ['max_devices', '회원 한 명이 연결할 수 있는 기기 (기본 · 1~1000)', 'num'], ['max_devices_company', '업체 하나에 둘 수 있는 기기 (기본 · 그 업체로 분류된 것을 회원 모두 합쳐 · 0 = 막지 않음)', 'num'],   // 1.4.7
+    ['slot_enabled', '💳 한도를 넘는 센서 칸을 코인 · 마일리지로 팔기 (회원 칸 · 업체 칸)', 'bool'], ['slot_mode', '💳 칸 결제 방식', 'sel', [['once', '한 번 사면 계속'], ['monthly', '달마다 결제 (자동 연장)']]],
+    ['slot_coin_price', '💳 센서 1개 값 — 코인 (0 = 안 팖)', 'num'], ['slot_coin_price10', '💳 센서 10개 묶음 값 — 코인 (0 = 안 팖)', 'num'], ['slot_mileage_price', '💳 센서 1개 값 — 마일리지 (0 = 안 팖)', 'num'], ['slot_mileage_price10', '💳 센서 10개 묶음 값 — 마일리지 (0 = 안 팖)', 'num'],   // 1.4.8
     ['max_devices_members', '회원마다 다르게 — 「회원번호 또는 이메일:개수」 쉼표로 (예: 12:50, kim@example.com:100)', 'area'], ['max_devices_companies', '업체마다 다르게 — 「업체번호:개수」 쉼표로 (예: 3:100, 7:0 · 0 = 막지 않음) · 업체 번호는 업체 주소 /companies/번호', 'area'], ['send_mode', '전송 방식 (통합 「3ds」)', 'sel', [['change', '값이 변하면 보내기 (권장)'], ['interval', '주기적으로 보내기']]],
     ['change_hum', '「변하면」: 습도가 이만큼(%) 변하면 보냄 (1~10 · 온도는 0.5°C)', 'num'], ['idle_min', '「변하면」: 변화가 없어도 이만큼(분)마다 한 번 (5~180)', 'num'],
     ['interval_min', '「주기적으로」 · 설정 글(YAML): 값 보내는 주기 (분, 1~60)', 'num'], ['refresh_sec', '화면이 새 값을 다시 받는 간격 (초, 5~3600 · 0 = 끔)', 'num'],

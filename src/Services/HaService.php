@@ -77,6 +77,7 @@ class HaService
             'printers' => $printers, 'companies' => $companies, 'equipment' => array_values($equip), 'locations' => $this->locations($uid),
             'targets' => Rules::TARGETS,
             'link' => ['code' => $this->linkCode($uid), 'site' => rtrim((string) config('app.url'), '/'), 'repo' => (string) Settings::get('hacs_repo')],
+            'slots' => (new SlotService())->info($uid, $companies),   // 1.4.8 💳
             'limits' => ['member' => Limits::member($uid), 'companies' => array_map(fn ($c) => ['id' => $c['id'], 'max' => Limits::company($c['id']), 'used' => Limits::companyUsed($c['id'])], $companies)],   // 1.4.7
             'config' => ['max_devices' => Limits::member($uid), 'interval_min' => (int) Settings::get('interval_min'), 'refresh_sec' => (int) Settings::get('refresh_sec'), 'send_mode' => (string) Settings::get('send_mode'), 'change_hum' => (int) Settings::get('change_hum'), 'idle_min' => (int) Settings::get('idle_min'), 'stale_hours' => (int) Settings::get('stale_hours'), 'base' => rtrim((string) config('app.url'), '/').'/api/plugins/custom-iot_link/in/',
                 'printer_link' => $printers !== [] || ((bool) Settings::get('printer_link') && $this->hasTable('mpr_printers')), 'inventory' => Links::inventoryOn()],

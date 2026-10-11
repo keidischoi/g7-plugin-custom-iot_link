@@ -1,0 +1,143 @@
+<?php
+
+namespace Plugins\Custom\IotLink\Services;
+
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Plugins\Custom\IotLink\Support\Limits;
+use Plugins\Custom\IotLink\Support\Points;
+use Plugins\Custom\IotLink\Support\Schema;
+use Plugins\Custom\IotLink\Support\Settings;
+
+/**
+ * 1.4.8 💳 센서 칸 — 한도(회원 · 업체)를 넘는 센서를 코인 · 마일리지로 1개 · 10개 묶음씩 사서 더 붙임.
+ *  - once: 한 번 사면 계속 · monthly: 달마다 결제 (자동 연장 · 모자라거나 끄면 칸이 끝남)
+ *  - 칸이 끝나 한도를 넘어도 붙인 기기는 지우지 않음 — 새로 붙이거나 그 업체로 옮기는 것만 막힘
+ *  - 업체 칸: 그 업체의 대표 · 관리자가 사고, 업체 한도(「0 = 막지 않음」이 아닐 때)에 더해짐
+ */
+class SlotService
+{
+    public const SIZES = [1, 10];
+
+    public static function on(): bool
+    {
+        return (bool) Settings::get('slot_enabled');
+    }
+
+    /** @param list<array{id: int, name: string}> $companies 내가 대표 · 관리자인 업체 @return array<string, mixed> 회원 화면 */
+    public function info(int $uid, array $companies): array
+    {
+        if (! self::on() || $uid <= 0 || ! Schema::ensure()) {
+            return ['enabled' => false];
+        }
+        $this->renew($uid);
+        $cur = [];
+        foreach (Points::CURRENCIES as $c) {
+            if (Points::available($c)) {
+                $prices = [];
+                foreach (self::SIZES as $n) {
+                    if (Points::price($c, $n) > 0) {
+                        $prices[] = ['n' => $n, 'price' => Points::price($c, $n), 'text' => Points::format(Points::price($c, $n), $c)];
+                    }
+                }
+                $cur[] = ['key' => $c, 'label' => Points::label($c), 'balance' => Points::balance($uid, $c), 'charge_url' => Points::chargeUrl($c), 'prices' => $prices];
+            }
+        }
+        $cids = array_column($companies, 'id');
+        $cn = array_column($companies, 'name', 'id');
+        $rows = DB::table(Schema::SLOTS)->where('status', '!=', 'pending')->where(fn ($q) => $q->where('user_id', $uid)->orWhereIn('company_id', $cids ?: [0]))->orderByDesc('id')->limit(40)->get();
+        $targets = [['key' => 'me', 'label' => '나 (개인 · 장비)']];
+        foreach ($companies as $c) {
+            if (Limits::company((int) $c['id']) > 0) {
+                $targets[] = ['key' => 'c'.$c['id'], 'label' => '🏢 '.$c['name']];
+            }
+        }
+
+        return ['enabled' => true, 'mode' => (string) Settings::get('slot_mode'), 'currencies' => $cur, 'targets' => $targets,
+            'slots' => $rows->map(fn ($s) => ['id' => (int) $s->id, 'size' => (int) $s->size, 'for' => $s->company_id ? '🏢 '.($cn[(int) $s->company_id] ?? '업체') : '나', 'mine' => (int) $s->user_id === $uid,
+                'amount_text' => Points::format((int) $s->amount, (string) $s->currency), 'mode' => (string) $s->mode, 'status' => (string) $s->status,
+                'expires_at' => $s->expires_at ? Carbon::parse((string) $s->expires_at)->toIso8601String() : null, 'auto_renew' => (bool) $s->auto_renew])->all()];
+    }
+
+    /**
+     * 칸 사기 — $for 'me' 또는 'c{업체}' · $n 1 · 10
+     *
+     * @param  list<array{id: int, name: string}>  $companies
+     * @return array{0: bool, 1: string, 2?: array<string, mixed>}
+     */
+    public function buy(int $uid, string $cur, int $n, string $for, array $companies): array
+    {
+        if (! self::on()) {
+            return [false, '지금은 센서 칸을 팔지 않아요.'];
+        }
+        if ($uid <= 0 || ! Schema::ensure()) {
+            return [false, '로그인해 주세요.'];
+        }
+        if (! in_array($n, self::SIZES, true) || ! Points::available($cur) || Points::price($cur, $n) <= 0) {
+            return [false, '이 결제 수단 · 묶음은 지금 살 수 없어요.'];
+        }
+        $cid = null;
+        if ($for !== 'me') {
+            $cid = preg_match('/^c(\d+)$/', $for, $m) ? (int) $m[1] : 0;
+            if (! in_array($cid, array_column($companies, 'id'), true)) {
+                return [false, '내가 대표 · 관리자인 업체에만 살 수 있어요.'];
+            }
+            if (Limits::company($cid) <= 0) {
+                return [false, '이 업체는 기기 수를 막지 않아요 — 살 필요가 없어요.'];
+            }
+        }
+        $mode = (string) Settings::get('slot_mode');
+        $price = Points::price($cur, $n);
+        $id = (int) DB::table(Schema::SLOTS)->insertGetId(['user_id' => $uid, 'company_id' => $cid, 'size' => $n, 'currency' => $cur, 'amount' => $price, 'mode' => $mode, 'status' => 'pending',
+            'expires_at' => $mode === 'monthly' ? now()->addMonthNoOverflow() : null, 'auto_renew' => true, 'created_at' => now(), 'updated_at' => now()]);
+        $r = Points::spend($uid, $price, $cur, 'slot:'.$id, '[IoT 연결] 센서 칸 '.$n.'개 #'.$id.($cid ? ' (업체)' : '').($mode === 'monthly' ? ' (한 달)' : ''));
+        if (! $r[0]) {
+            DB::table(Schema::SLOTS)->where('id', $id)->delete();
+
+            return [false, $r[1], ['reason' => $r[2] ?? '']];
+        }
+        DB::table(Schema::SLOTS)->where('id', $id)->update(['status' => 'active', 'updated_at' => now()]);
+        $now = $cid ? Limits::company($cid) : Limits::member($uid);
+
+        return [true, '센서 칸 '.$n.'개를 샀어요! 🎉 이제 '.($cid ? '이 업체에 ' : '').$now.'개까지 붙일 수 있어요.', ['allowed' => $now]];
+    }
+
+    /** 자동 연장 켜고 끄기 (산 사람만) @return array{0: bool, 1: string} */
+    public function setAuto(int $uid, int $id, bool $on): array
+    {
+        $n = Schema::ensure() ? DB::table(Schema::SLOTS)->where('id', $id)->where('user_id', $uid)->update(['auto_renew' => $on, 'updated_at' => now()]) : 0;
+
+        return $n ? [true, $on ? '자동 연장을 켰어요.' : '자동 연장을 껐어요 — 기한이 지나면 칸이 끝나요.'] : [false, '칸을 찾을 수 없어요.'];
+    }
+
+    /** 달마다 칸 연장 — 기한이 지난 칸을 산 사람의 같은 화폐로 결제해 한 달 늘림 · 못 하면 끝남. $uid 0 = 모두 (스케줄) @return int 연장한 칸 */
+    public function renew(int $uid = 0): int
+    {
+        if (! self::on() || ! Schema::ensure()) {
+            return 0;
+        }
+        $n = 0;
+        $q = DB::table(Schema::SLOTS)->where('status', 'active')->where('mode', 'monthly')->whereNotNull('expires_at')->where('expires_at', '<=', now())->limit(200);
+        if ($uid > 0) {
+            $q->where('user_id', $uid);
+        }
+        foreach ($q->get() as $s) {
+            $exp = Carbon::parse((string) $s->expires_at);
+            $ok = false;
+            $price = Points::price((string) $s->currency, (int) $s->size);
+            if ($s->auto_renew && Points::available((string) $s->currency) && $price > 0) {
+                $r = Points::spend((int) $s->user_id, $price, (string) $s->currency, 'slot:'.$s->id.':'.$exp->format('Y-m'), '[IoT 연결] 센서 칸 '.$s->size.'개 #'.$s->id.' 연장 ('.$exp->format('Y-m').')');
+                $ok = $r[0];
+                if ($ok) {
+                    DB::table(Schema::SLOTS)->where('id', $s->id)->update(['amount' => $price, 'expires_at' => $exp->copy()->addMonthNoOverflow(), 'updated_at' => now()]);
+                    $n++;
+                }
+            }
+            if (! $ok) {
+                DB::table(Schema::SLOTS)->where('id', $s->id)->update(['status' => 'expired', 'updated_at' => now()]);
+            }
+        }
+
+        return $n;
+    }
+}

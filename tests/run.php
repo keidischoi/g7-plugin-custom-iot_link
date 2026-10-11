@@ -148,7 +148,7 @@ $app = (string) file_get_contents($root.'/resources/assets/iot-link-app.js');
 check(str_contains((string) file_get_contents($root.'/resources/layouts/admin/plugin_settings.json'), 'iot-link-app.js?v='.$ver) && str_contains($app, 'custom-iot_link '.$ver)
     && str_contains((string) file_get_contents($root.'/resources/assets/iot-link.css'), $ver), '관리자 화면 · 앱 · CSS 버전');
 $pp = (string) file_get_contents($root.'/plugin.php');
-check(str_contains($pp, "'custom_ha_link_alert'") && str_contains($pp, "'hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links', 'hal_st_installs', 'hal_st_sensors', 'hal_st_codes', 'hal_st_states']") && str_contains($pp, "'command' => 'custom-iot_link:st-poll', 'schedule' => '*/15 * * * *'")
+check(str_contains($pp, "'custom_ha_link_alert'") && str_contains($pp, "'hal_devices', 'hal_readings', 'hal_runs', 'hal_settings', 'hal_links', 'hal_st_installs', 'hal_st_sensors', 'hal_st_codes', 'hal_st_states', 'hal_slots']") && str_contains($pp, "'command' => 'custom-iot_link:st-poll', 'schedule' => '*/15 * * * *'")
     && str_contains((string) @file_get_contents($root.'/src/Console/StPollCommand.php'), "signature = 'custom-iot_link:st-poll") && str_contains((string) @file_get_contents($root.'/src/Providers/IotLinkServiceProvider.php'), 'StPollCommand::class'), '알림 정의 · 표 목록 · 1.4.4 스케줄(SmartThings 자동 다시 잇기 15분마다) · 명령 등록');
 $api = (string) file_get_contents($root.'/src/routes/api.php');
 check(is_file($root.'/database/migrations/2026_10_10_000001_add_smartthings_tables.php') && str_contains($api, "Route::post('smartthings', [SmartThingsController::class, 'webhook'])->middleware('throttle:")
