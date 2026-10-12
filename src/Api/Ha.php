@@ -18,7 +18,7 @@ use Plugins\Custom\IotLink\Support\Settings;
  */
 final class Ha
 {
-    public const VERSION = '1.4.9';
+    public const VERSION = '1.4.10';
 
     public static function active(): bool
     {
@@ -89,6 +89,27 @@ final class Ha
             return $out;
         } catch (\Throwable) {
             return [];
+        }
+    }
+
+    /**
+     * 1.4.10 보관함 이름 바꾸기 따라가기 — 이 회원의 보관함 센서(target location) 중 위치가 $from 인 것(빈칸 · 대소문자 무시)을 $to 로.
+     * 읽은 값 · 기록은 기기 번호로 남아 그대로 이어짐. 바꾼 센서 수.
+     */
+    public static function renameLocation(int $uid, string $from, string $to): int
+    {
+        $old = Rules::loc($from);
+        $to = mb_substr(trim(strip_tags($to)), 0, 40);
+        if ($uid <= 0 || $old === '' || $to === '' || ! self::active()) {
+            return 0;
+        }
+        try {
+            $ids = DB::table(Schema::DEVICES)->where('user_id', $uid)->where('target', 'location')->whereNotNull('location')->get(['id', 'location'])
+                ->filter(static fn ($d) => Rules::loc((string) $d->location) === $old)->pluck('id')->all();
+
+            return $ids ? DB::table(Schema::DEVICES)->whereIn('id', $ids)->update(['location' => $to, 'updated_at' => now()]) : 0;
+        } catch (\Throwable) {
+            return 0;
         }
     }
 
