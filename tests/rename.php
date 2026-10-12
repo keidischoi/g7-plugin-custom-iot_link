@@ -154,6 +154,9 @@ namespace {
         && \Plugins\Custom\IotLink\Services\SmartThingsService::legacyTargetUrl() === 'https://3ds.test/api/plugins/custom-ha_link/smartthings' && \Plugins\Custom\IotLink\Services\SmartThingsService::targetUrl() === 'https://3ds.test/api/plugins/custom-iot_link/smartthings' && \Plugins\Custom\IotLink\Services\SmartThingsService::redirectUri() === 'https://3ds.test/iot-link', '설정 글 push_url · SmartThings Target URL 은 새 주소 (예전 주소도 알려 줌)');
     check(str_contains($read('README.md'), 'plugin:install custom-iot_link') && str_contains($read('README.md'), 'plugin:deactivate custom-ha_link') && str_contains($read('CHANGELOG.md'), '## '.$pj['version']), 'README 옮기기 순서 · CHANGELOG');
 
+    echo "■ 1.4.10 보관함 이름 따라가기\n";
+    check(method_exists(\Plugins\Custom\IotLink\Api\Ha::class, 'renameLocation') && str_contains($read('src/Api/Ha.php'), 'Rules::loc((string) $d->location) === $old'), 'Api\Ha::renameLocation — 내 보관함 센서 위치를 새 이름으로 (빈칸 · 대소문자 무시)');
+
     echo "\n".($fail === 0 ? "OK ({$pass} checks)" : "{$fail} FAILED / ".($pass + $fail))."\n";
     exit($fail === 0 ? 0 : 1);
 }

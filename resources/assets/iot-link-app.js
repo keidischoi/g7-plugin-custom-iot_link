@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.4.9 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.4.10 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.4.9';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.4.10';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -638,7 +638,7 @@
   // ── 관리자 ──
   var FIELDS = [['enabled', 'IoT 연결 쓰기', 'bool'], ['menu_enabled', '헤더 메인 메뉴에 「IoT 연결」 넣기 (홈 디자인 「메인 메뉴 보이기」와 같은 값)', 'bool'], ['menu_label', '헤더 메뉴 이름 (12글자까지)', 'text'],
     ['max_devices', '회원 한 명이 연결할 수 있는 기기 (기본 · 1~1000)', 'num'], ['max_devices_company', '업체 하나에 둘 수 있는 기기 (기본 · 그 업체로 분류된 것을 회원 모두 합쳐 · 0 = 막지 않음)', 'num'],   // 1.4.7
-    ['limit_admin_free', '관리자(최고 관리자 · 관리자 역할)는 기기 수 · 업체 한도에서 빼기 (칸을 살 필요 없음)', 'bool'],   // 1.4.9
+    ['limit_admin_free', '관리자(최고 관리자 · 관리자 역할)는 기기 수 · 업체 한도에서 빼기 (칸을 살 필요 없음)', 'bool'],   // 1.4.10
     ['slot_enabled', '💳 한도를 넘는 센서 칸을 코인 · 마일리지로 팔기 (회원 칸 · 업체 칸)', 'bool'], ['slot_mode', '💳 칸 결제 방식', 'sel', [['once', '한 번 사면 계속'], ['monthly', '달마다 결제 (자동 연장)']]],
     ['slot_coin_price', '💳 센서 1개 값 — 코인 (0 = 안 팖)', 'num'], ['slot_coin_price10', '💳 센서 10개 묶음 값 — 코인 (0 = 안 팖)', 'num'], ['slot_mileage_price', '💳 센서 1개 값 — 마일리지 (0 = 안 팖)', 'num'], ['slot_mileage_price10', '💳 센서 10개 묶음 값 — 마일리지 (0 = 안 팖)', 'num'],   // 1.4.8
     ['max_devices_members', '회원마다 다르게 — 「회원번호 또는 이메일:개수」 쉼표로 (예: 12:50, kim@example.com:100)', 'area'], ['max_devices_companies', '업체마다 다르게 — 「업체번호:개수」 쉼표로 (예: 3:100, 7:0 · 0 = 막지 않음) · 업체 번호는 업체 주소 /companies/번호', 'area'], ['send_mode', '전송 방식 (통합 「3ds」)', 'sel', [['change', '값이 변하면 보내기 (권장)'], ['interval', '주기적으로 보내기']]],
