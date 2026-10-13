@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.4.11 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.4.12 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.4.11';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.4.12';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -566,7 +566,8 @@
     var tg = Object.keys(D.targets).filter(function (k) { return k === 'location' || k === 'other' || (k === 'printer' && D.printers.length) || (k === 'equipment' && D.equipment.length); });
     var html =
       '<section class="hal-sec"><h4><em>1</em> 무엇에 붙일까요?</h4><div class="hal-pick">' + tg.map(function (k) { return '<label><input type="radio" name="target" value="' + k + '"' + (d.target === k ? ' checked' : '') + '><span><i>' + ICON[k] + '</i>' + esc(D.targets[k]) + '</span></label>'; }).join('') + '</div>' +
-        '<div data-for="location"><label>보관 위치 <small>필라멘트에 적은 「보관 위치」와 같게</small><input name="location" list="hal-locs" maxlength="40" value="' + esc(d.location || '') + '" placeholder="예: 드라이박스 · AMS · 서랍 2칸"><datalist id="hal-locs">' + D.locations.map(function (l) { return '<option value="' + esc(l) + '">'; }).join('') + '</datalist></label></div>' +
+        '<div data-for="location"><label>보관 위치 <small>필라멘트에 적은 「보관 위치」와 같게</small><input name="location" list="hal-locs" maxlength="40" value="' + esc(d.location || '') + '" placeholder="예: 드라이박스 · AMS · 서랍 2칸"><datalist id="hal-locs">' + D.locations.map(function (l) { return '<option value="' + esc(l) + '">'; }).join('') + '</datalist></label>' +
+          (D.locations.length ? '<div class="hal-locs"><small>📦 보관함에서 고르기</small>' + D.locations.map(function (l) { return '<button type="button" class="hal-locchip" data-loc="' + esc(l) + '">📦 ' + esc(l) + '</button>'; }).join('') + '</div>' : '') + '</div>' +   // 1.4.12
         '<div data-for="printer"><label>내 프린터<select name="printer_id">' + D.printers.map(function (p) { return '<option value="' + p.id + '"' + (d.printer_id === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select></label></div>' +
         '<div data-for="equipment"><label>업체 장비<select name="equipment_id">' + D.equipment.map(function (x) { var c = D.companies.filter(function (y) { return y.id === x.company_id; })[0]; return '<option value="' + x.id + '"' + (d.equipment_id === x.id ? ' selected' : '') + '>' + esc((c ? c.name + ' — ' : '') + x.name) + '</option>'; }).join('') + '</select></label></div>' +
         '<label>이름 <small>비우면 위에서 고른 것</small><input name="name" maxlength="60" value="' + esc(d.name || '') + '" placeholder="예: 거실 드라이박스"></label>' +
@@ -595,10 +596,13 @@
       var t = ($('[name=target]:checked') || {}).value || 'location';
       Array.prototype.forEach.call(ov.querySelectorAll('[data-for]'), function (el) { el.hidden = el.getAttribute('data-for').split(' ').indexOf(t) < 0; });
       Array.prototype.forEach.call(ov.querySelectorAll('[data-hm]'), function (b) { b.classList.toggle('on', b.getAttribute('data-hm') === f('humidity_max').value); });
+      var lk = function (v) { return String(v || '').replace(/\s+/g, '').toLowerCase(); }, cur = lk(f('location') && f('location').value);   // 1.4.12 고른 보관함 표시
+      Array.prototype.forEach.call(ov.querySelectorAll('[data-loc]'), function (b) { b.classList.toggle('on', cur !== '' && lk(b.getAttribute('data-loc')) === cur); });
     };
     ov.addEventListener('change', sync); ov.addEventListener('input', sync); sync();
     ov.addEventListener('click', function (ev) {
       var hm = ev.target.closest('[data-hm]'); if (hm) { f('humidity_max').value = hm.getAttribute('data-hm'); sync(); return; }
+      var lc = ev.target.closest('[data-loc]'); if (lc) { f('location').value = lc.getAttribute('data-loc'); if (!f('name').value) f('name').placeholder = lc.getAttribute('data-loc'); sync(); return; }   // 1.4.12 📦
       var ps = ev.target.closest('[data-preset]'); if (!ps) return;
       var p = prompt('Home Assistant 에서 이 기기 이름의 앞부분을 적어 주세요.\n예: sensor.p1s_print_status 이면 p1s', ''); if (!p) return;
       p = p.trim().toLowerCase().replace(/^sensor\./, '').replace(/[^a-z0-9_]/g, '_'); var set = PRESET[ps.getAttribute('data-preset')][1];
