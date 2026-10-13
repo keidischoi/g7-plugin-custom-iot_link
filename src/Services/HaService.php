@@ -238,6 +238,11 @@ class HaService
         if ($old) {
             DB::table(Schema::DEVICES)->where('id', $old->id)->update($row);
             $id = (int) $old->id;
+            // 1.4.11 보관 위치를 바꿨으면 재고 관리에 알림 — 옛 보관함이 비면 보관함 이름이 따라감 (옛 이름 보관함이 남고 새 것이 하나 더 생기던 것)
+            if ((string) $old->target === 'location' && $target === 'location' && (string) $old->location !== '' && $row['location'] !== null
+                && mb_strtolower((string) preg_replace('/\s+/u', '', (string) $old->location)) !== mb_strtolower((string) preg_replace('/\s+/u', '', (string) $row['location']))) {
+                Links::sensorMoved($uid, (string) $old->location, (string) $row['location']);
+            }
         } else {
             $id = (int) DB::table(Schema::DEVICES)->insertGetId($row + ['user_id' => $uid, 'token' => Rules::token(), 'created_at' => now()]);
         }

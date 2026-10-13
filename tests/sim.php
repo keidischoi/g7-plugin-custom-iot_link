@@ -136,6 +136,16 @@ namespace {
             return $l;
         }
 
+        /** @var list<array{0: int, 1: string, 2: string}> 1.4.11 받은 「센서 옮김」 */
+        public static array $moved = [];
+
+        public static function sensorMoved(int $uid, string $from, string $to): array
+        {
+            self::$moved[] = [$uid, $from, $to];
+
+            return ['renamed' => true];
+        }
+
         public static function spoolsAt(int $uid, string $location): array
         {
             $k = fn ($v) => mb_strtolower((string) preg_replace('/\s+/u', '', (string) $v));
@@ -159,6 +169,15 @@ namespace {
     [$ok, , $x] = $svc->save(1, null, ['target' => 'location', 'location' => '드라이박스', 'ent_hum' => 'sensor.Box_Humidity', 'ent_temp' => 'sensor.box_temperature', 'humidity_max' => 40]);
     $box = DB::table('hal_devices')->where('id', $x['id'] ?? 0)->first();
     t($ok && $box->name === '드라이박스' && strlen($box->token) === 32 && json_decode($box->entities, true)['hum'] === 'sensor.box_humidity' && (int) $box->humidity_max === 40, '보관함 센서 (이름은 위치에서 · 엔티티는 소문자)');
+    // 1.4.11 보관 위치를 바꾸면 재고 관리에 알림 (이름만 바꾸면 안 알림 · 빈칸 · 대소문자만 다르면 안 알림)
+    $mvId = (int) $x['id'];
+    $mvSnap = (array) \Illuminate\Support\Facades\DB::table(\Plugins\Custom\IotLink\Support\Schema::DEVICES)->where('id', $mvId)->first();
+    $svc->save(1, $mvId, ['target' => 'location', 'location' => '드라이박스', 'name' => '새 이름', 'ent_hum' => 'sensor.Box_Humidity']);
+    $svc->save(1, $mvId, ['target' => 'location', 'location' => ' 드라이 박스 ', 'ent_hum' => 'sensor.Box_Humidity']);
+    $svc->save(1, $mvId, ['target' => 'location', 'location' => '발코니 1', 'ent_hum' => 'sensor.Box_Humidity']);
+    t(FakeInventory::$moved === [[1, ' 드라이 박스 ', '발코니 1']] || FakeInventory::$moved === [[1, '드라이 박스', '발코니 1']], '1.4.11 보관 위치를 바꾸면 재고 관리에 알림 (이름만 · 빈칸만 바뀌면 안 알림): '.json_encode(FakeInventory::$moved, JSON_UNESCAPED_UNICODE));
+    \Illuminate\Support\Facades\DB::table(\Plugins\Custom\IotLink\Support\Schema::DEVICES)->where('id', $mvId)->update($mvSnap);   // 뒤 검사가 쓰는 기기 그대로
+    FakeInventory::$moved = [];
     t(! $svc->save(1, null, ['target' => 'printer', 'printer_id' => 7, 'ent_state' => 'sensor.x'])[0] && ! $svc->save(1, null, ['target' => 'equipment', 'equipment_id' => 102, 'ent_state' => 'sensor.x'])[0], '남의 프린터 · 남의 업체 장비에는 못 붙임');
     [$ok, , $x] = $svc->save(1, null, ['target' => 'printer', 'printer_id' => 5, 'ent_state' => 'sensor.p1s_print_status', 'ent_progress' => 'sensor.p1s_print_progress', 'ent_job' => 'sensor.p1s_task_name']);
     $prn = DB::table('hal_devices')->where('id', $x['id'] ?? 0)->first();

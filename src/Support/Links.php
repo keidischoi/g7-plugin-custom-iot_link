@@ -81,4 +81,12 @@ final class Links
 
         return ['mine' => array_values((array) ($r['mine'] ?? [])), 'company' => array_values((array) ($r['company'] ?? []))];
     }
+
+    /** 1.4.11 센서 보관 위치를 바꿈 — 옛 보관함이 비면 재고 관리가 보관함 이름을 따라 바꿈 (재고 관리 0.3.40+) */
+    public static function sensorMoved(int $uid, string $from, string $to): bool
+    {
+        $r = self::call('inventory', self::INVENTORY, 'sensorMoved', [], $uid, $from, $to);
+
+        return (bool) ($r['renamed'] ?? false);
+    }
 }
