@@ -706,10 +706,29 @@ class HaService
         return $cids === [] || ! Settings::get('company_link') ? [] : Links::equipment($cids);
     }
 
-    /** 재고 관리에 적어 둔 필라멘트 보관 위치 (고르기 도움말) @return list<string> */
+    /** 보관 위치 고르기 — 재고 관리의 보관함(만든 순서 · 롤에 적힌 위치) + 내 다른 센서의 위치 (빈칸 · 대소문자가 같으면 하나) @return list<string> */
     public function locations(int $uid): array
     {
-        return Links::spoolLocations($uid);
+        $out = [];
+        $seen = [];
+        $add = static function (string $l) use (&$out, &$seen): void {
+            $k = mb_strtolower((string) preg_replace('/\s+/u', '', $l));
+            if ($k !== '' && ! isset($seen[$k])) {
+                $seen[$k] = true;
+                $out[] = trim($l);
+            }
+        };
+        foreach (Links::spoolLocations($uid) as $l) {
+            $add((string) $l);
+        }
+        try {
+            foreach (DB::table(Schema::DEVICES)->where('user_id', $uid)->where('target', 'location')->whereNotNull('location')->orderBy('id')->pluck('location') as $l) {
+                $add((string) $l);   // 1.4.12 재고 관리가 없어도 내 센서 위치끼리는 고를 수 있게
+            }
+        } catch (\Throwable) {
+        }
+
+        return array_slice($out, 0, 120);
     }
 
     public function removeUser(int $uid): void
