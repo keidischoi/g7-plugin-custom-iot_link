@@ -626,14 +626,21 @@ class HaService
             return null;
         }
         $out = null;
+        $first = 0;
         foreach (DB::table(Schema::DEVICES)->where('target', 'printer')->where('printer_id', $printerId)->where('last_seen_at', '>=', self::ago((int) Settings::get('stale_hours') * 3600))
             ->orderByDesc('last_seen_at')->limit(4)->get() as $d) {
             if ($d->temp === null && $d->humidity === null) {
                 continue;
             }
             $out ??= ['temp' => null, 'humidity' => null, 'at' => (string) $d->last_seen_at, 'source' => (string) ($d->source ?? 'ha'), 'name' => (string) $d->name];
+            $first = $first ?: (int) $d->id;
             $out['temp'] ??= $d->temp !== null ? (float) $d->temp : null;
             $out['humidity'] ??= $d->humidity !== null ? (float) $d->humidity : null;
+        }
+        // 1.4.13 📈 최근 24시간 (1시간마다) — 프린터 라운지 카드에 마우스를 올리면 그래프
+        if ($out !== null && $first > 0) {
+            $out['hist'] = DB::table(Schema::READINGS)->where('device_id', $first)->where('at', '>=', self::ago(24 * 3600))->orderBy('at')->limit(48)->get(['at', 'temp', 'humidity'])
+                ->map(fn ($r) => [substr((string) $r->at, 5, 8), $r->temp !== null ? (float) $r->temp : null, $r->humidity !== null ? (float) $r->humidity : null])->values()->all();
         }
 
         return $out;
