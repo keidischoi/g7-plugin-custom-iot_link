@@ -53,6 +53,13 @@ final class Schema
         if (self::$ok) {
             return true;
         }
+        $ck = 'g7:ensure:'.md5(__FILE__).':'.@filemtime(__FILE__);   // 속도: 매 화면 표 확인 대신 — 확인한 뒤 하루 기억 (업데이트로 파일이 바뀌면 다시)
+        try {
+            if (\Illuminate\Support\Facades\Cache::get($ck) === 1) {
+                return self::$ok = true;
+            }
+        } catch (\Throwable) {
+        }
         try {
             if (! S::hasTable(self::DEVICES)) {
                 S::create(self::DEVICES, function (Blueprint $t) {
@@ -118,6 +125,10 @@ final class Schema
 
             self::smartThings();
 
+        try {
+            \Illuminate\Support\Facades\Cache::put($ck, 1, 86400);
+        } catch (\Throwable) {
+        }
             return self::$ok = true;
         } catch (\Throwable $e) {
             try {
