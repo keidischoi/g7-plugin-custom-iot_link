@@ -1,4 +1,4 @@
-/*! custom-iot_link 1.4.14 — IoT 연결 화면 불러오기 (이 플러그인 화면 data-hal-app 이 있을 때만 앱 · CSS 를 받음) */
+/*! custom-iot_link 1.4.15 — IoT 연결 화면 불러오기 (이 플러그인 화면 data-hal-app 이 있을 때만 앱 · CSS 를 받음) */
 (function () {
   'use strict';
   if (window.__halLoader) return;
