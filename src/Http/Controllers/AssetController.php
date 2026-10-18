@@ -22,6 +22,27 @@ class AssetController extends Controller
         'ha-link.css' => 'iot-link.css',
     ];
 
+    /** 1.4.15 화면 파일 캐시 — ?v= 가 지금 버전과 같을 때만 길게 캐시 (옛 불러오기가 옛 v 로 부르면 no-cache → 업데이트한 화면이 바로 보임) */
+    public static function version(): string
+    {
+        static $v = null;
+        if ($v === null) {
+            $v = '';
+            for ($d = __DIR__, $i = 0; $i < 7; $d = dirname($d), $i++) {
+                foreach (['plugin.json', 'module.json'] as $f) {
+                    if (is_file($d.'/'.$f)) {
+                        $j = json_decode((string) @file_get_contents($d.'/'.$f), true);
+                        $v = is_array($j) ? (string) ($j['version'] ?? '') : '';
+
+                        return $v;
+                    }
+                }
+            }
+        }
+
+        return $v;
+    }
+
     public function show(Request $request, string $file): Response
     {
         $file = self::LEGACY[$file] ?? $file;
@@ -36,7 +57,7 @@ class AssetController extends Controller
         $etag = '"'.substr(md5($file.'|'.$mtime.'|'.(int) @filesize($path)), 0, 20).'"';
         $headers = [
             'Content-Type' => self::FILES[$file].'; charset=UTF-8',
-            'Cache-Control' => $request->query('v') ? 'public, max-age=31536000, immutable' : 'public, max-age=86400',
+            'Cache-Control' => (string) $request->query('v') === self::version() ? 'public, max-age=31536000, immutable' : 'no-cache',
             'ETag' => $etag,
             'X-Content-Type-Options' => 'nosniff',
         ];

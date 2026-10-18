@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.4.14';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.4.15';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
