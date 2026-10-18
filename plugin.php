@@ -169,7 +169,7 @@ class Plugin extends AbstractPlugin
     {
         self::autoload();
 
-        return [RouteListener::class, IntegrationListener::class, MenuListener::class];
+        return [RouteListener::class, IntegrationListener::class, MenuListener::class, \Plugins\Custom\IotLink\Listeners\AiLinkListener::class];   // 1.5.1 🤖 IoT 기기 도구
     }
 
     /** @return array<string, mixed> */
