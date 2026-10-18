@@ -1125,7 +1125,15 @@ namespace {
     $i3 = $L->companyInfo([], 10, 3, 'staff');
     $i2 = $L->companyInfo([], 10, 2, '');
     t(($fi[0]['fields'][0]['key'] ?? '') === 'keep_days' && str_contains((string) ($i3[0]['lines'][0] ?? ''), '업체 기기 ') && str_contains((string) ($i3[0]['lines'][0] ?? ''), '30일 보관') && str_contains((string) ($i3[0]['links'][0]['url'] ?? ''), 'scope=company') && $i2 === [],
-        '🏢 내 업체 칸(센서 기록 보관) · 업체별 안내 (업체 사람에게만)');
+        '🏢 내 업체 칸(센서 기록 보관) · 업체별 안내 (업체 사람에게만)');
+    $ai = (new \Plugins\Custom\IotLink\Listeners\AiLinkListener())->tools([], 3);
+    $aiA = ($ai[0]['call'])(3, []);
+    $aiC = ($ai[0]['call'])(3, ['scope' => 'company']);
+    $aiM = ($ai[0]['call'])(1, ['scope' => 'mine']);
+    $flat = json_encode([$aiA, $aiM]);
+    t(($ai[0]['name'] ?? '') === 'iot_devices' && ($ai[0]['read_only'] ?? false) === true && ($aiC['count'] ?? 0) >= 1 && collect($aiC['devices'])->every(fn ($d) => ! empty($d['company_id']) && $d['company'] === '삼디 공방')
+        && collect($aiM['devices'])->every(fn ($d) => empty($d['company_id'])) && ! str_contains($flat, '"token"') && ! str_contains($flat, 'sensor.') && ! str_contains($flat, '"code"'),
+        '🤖 AI 도구 iot_devices — 읽기만 · 내 기기 / 업체 기기 · 받는 주소 · 센서 이름 · 연결 코드 없음');
 
     echo "\n통과 {$pass} · 실패 {$fail}\n";
     exit($fail ? 1 : 0);
