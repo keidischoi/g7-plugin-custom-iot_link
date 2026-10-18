@@ -104,7 +104,18 @@ namespace {
 
         public static function companiesOf(int $uid, array $roles = ['owner', 'manager']): array
         {
-            return ['1' => [['id' => 10, 'name' => '삼디 공방', 'kind' => 'shop', 'role' => 'owner']], '2' => [['id' => 11, 'name' => '남의 업체', 'kind' => 'shop', 'role' => 'owner']]][(string) $uid] ?? [];
+            $base = ['1' => [['id' => 10, 'name' => '삼디 공방', 'kind' => 'shop', 'role' => 'owner']], '2' => [['id' => 11, 'name' => '남의 업체', 'kind' => 'shop', 'role' => 'owner']],
+                '3' => [['id' => 10, 'name' => '삼디 공방', 'kind' => 'shop', 'role' => 'staff']], '4' => [['id' => 10, 'name' => '삼디 공방', 'kind' => 'shop', 'role' => 'manager']]][(string) $uid] ?? [];   // 1.5.0 직원 3 · 매니저 4
+
+            return array_values(array_filter($base, static fn ($c) => in_array($c['role'], $roles, true)));
+        }
+
+        /** 1.5.0 내 업체 칸 (keep_days) */
+        public static array $links = [];
+
+        public static function link(int $cid, string $ext): ?array
+        {
+            return isset(self::$links[$cid][$ext]) ? ['data' => self::$links[$cid][$ext]] : null;
         }
     }
     final class FakeInventory
@@ -1079,6 +1090,43 @@ namespace {
     $L9::$adminOverride = null;
     t(! $L9::exempt(2), '관리자가 아니면 예외 없음');
     Settings::save(['limit_admin_free' => true, 'max_devices' => 20, 'max_devices_company' => 0, 'slot_enabled' => false]);
+
+    echo "■ 1.5.0 🏢 업체 기기 — 업체 프린터 · 대표 · 매니저 함께 · 직원은 보기 · 기록 보관\n";
+    \Illuminate\Support\Facades\Schema::table('mpr_printers', function ($t) { $t->integer('company_id')->nullable(); });
+    DB::table('mpr_printers')->insert(['id' => 9, 'user_id' => 1, 'company_id' => 10, 'brand' => 'Bambu Lab', 'model' => 'A1', 'nickname' => '1호기', 'hook_token' => str_repeat('c', 32)]);
+    $hs = new \Plugins\Custom\IotLink\Services\HaService();
+    $pr4 = collect($hs->printers(4));
+    [$okC, , $xc] = $hs->save(4, null, ['target' => 'printer', 'printer_id' => 9, 'ent_state' => 'sensor.a1_state', 'name' => '1호기 상태']) + [2 => []];
+    $cdev = DB::table('hal_devices')->find((int) ($xc['id'] ?? 0));
+    $o3 = collect($hs->overview(3)['devices'])->firstWhere('id', (int) ($xc['id'] ?? 0));
+    $o1 = collect($hs->overview(1)['devices'])->firstWhere('id', (int) ($xc['id'] ?? 0));
+    $o2 = collect($hs->overview(2)['devices'])->firstWhere('id', (int) ($xc['id'] ?? 0));
+    t($pr4->firstWhere('id', 9) !== null && str_starts_with((string) $pr4->firstWhere('id', 9)['name'], '🏢 삼디 공방 · ') && $pr4->firstWhere('id', 7) === null && $okC && (int) ($cdev->company_id ?? 0) === 10
+        && ($o3['perm'] ?? '') === 'view' && ($o1['perm'] ?? '') === 'manage' && $o2 === null && ($o3['group'] ?? '') === 'c10',
+        '🏢 업체 프린터에 센서를 붙이면 업체 기기 — 매니저가 붙임 · 대표도 관리 · 직원은 보기 · 남은 못 봄 · 🏢 그 업체 분류');
+    $e3 = $hs->save(3, (int) $xc['id'], ['name' => '바꿈', 'ent_state' => 'sensor.a1_state']);
+    $e1 = $hs->save(1, (int) $xc['id'], ['target' => 'printer', 'printer_id' => 9, 'name' => '대표가 고침', 'ent_state' => 'sensor.a1_state']);
+    $d3 = $hs->delete(3, (int) $xc['id']);
+    t(! $e3[0] && $e1[0] && DB::table('hal_devices')->find((int) $xc['id'])->name === '대표가 고침' && ! $d3[0] && DB::table('hal_devices')->find((int) $xc['id']) !== null,
+        '🏢 업체 기기 — 직원은 고치기 · 지우기 X · 다른 대표 · 매니저는 고침');
+    Settings::save(['keep_days' => 30]);
+    $old5 = date('Y-m-d H:i:s', time() - 5 * 86400);
+    $pdev = (int) DB::table('hal_devices')->where('user_id', 1)->whereNull('company_id')->value('id');
+    DB::table('hal_readings')->insert([['device_id' => (int) $xc['id'], 'at' => $old5, 'humidity' => 40], ['device_id' => $pdev, 'at' => $old5, 'humidity' => 41]]);
+    FakeCompanies::$links[10]['custom-iot_link'] = ['keep_days' => 2];
+    $hs->tidy();
+    $kd = \Plugins\Custom\IotLink\Services\HaService::companyKeepDays(10);
+    FakeCompanies::$links[10]['custom-iot_link'] = ['keep_days' => 999];
+    t(DB::table('hal_readings')->where('device_id', (int) $xc['id'])->where('at', $old5)->count() === 0 && DB::table('hal_readings')->where('device_id', $pdev)->where('at', $old5)->count() === 1 && $kd === 2
+        && \Plugins\Custom\IotLink\Services\HaService::companyKeepDays(10) === (int) Settings::get('keep_days'),
+        '🗑 업체 센서 기록 — 업체가 더 짧게(2일) 지움 · 개인 기기는 그대로 · 사이트보다 길게는 안 됨');
+    $L = new \Plugins\Custom\IotLink\Listeners\IntegrationListener();
+    $fi = $L->companyForm([]);
+    $i3 = $L->companyInfo([], 10, 3, 'staff');
+    $i2 = $L->companyInfo([], 10, 2, '');
+    t(($fi[0]['fields'][0]['key'] ?? '') === 'keep_days' && str_contains((string) ($i3[0]['lines'][0] ?? ''), '업체 기기 ') && str_contains((string) ($i3[0]['lines'][0] ?? ''), '30일 보관') && str_contains((string) ($i3[0]['links'][0]['url'] ?? ''), 'scope=company') && $i2 === [],
+        '🏢 내 업체 칸(센서 기록 보관) · 업체별 안내 (업체 사람에게만)');
+
     echo "\n통과 {$pass} · 실패 {$fail}\n";
     exit($fail ? 1 : 0);
 }

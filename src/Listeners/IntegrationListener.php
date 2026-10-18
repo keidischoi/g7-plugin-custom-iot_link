@@ -26,10 +26,53 @@ class IntegrationListener implements HookListenerInterface
             // 1.2.0 프린터 라운지(내 프린터 0.1.28+)가 물음 — 그 프린터에 붙인 기기의 온습도 · 쓸 수 있는 보내는 곳(SmartThings 켜짐)
             'custom-iot_link.printer_env' => ['method' => 'printerEnv', 'priority' => 50, 'type' => 'filter', 'sync' => true],
             'custom-iot_link.sources' => ['method' => 'sources', 'priority' => 50, 'type' => 'filter', 'sync' => true],
+            // 1.5.0 🏢 내 업체 › 고치기 「📡 IoT 연결」 칸 (센서 기록 보관) · 업체별 안내 (업체 기기 수 · 연결 끊김 · 바로 가기)
+            'custom-companies.form.sections' => ['method' => 'companyForm', 'priority' => 35, 'type' => 'filter'],
+            'custom-companies.me.info' => ['method' => 'companyInfo', 'priority' => 35, 'type' => 'filter'],
         ];
     }
 
     public function handle(...$args): void {}
+
+    /** 1.5.0 🏢 내 업체 고치기 화면 칸 @return list<array<string, mixed>> */
+    public function companyForm(mixed $list = []): array
+    {
+        $list = is_array($list) ? array_values($list) : [];
+        if (! \Plugins\Custom\IotLink\Support\Settings::get('enabled') || ! \Plugins\Custom\IotLink\Support\Settings::get('company_link')) {
+            return $list;
+        }
+        $site = (int) \Plugins\Custom\IotLink\Support\Settings::get('keep_days');
+        $list[] = ['ext' => 'custom-iot_link', 'title' => 'IoT 연결', 'emoji' => '📡',
+            'desc' => implode("\n", [
+                '📡 업체 장비 · 업체 프린터에 붙인 센서(온습도계 · 플러그 · 카메라)는 「🏢 업체 기기」로 따로 모여요 — 대표 · 매니저가 함께 고치고, 직원은 보기만.',
+                '🗑 센서 기록(한 시간에 한 줄)은 사이트 기본 '.$site.'일 보관 — 아래에서 더 짧게 정할 수 있어요 (0 = 사이트 기본 · 더 길게는 안 돼요).',
+            ]),
+            'fields' => [['key' => 'keep_days', 'label' => '🗑 센서 기록 보관(일)', 'type' => 'number', 'min' => 0, 'max' => 365, 'default' => 0, 'help' => '0 = 사이트 기본 ('.$site.'일)']]];
+
+        return $list;
+    }
+
+    /** 1.5.0 🏢 내 업체 화면의 업체별 안내 (업체 사람에게) @return list<array<string, mixed>> */
+    public function companyInfo(mixed $list = [], mixed $companyId = 0, mixed $uid = 0, mixed $role = ''): array
+    {
+        $list = is_array($list) ? array_values($list) : [];
+        $cid = (int) $companyId;
+        try {
+            $svc = new HaService();
+            if ($cid < 1 || ! \Plugins\Custom\IotLink\Support\Settings::get('enabled') || ! in_array($cid, array_column($svc->memberCompanies((int) $uid), 'id'), true)) {
+                return $list;
+            }
+            $rows = \Illuminate\Support\Facades\DB::table(\Plugins\Custom\IotLink\Support\Schema::DEVICES)->where('company_id', $cid)->get(['last_seen_at']);
+            $cut = date('Y-m-d H:i:s', time() - (int) \Plugins\Custom\IotLink\Support\Settings::get('stale_hours') * 3600);
+            $stale = $rows->filter(fn ($r) => ! $r->last_seen_at || (string) $r->last_seen_at < $cut)->count();
+            $list[] = ['ext' => 'custom-iot_link', 'title' => 'IoT 연결', 'emoji' => '📡',
+                'lines' => [$rows->count() ? '📡 업체 기기 '.$rows->count().'개'.($stale ? ' · 📴 소식 없음 '.$stale.'개' : ' · 모두 연결됨').' · 기록 '.HaService::companyKeepDays($cid).'일 보관' : '아직 업체 기기가 없어요 — IoT 연결에서 업체 장비 · 업체 프린터에 센서를 붙이면 여기에 모여요.'],
+                'links' => [['label' => '📡 업체 기기 보기', 'url' => '/iot-link?scope=company&c='.$cid]]];
+        } catch (\Throwable) {
+        }
+
+        return $list;
+    }
 
     public function printerSnapshot(mixed $value = null, mixed $printerId = 0): mixed
     {

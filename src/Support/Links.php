@@ -55,6 +55,28 @@ final class Links
         return $out;
     }
 
+    /** 1.5.0 🏢 회원이 속한 업체 — 직원도 (업체 기기 보기) @return list<array{id: int, name: string, role: string}> */
+    public static function memberCompaniesOf(int $uid): array
+    {
+        $out = [];
+        foreach (self::call('companies', self::COMPANIES, 'companiesOf', [], $uid, ['owner', 'manager', 'staff']) as $c) {
+            if (is_array($c) && (int) ($c['id'] ?? 0) > 0) {
+                $out[] = ['id' => (int) $c['id'], 'name' => (string) ($c['name'] ?? ''), 'role' => (string) ($c['role'] ?? '')];
+            }
+        }
+        usort($out, static fn ($a, $b) => strcmp($a['name'], $b['name']));
+
+        return $out;
+    }
+
+    /** 1.5.0 이 플러그인이 내 업체에 맡긴 값 (keep_days — 업체 센서 기록 보관) @return array<string, mixed> */
+    public static function companyData(int $cid): array
+    {
+        $l = $cid > 0 ? self::call('companies', self::COMPANIES, 'link', [], $cid, 'custom-iot_link') : [];   // 기본값이 배열이어야 결과(배열)를 받음
+
+        return is_array($l) && is_array($l['data'] ?? null) ? $l['data'] : [];
+    }
+
     /** @param list<int> $cids @return array<int, array{id: int, company_id: int, name: string}> 장비 번호(재고 관리) → … */
     public static function equipment(array $cids): array
     {

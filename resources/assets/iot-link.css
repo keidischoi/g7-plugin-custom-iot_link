@@ -1,4 +1,4 @@
-/* custom-iot_link 1.4.15 — 📡 IoT 연결 */
+/* custom-iot_link 1.5.0 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -335,3 +335,9 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
 .hal-locchip{display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s,transform .1s}
 .hal-locchip:hover{border-color:#0d9488;background:rgba(13,148,136,.07)}.hal-locchip:active{transform:scale(.97)}
 .hal-locchip.on{border-color:#0d9488;background:#0d9488;color:#fff}
+
+/* 1.5.0 🏢 내 기기 · 업체 기기 */
+.hal-scope { display:flex; gap:6px; margin:12px 0 8px; padding:4px; border:1px solid var(--line, rgba(127,127,127,.25)); border-radius:14px; width:max-content; max-width:100%; }
+.hal-scope button { border:0; background:transparent; color:inherit; font:inherit; font-weight:800; padding:7px 14px; border-radius:10px; cursor:pointer; opacity:.75; }
+.hal-scope button.on { background:var(--acc, #0ea5e9); color:#fff; opacity:1; }
+.hal-scope small { font-weight:600; opacity:.8; margin-left:4px; }

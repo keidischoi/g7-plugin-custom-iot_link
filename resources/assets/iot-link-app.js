@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.4.15 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.5.0 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.4.15';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.5.0';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -102,7 +102,8 @@
   /* 1.4.6 📁 분류 — 🛠 장비 · 📦 개인 재고 · 🏢 업체마다 · ❓ 미분류 (회원이 고른 것 · 없으면 붙인 곳 따라) */
   function groups() {
     var d = S.d, out = [['equip', '🛠', '장비', '내 프린터 · 내 장비'], ['mine', '📦', '개인 재고', '내 필라멘트 · 레진 보관함']];
-    (d.companies || []).forEach(function (c) { out.push(['c' + c.id, '🏢', c.name, '업체 장비 · 업체 재고']); });
+    var seenC = {};   // 1.5.0 속한 업체 모두 (직원은 보기만)
+    (d.companies || []).concat(d.member_companies || []).forEach(function (c) { if (seenC[c.id]) return; seenC[c.id] = 1; out.push(['c' + c.id, '🏢', c.name, '업체 장비 · 업체 프린터 · 업체 재고']); });
     out.push(['none', '❓', '미분류', '아직 분류하지 않은 센서']);
     return out;
   }
@@ -154,7 +155,18 @@
   /* 1.4.7 출처 — 🏠 Home Assistant · SmartThings (카드의 배지와 같은 기준) */
   function srcOf(x) { return x.source === 'smartthings' || (x.sensors && x.sensors.length) ? 'st' : 'ha'; }
   function srcPick() { var v = pref('src', 'all'); return v === 'ha' || v === 'st' ? v : 'all'; }
-  function shown() { var sp = srcPick(); return S.d.devices.filter(function (x) { return sp === 'all' || srcOf(x) === sp; }); }
+  /* 1.5.0 🏢 내 기기 · 업체 기기 따로 — 업체 장비 · 업체 프린터에 붙인 기기는 업체 대표 · 관리자가 함께 고치고, 직원은 보기만 */
+  function hasCo() { return !!((S.d.member_companies || []).length || (S.d.companies || []).length || S.d.devices.some(function (x) { return x.company_id; })); }
+  function scope() { if (!hasCo()) return 'all'; var v = pref('scope', ''); if (!v) { v = new URLSearchParams(location.search).get('scope') === 'company' ? 'company' : 'mine'; } return v === 'company' ? 'company' : 'mine'; }
+  function inScope(x) { var sc = scope(); return sc === 'all' || (sc === 'company' ? !!x.company_id : !x.company_id); }
+  function scopeBar() {
+    if (!hasCo()) return '';
+    var sc = scope(), nm = S.d.devices.filter(function (x) { return !x.company_id; }).length, nc = S.d.devices.length - nm;
+    return '<div class="hal-scope" role="tablist" aria-label="기기 범위"><button type="button" role="tab" data-scope="mine" class="' + (sc === 'mine' ? 'on' : '') + '">👤 내 기기 <small>' + nm + '</small></button>' +
+      '<button type="button" role="tab" data-scope="company" class="' + (sc === 'company' ? 'on' : '') + '">🏢 업체 기기 <small>' + nc + '</small></button></div>' +
+      (sc === 'company' ? '<p class="hal-hint">🏢 업체 장비 · 업체 프린터에 붙인 기기 — 그 업체 대표 · 관리자가 함께 고치고, 직원은 보기만 해요. 기록 보관은 🏢 내 업체 › 📡 IoT 연결 칸에서 더 짧게 정할 수 있어요.</p>' : '');
+  }
+  function shown() { var sp = srcPick(); return S.d.devices.filter(function (x) { return inScope(x) && (sp === 'all' || srcOf(x) === sp); }); }
   function tools() {
     var d = S.d, gf = pref('gf', 'all'), vw = pref('view', 'card'), cnt = {}, sp = srcPick(), sc = { ha: 0, st: 0 };
     d.devices.forEach(function (x) { sc[srcOf(x)]++; });
@@ -216,10 +228,11 @@
     wrap('<section class="hal-hero"><div><h1>📡 IoT 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 재고 관리 · 정비 수첩 · 내 프린터에 이어요.</p></div>' +
       '<div class="hal-stats"><span title="연결할 수 있는 기기 (관리자가 정함)">기기 <b>' + d.devices.length + '</b>' + (d.limits ? (d.limits.admin ? ' <small title="관리자는 기기 수 한도가 없어요">· 관리자 무제한</small>' : ' / ' + d.limits.member) : '') + '</span><span>🟢 연결됨 <b>' + live + '</b></span>' + (over ? '<span class="hot">⚠️ 기준 넘음 <b>' + over + '</b></span>' : '') + '<button class="hal-btn ghost" data-guide title="연결 방법 보기" aria-label="연결 방법 보기">❓ 연결 방법</button>' + (d.devices.length > 1 && !S.sel ? '<button class="hal-btn ghost" data-sel-on title="체크 박스로 골라 한 번에 분류 옮기기 · 지우기">☑️ 여러 개 고르기</button>' : '') + (d.slots && d.slots.enabled ? ' <button class="hal-btn ghost" data-slot title="코인 · 마일리지로 센서 칸 사기">💳 칸 늘리기</button>' : '') + ' <button class="hal-btn light" data-new>➕ 기기 연결</button></div></section>' +
       stCard() +
-      (d.devices.length ? (S.sel ? selBar() : '') + tools() + grouped() +
+      (d.devices.length ? scopeBar() + (S.sel ? selBar() : '') + tools() + grouped() +
         '<p class="hal-note">' + (liveSec() ? '🔄 이 화면은 ' + (liveSec() >= 60 && liveSec() % 60 === 0 ? liveSec() / 60 + '분' : liveSec() + '초') + '마다 스스로 새 값을 받아 와요' : '🔄 새 값을 보려면 화면을 새로 고쳐 주세요') + ' (Home Assistant 는 ' + (d.config.send_mode === 'change' ? '값이 변하면' : (d.config.interval_min || 10) + '분마다') + ' · 상태가 바뀌면 바로 보내요).</p><p class="hal-note">🔒 받는 주소는 비밀번호와 같아요 — 남에게 보이지 마세요. 사이트가 내 집으로 접속하지 않고, 내 Home Assistant 가 보내는 값만 받아요.' + (d.config.inventory ? ' · <a href="/inventory?tab=drawer" data-go>🧵 필라멘트 서랍 보기 (재고 관리)</a>' : '') + '</p>'
         : '<section class="hal-start"><h2>' + haLogo() + ' Home Assistant 는 세 걸음이면 돼요</h2><ol><li><b>① HACS 에서 「3ds」 설치</b><span>단추 한 번으로 저장소가 들어가요</span></li><li><b>② 사이트 주소 · 연결 코드 붙여 넣기</b><span>복사 단추 두 번</span></li><li><b>③ 「⚡ 알아서 찾아 연결」 → 확인</b><span>내 프린터 · 필라멘트 보관 위치와 이름이 맞는 것을 찾아 줘요</span></li></ol><div class="hal-row center"><button class="hal-btn pri big" data-new>➕ 첫 기기 연결하기</button><button class="hal-btn big" data-guide>❓ 그림으로 보는 연결 방법</button></div></section>'));
     qa('[data-guide]').forEach(function (b) { b.onclick = function () { guideBox(); }; });
+    qa('[data-scope]').forEach(function (b) { b.onclick = function () { setPref('scope', b.getAttribute('data-scope')); setPref('gf', 'all'); S.lim = 0; redraw(); }; });   // 1.5.0
     qa('[data-gf]').forEach(function (b) { b.onclick = function () { setPref('gf', b.getAttribute('data-gf')); S.lim = 0; redraw(); }; });   // 1.4.6 분류 고르기 · 보기 모양
     qa('[data-src]').forEach(function (b) { b.onclick = function () { setPref('src', b.getAttribute('data-src')); S.lim = 0; redraw(); }; });   // 1.4.7 출처
     moreBind();
@@ -229,7 +242,7 @@
     qa('[data-snap]').forEach(function (b) { snapLoad(b); b.onclick = function () { var u = SNAP[b.getAttribute('data-snap')]; if (u && u.url) modal('📷 ' + esc(find(b.getAttribute('data-snap')).name), '<img class="hal-snapbig" src="' + u.url + '" alt="">'); }; });
     qa('[data-new]').forEach(function (b) { b.onclick = function () { connectBox(); }; });
     qa('[data-slot]').forEach(function (b) { b.onclick = function () { slotBox(); }; });   // 1.4.8 💳
-    qa('[data-edit]').forEach(function (b) { b.onclick = function () { form(find(b.getAttribute('data-edit'))); }; });
+    qa('[data-edit]').forEach(function (b) { b.onclick = function () { var dv = find(b.getAttribute('data-edit')); if (dv && dv.perm === 'view') { toast('🏢 업체 기기는 그 업체 대표 · 관리자만 고칠 수 있어요.'); return; } form(dv); }; });   // 1.5.0
     qa('[data-yaml]').forEach(function (b) { b.onclick = function () { yamlBox(find(b.getAttribute('data-yaml'))); }; });
     qa('[data-revive]').forEach(function (b) { b.onclick = function () { revive(b); }; });
     selBind();
