@@ -3,7 +3,7 @@
   'use strict';
   if (window.__halLoader) return;
   window.__halLoader = true;
-  var API = '/api/plugins/custom-iot_link', V = '1.4.14', loading = false;
+  var API = '/api/plugins/custom-iot_link', V = '1.4.15', loading = false;
   function css() {
     if (document.getElementById('hal-css')) return;
     var l = document.createElement('link'); l.id = 'hal-css'; l.rel = 'stylesheet'; l.href = API + '/assets/iot-link.css?v=' + V; document.head.appendChild(l);
