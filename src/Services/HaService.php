@@ -39,6 +39,31 @@ class HaService
         return date('Y-m-d H:i:s', strtotime(self::now()) - $seconds);
     }
 
+    /* ───────── 1.5.0 🏢 업체 기기 — 그 업체 대표 · 관리자가 함께 관리 · 직원은 보기 ───────── */
+
+    /** 내가 고치고 지울 수 있는 기기 (내 것 · 내가 대표 · 관리자인 업체 기기) */
+    public function manageable(int $uid): \Illuminate\Database\Query\Builder
+    {
+        $cids = array_column($this->companies($uid), 'id');
+
+        return DB::table(Schema::DEVICES)->where(static fn ($w) => $cids ? $w->where('user_id', $uid)->orWhereIn('company_id', $cids) : $w->where('user_id', $uid));
+    }
+
+    /** @return list<array{id: int, name: string, role: string}> 속한 업체 (직원 포함) */
+    public function memberCompanies(int $uid): array
+    {
+        return $uid <= 0 || ! Settings::get('company_link') ? [] : Links::memberCompaniesOf($uid);
+    }
+
+    /** 업체 센서 기록 보관(일) — 사이트 값보다 짧게만 (업체 값 0 = 사이트 값) */
+    public static function companyKeepDays(int $cid): int
+    {
+        $site = (int) Settings::get('keep_days');
+        $own = (int) (Links::companyData($cid)['keep_days'] ?? 0);
+
+        return $own > 0 ? min($site, $own) : $site;
+    }
+
     /* ───────── 한 화면 ───────── */
 
     /** @return array<string, mixed> */
@@ -46,7 +71,9 @@ class HaService
     {
         Schema::ensure();
         $this->touchSeen($uid);
-        $rows = DB::table(Schema::DEVICES)->where('user_id', $uid)->orderBy('target')->orderBy('name')->orderBy('id')->get();
+        $mcos = $this->memberCompanies($uid);   // 1.5.0 🏢 속한 업체의 기기도 (직원은 보기만)
+        $mcids = array_column($mcos, 'id');
+        $rows = DB::table(Schema::DEVICES)->where(static fn ($w) => $mcids ? $w->where('user_id', $uid)->orWhereIn('company_id', $mcids) : $w->where('user_id', $uid))->orderBy('target')->orderBy('name')->orderBy('id')->get();
         $ids = $rows->pluck('id')->all();
         $hist = [];
         foreach (DB::table(Schema::READINGS)->whereIn('device_id', $ids ?: [0])->where('at', '>=', self::ago(48 * 3600))->orderBy('at')->get(['device_id', 'at', 'temp', 'humidity']) as $r) {
@@ -54,7 +81,7 @@ class HaService
         }
         $printers = $this->printers($uid);
         $companies = $this->companies($uid);
-        $equip = $this->equipment(array_column($companies, 'id'));
+        $equip = $this->equipment(array_values(array_unique(array_merge(array_column($companies, 'id'), $mcids))));
         $pn = array_column($printers, 'name', 'id');
         // 0.2.0 SmartThings — 설치 · 센서 값 (기기 카드에도 그 기기에 이은 센서를 붙임)
         $st = (new SmartThingsService($this))->forUser($uid);
@@ -72,9 +99,9 @@ class HaService
 
         return [
             'now' => self::now(),
-            'devices' => $rows->map(fn ($d) => $this->device($d, $hist[(int) $d->id] ?? [], $pn, $equip) + ['sensors' => $byDev[(int) $d->id] ?? [], 'group' => self::group((string) ($d->grp ?? ''), (string) $d->target, $d->company_id ? (int) $d->company_id : null, array_column($companies, 'id')), 'group_auto' => self::group('', (string) $d->target, $d->company_id ? (int) $d->company_id : null, array_column($companies, 'id'))])->all(),
+            'devices' => $rows->map(fn ($d) => $this->device($d, $hist[(int) $d->id] ?? [], $pn, $equip) + ['perm' => (int) $d->user_id === $uid || in_array((int) $d->company_id, array_column($companies, 'id'), true) ? 'manage' : 'view', 'mine' => (int) $d->user_id === $uid] + ['sensors' => $byDev[(int) $d->id] ?? [], 'group' => self::group((string) ($d->grp ?? ''), (string) $d->target, $d->company_id ? (int) $d->company_id : null, $mcids ?: array_column($companies, 'id')), 'group_auto' => self::group('', (string) $d->target, $d->company_id ? (int) $d->company_id : null, $mcids ?: array_column($companies, 'id'))])->all(),
             'smartthings' => $st,
-            'printers' => $printers, 'companies' => $companies, 'equipment' => array_values($equip), 'locations' => $this->locations($uid),
+            'printers' => $printers, 'companies' => $companies, 'member_companies' => $mcos, 'equipment' => array_values($equip), 'locations' => $this->locations($uid),
             'targets' => Rules::TARGETS,
             'link' => ['code' => $this->linkCode($uid), 'site' => rtrim((string) config('app.url'), '/'), 'repo' => (string) Settings::get('hacs_repo')],
             'slots' => Limits::exempt($uid) ? ['enabled' => false] : (new SlotService())->info($uid, $companies),   // 1.4.8 💳 · 1.4.9 관리자는 살 필요 없음
@@ -128,7 +155,7 @@ class HaService
         }
 
         return match ($target) {
-            'printer' => 'equip',
+            'printer' => $cid && in_array($cid, $cids, true) ? 'c'.$cid : 'equip',   // 1.5.0 업체 프린터 → 그 업체
             'equipment' => $cid && in_array($cid, $cids, true) ? 'c'.$cid : 'equip',
             'location' => 'mine',
             default => 'none',
@@ -152,13 +179,13 @@ class HaService
             return [false, '분류를 다시 골라 주세요.'];
         }
         if (str_starts_with($grp, 'c')) {   // 1.4.7 업체 한도
-            $own = DB::table(Schema::DEVICES)->where('user_id', $uid)->whereIn('id', $ids)->pluck('id')->map(fn ($x) => (int) $x)->all();
+            $own = $this->manageable($uid)->whereIn('id', $ids)->pluck('id')->map(fn ($x) => (int) $x)->all();
             $cos = $this->companies($uid);
             if ($own !== [] && ($full = Limits::companyFull((int) substr($grp, 1), count($own), $own, (string) (collect($cos)->firstWhere('id', (int) substr($grp, 1))['name'] ?? ''), $uid))) {
                 return [false, $full];
             }
         }
-        $n = DB::table(Schema::DEVICES)->where('user_id', $uid)->whereIn('id', $ids)->update(['grp' => $grp === '' ? null : $grp, 'updated_at' => now()]);
+        $n = $this->manageable($uid)->whereIn('id', $ids)->update(['grp' => $grp === '' ? null : $grp, 'updated_at' => now()]);
 
         return $n ? [true, '기기 '.$n.'개를 옮겼어요.'] : [false, '옮길 기기를 찾을 수 없어요.'];
     }
@@ -172,7 +199,7 @@ class HaService
     public function save(int $uid, ?int $id, array $in): array
     {
         Schema::ensure();
-        $old = $id ? DB::table(Schema::DEVICES)->where('id', $id)->where('user_id', $uid)->first() : null;
+        $old = $id ? $this->manageable($uid)->where('id', $id)->first() : null;   // 1.5.0 업체 기기는 그 업체 대표 · 관리자도
         if ($id && ! $old) {
             return [false, '기기를 찾을 수 없어요.'];
         }
@@ -194,6 +221,7 @@ class HaService
                 return [false, '내 프린터에서 골라 주세요.'];
             }
             $row['printer_id'] = $p['id'];
+            $row['company_id'] = $p['company_id'] ?? null;   // 1.5.0 🏢 업체 프린터에 붙이면 업체 기기
             $auto = $p['name'];
         } elseif ($target === 'equipment') {
             $cids = array_column($this->companies($uid), 'id');
@@ -265,11 +293,11 @@ class HaService
     public function deleteMany(int $uid, array $ids): array
     {
         $ids = array_slice(array_values(array_unique(array_filter(array_map(static fn ($x) => is_numeric($x) ? (int) $x : 0, $ids), static fn ($x) => $x > 0))), 0, 200);
-        $own = $uid > 0 && $ids !== [] && Schema::ensure() ? DB::table(Schema::DEVICES)->where('user_id', $uid)->whereIn('id', $ids)->pluck('id')->map(fn ($x) => (int) $x)->all() : [];
+        $own = $uid > 0 && $ids !== [] && Schema::ensure() ? $this->manageable($uid)->whereIn('id', $ids)->pluck('id')->map(fn ($x) => (int) $x)->all() : [];
         if ($own === []) {
             return [false, '지울 기기를 찾을 수 없어요.'];
         }
-        DB::table(Schema::DEVICES)->where('user_id', $uid)->whereIn('id', $own)->delete();
+        DB::table(Schema::DEVICES)->whereIn('id', $own)->delete();
         DB::table(Schema::READINGS)->whereIn('device_id', $own)->delete();
         DB::table(Schema::RUNS)->whereIn('device_id', $own)->delete();
         foreach ($own as $id) {
@@ -283,7 +311,7 @@ class HaService
     /** 받는 주소 바꾸기 (주소가 새어 나갔을 때) @return array{0: bool, 1: string} */
     public function rotate(int $uid, int $id): array
     {
-        $n = Schema::ensure() ? DB::table(Schema::DEVICES)->where('id', $id)->where('user_id', $uid)->update(['token' => Rules::token(), 'updated_at' => now()]) : 0;
+        $n = Schema::ensure() ? $this->manageable($uid)->where('id', $id)->update(['token' => Rules::token(), 'updated_at' => now()]) : 0;
 
         return $n ? [true, '주소를 바꿨어요 — Home Assistant 설정의 주소도 새 것으로 바꿔 주세요.'] : [false, '기기를 찾을 수 없어요.'];
     }
@@ -490,7 +518,8 @@ class HaService
         }
         try {
             $cls = self::$printerService;
-            $tok = (string) DB::table('mpr_printers')->where('id', $printerId)->where('user_id', $uid)->value('hook_token');
+            $cids = array_column($this->companies($uid), 'id');   // 1.5.0 🏢 업체 프린터
+            $tok = (string) DB::table('mpr_printers')->where('id', $printerId)->where(fn ($w) => $cids && $this->hasCol('mpr_printers', 'company_id') ? $w->where('user_id', $uid)->orWhereIn('company_id', $cids) : $w->where('user_id', $uid))->value('hook_token');
             if ($tok === '' || ! class_exists($cls) || ! method_exists($cls, 'hook')) {
                 return;
             }
@@ -573,7 +602,8 @@ class HaService
     /** 내 기기의 사진 파일 (없으면 null) */
     public function snapFile(int $uid, int $id): ?string
     {
-        $ok = Schema::ensure() && DB::table(Schema::DEVICES)->where('id', $id)->where('user_id', $uid)->whereNotNull('snap_at')->exists();
+        $mc = array_column($this->memberCompanies($uid), 'id');   // 1.5.0 업체 기기 사진은 업체 사람에게
+        $ok = Schema::ensure() && DB::table(Schema::DEVICES)->where('id', $id)->where(static fn ($w) => $mc ? $w->where('user_id', $uid)->orWhereIn('company_id', $mc) : $w->where('user_id', $uid))->whereNotNull('snap_at')->exists();
         $p = self::snapPath($id);
 
         return $ok && is_file($p) ? $p : null;
@@ -657,6 +687,13 @@ class HaService
     {
         try {
             DB::table(Schema::READINGS)->where('at', '<', self::ago((int) Settings::get('keep_days') * 86400))->delete();
+            foreach (DB::table(Schema::DEVICES)->whereNotNull('company_id')->select('company_id')->distinct()->pluck('company_id') as $cid) {   // 1.5.0 🗑 업체가 더 짧게 정했으면
+                $d = self::companyKeepDays((int) $cid);
+                if ($d < (int) Settings::get('keep_days')) {
+                    $ids = DB::table(Schema::DEVICES)->where('company_id', $cid)->pluck('id')->all();
+                    DB::table(Schema::READINGS)->whereIn('device_id', $ids ?: [0])->where('at', '<', self::ago($d * 86400))->delete();
+                }
+            }
             DB::table(Schema::RUNS)->whereNotNull('ended_at')->where('ended_at', '<', self::ago(400 * 86400))->delete();
         } catch (\Throwable) {
         }
@@ -693,9 +730,11 @@ class HaService
             return [];
         }
         try {
-            return DB::table('mpr_printers')->where('user_id', $uid)->orderBy('sort')->orderBy('id')->get()
-                ->map(fn ($p) => ['id' => (int) $p->id, 'name' => trim(($p->nickname ? $p->nickname.' · ' : '').$p->brand.' '.$p->model),
-                    'brand' => (string) $p->brand, 'model' => (string) $p->model, 'nickname' => (string) ($p->nickname ?? '')])->all();   // 0.1.10 통합이 HA 기기와 이름을 맞춤
+            $cos = $this->hasCol('mpr_printers', 'company_id') ? array_column($this->companies($uid), 'name', 'id') : [];   // 1.5.0 🏢 내가 대표 · 관리자인 업체의 프린터도
+            $q = DB::table('mpr_printers')->where(fn ($w) => $cos ? $w->where(fn ($a) => $a->where('user_id', $uid)->whereNull('company_id'))->orWhereIn('company_id', array_keys($cos)) : $w->where('user_id', $uid));
+            return $q->orderBy('sort')->orderBy('id')->get()
+                ->map(fn ($p) => ['id' => (int) $p->id, 'name' => (isset($p->company_id) && $p->company_id ? '🏢 '.($cos[(int) $p->company_id] ?? '업체').' · ' : '').trim(($p->nickname ? $p->nickname.' · ' : '').$p->brand.' '.$p->model),
+                    'brand' => (string) $p->brand, 'model' => (string) $p->model, 'nickname' => (string) ($p->nickname ?? ''), 'company_id' => isset($p->company_id) && $p->company_id ? (int) $p->company_id : null])->all();   // 0.1.10 통합이 HA 기기와 이름을 맞춤
         } catch (\Throwable) {
             return [];
         }
@@ -761,6 +800,21 @@ class HaService
         return ['users' => DB::table(Schema::DEVICES)->distinct()->count('user_id'), 'devices' => DB::table(Schema::DEVICES)->count(),
             'live' => DB::table(Schema::DEVICES)->where('last_seen_at', '>=', self::ago((int) Settings::get('stale_hours') * 3600))->count(), 'readings' => DB::table(Schema::READINGS)->count(),
             'st_installs' => DB::table(Schema::ST_INSTALLS)->count()];
+    }
+
+    /** 1.5.0 칸이 있나 (프린터 라운지 0.1.70+ 의 업체 프린터 칸 등) */
+    private function hasCol(string $t, string $c): bool
+    {
+        static $memo = [];
+        try {
+            if (! empty($memo[$t.'.'.$c])) {
+                return true;   // 있으면 기억 (없으면 다음에 다시 물음 — 그 플러그인을 나중에 업데이트해도 바로)
+            }
+
+            return $memo[$t.'.'.$c] = $this->hasTable($t) && \Illuminate\Support\Facades\Schema::hasColumn($t, $c);
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     private function hasTable(string $t): bool
