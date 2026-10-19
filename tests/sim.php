@@ -1134,6 +1134,11 @@ namespace {
     t(($ai[0]['name'] ?? '') === 'iot_devices' && ($ai[0]['read_only'] ?? false) === true && ($aiC['count'] ?? 0) >= 1 && collect($aiC['devices'])->every(fn ($d) => ! empty($d['company_id']) && $d['company'] === '삼디 공방')
         && collect($aiM['devices'])->every(fn ($d) => empty($d['company_id'])) && ! str_contains($flat, '"token"') && ! str_contains($flat, 'sensor.') && ! str_contains($flat, '"code"'),
         '🤖 AI 도구 iot_devices — 읽기만 · 내 기기 / 업체 기기 · 받는 주소 · 센서 이름 · 연결 코드 없음');
+    $wq = 0;
+    \Illuminate\Support\Facades\DB::listen(function ($q) use (&$wq) { if (preg_match('/^\s*(insert|update|delete|replace)/i', $q->sql)) { $wq++; } });
+    ($ai[0]['call'])(3, []);
+    ($ai[0]['call'])(1, ['scope' => 'mine', 'alerts_only' => true]);
+    t($wq === 0, '1.5.2 🤖 AI 도구 iot_devices — DB 를 하나도 안 씀 (AI 연결 읽기 상자에 안 막힘)');
 
     echo "\n통과 {$pass} · 실패 {$fail}\n";
     exit($fail ? 1 : 0);

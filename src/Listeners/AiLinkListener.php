@@ -8,7 +8,7 @@ use Plugins\Custom\IotLink\Support\Schema;
 use Plugins\Custom\IotLink\Support\Settings;
 
 /**
- * 1.5.1 🤖 AI 연결(custom-ai_link) 도구 — 📡 IoT 기기 (읽기만)
+ * 1.5.1 🤖 AI 연결(custom-ai_link) 도구 — 📡 IoT 기기 (읽기만 · 1.5.2 HaService::aiDevices — DB 를 쓰지 않음)
  *  👤 내 기기 · 🏢 업체 기기(속한 업체 — 직원도 보기) — 온도 · 습도 · 상태 · 켜짐 · 기준 넘음 · 소식 없음 · 붙인 곳.
  *  받는 주소(토큰) · 연결 코드 · 센서 이름(entity) · 사진은 주지 않음. AI 연결이 없거나 꺼져 있으면 이 훅은 불리지 않음.
  */
@@ -49,8 +49,8 @@ class AiLinkListener implements HookListenerInterface
     /** @return array<string, mixed> */
     public static function devices(int $uid, array $a): array
     {
-        $o = (new HaService())->overview($uid);
-        $names = array_column(array_merge($o['companies'] ?? [], $o['member_companies'] ?? []), 'name', 'id');
+        $o = (new HaService())->aiDevices($uid);   // 1.5.2 읽기만 (overview 는 쓰기가 있어 AI 연결이 막음)
+        $names = array_column($o['companies'] ?? [], 'name', 'id');
         $sc = in_array($a['scope'] ?? '', ['mine', 'company'], true) ? (string) $a['scope'] : 'all';
         $out = [];
         foreach ($o['devices'] ?? [] as $d) {
