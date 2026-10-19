@@ -67,6 +67,28 @@ class HaService
     /* ───────── 한 화면 ───────── */
 
     /** @return array<string, mixed> */
+    /**
+     * 1.5.2 🤖 AI 연결용 — 읽기만 (overview 는 마지막 접속 · 연결 코드 · SmartThings 토큰을 써서 AI 연결의 읽기 상자가 막음)
+     * 내 기기 + 속한 업체 기기, 값 · 기준 · 소식 없음 · 붙인 곳. 기록 그래프 · SmartThings 센서 값은 뺌.
+     *
+     * @return array{devices: list<array<string, mixed>>, companies: list<array<string, mixed>>}
+     */
+    public function aiDevices(int $uid): array
+    {
+        if ($uid <= 0 || ! $this->hasTable(Schema::DEVICES)) {
+            return ['devices' => [], 'companies' => []];
+        }
+        $mcos = $this->memberCompanies($uid);
+        $mcids = array_column($mcos, 'id');
+        $companies = $this->companies($uid);
+        $rows = DB::table(Schema::DEVICES)->where(static fn ($w) => $mcids ? $w->where('user_id', $uid)->orWhereIn('company_id', $mcids) : $w->where('user_id', $uid))->orderBy('target')->orderBy('name')->orderBy('id')->get();
+        $pn = array_column($this->printers($uid), 'name', 'id');
+        $equip = $this->equipment(array_values(array_unique(array_merge(array_column($companies, 'id'), $mcids))));
+
+        return ['devices' => $rows->map(fn ($d) => $this->device($d, [], $pn, $equip) + ['perm' => (int) $d->user_id === $uid || in_array((int) $d->company_id, array_column($companies, 'id'), true) ? 'manage' : 'view'])->all(),
+            'companies' => array_merge($companies, $mcos)];
+    }
+
     public function overview(int $uid): array
     {
         Schema::ensure();
