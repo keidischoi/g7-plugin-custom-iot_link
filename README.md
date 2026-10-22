@@ -1,5 +1,40 @@
 # 📡 IoT 연결 (custom-iot_link)
 
+**IoT Link — a plugin for [G7 (Gnuboard 7)](https://github.com/gnuboard/g7) sites.** It receives temperature / humidity, printer and device state pushed from members' Home Assistant or SmartThings. This plugin is the **server side required by the Home Assistant integration [3ds (`ha-3ds-link`)](https://github.com/keidischoi/ha-3ds-link)** — install it on your G7 site first, then add the integration in Home Assistant.
+
+## Install (English)
+
+Requirements: a G7 site, version 7.0.5 or later, with shell access (run the commands as the web server user, e.g. `sudo -u www-data` or `sudo -u http`).
+
+1. Download `custom-iot_link-<version>.zip` from the [latest release](https://github.com/keidischoi/g7-plugin-custom-iot_link/releases/latest).
+2. Unzip it into your site's `plugins/_pending/` folder, so you get `plugins/_pending/custom-iot_link/plugin.php`.
+3. Install and activate, then clear caches:
+
+   ```
+   php artisan plugin:install custom-iot_link
+   php artisan plugin:activate custom-iot_link
+   php artisan hooks:clear
+   php artisan cache:clear
+   php artisan ext-static:publish --force
+   ```
+
+4. Open **`/iot-link`** on your site (logged in) → **➕ 기기 연결 (Add device)**. It shows the **site address** and a **link code** — paste both into the Home Assistant integration's setup form.
+
+Later updates: `php artisan plugin:update custom-iot_link --source=github --force`.
+
+## 설치 (한국어)
+
+필요한 것: G7(그누보드7) 7.0.5 이상 사이트 · 서버 명령 줄 (웹 서버 사용자로 실행 — 예: `sudo -u http`)
+
+1. [최신 릴리스](https://github.com/keidischoi/g7-plugin-custom-iot_link/releases/latest)에서 `custom-iot_link-<버전>.zip` 내려받기
+2. 사이트의 `plugins/_pending/` 에 풀기 → `plugins/_pending/custom-iot_link/plugin.php` 가 되게
+3. 설치 · 켜기 · 캐시 정리 — `plugin:install custom-iot_link` → `plugin:activate custom-iot_link` → `hooks:clear` · `cache:clear` · `ext-static:publish --force`
+4. 사이트에서 로그인 → **`/iot-link`** → **➕ 기기 연결** — 나오는 **사이트 주소** 와 **연결 코드** 를 Home Assistant 통합 [3ds](https://github.com/keidischoi/ha-3ds-link) 설정 창에 붙여 넣기
+
+업데이트: `plugin:update custom-iot_link --source=github --force`
+
+---
+
 G7(그누보드7) 플러그인. 회원의 Home Assistant · SmartThings 가 보내는 온습도 · 프린터 · 장비 상태를 받아 정비 수첩(custom-maintenance) · 내 프린터(custom-my_printer) · 업체 장비(custom-companies)에 잇습니다.
 
 - 사이트가 회원 집으로 접속하지 않습니다. 회원이 자기 Home Assistant 에 `rest_command` + `automation` 을 붙여 넣으면 값이 들어옵니다 (화면이 설정 글을 만들어 줌).
