@@ -1234,6 +1234,24 @@ class SmartThingsService
         DB::table(Schema::ST_INSTALLS)->where('id', $i->id)->update(['config' => json_encode(['mode' => 'oauth', 'devices' => $triples, 'map' => $map, 'power_on_w' => $w]),
             'status' => $triples === [] ? 'choose' : 'syncing', 'last_error' => null, 'updated_at' => self::now()]);
         DB::table(Schema::ST_SENSORS)->where('install_id', $i->id)->whereNotIn('st_device_id', array_keys($map) ?: ['-'])->delete();
+        // 1.7.13 고른 것에서 뺀 센서로 만든 사이트 기기 중 📡 대기 칸에 있던 것은 지움 — SmartThings 로 만든 것 · 다른 연결이 쓰지 않음 · Home Assistant 센서를 붙이지 않은 것만 (빈 기기로 남지 않게)
+        $dropped = 0;
+        $gone = array_values(array_unique(array_diff(array_map('intval', array_values(array_diff_key($old['map'], $map))), array_map('intval', array_values($map)))));   // 고른 것에서 뺀 센서의 기기만 (다른 곳으로 옮겨 붙인 것은 아님)
+        if ($gone !== []) {
+            $used = [];
+            foreach (DB::table(Schema::ST_INSTALLS)->where('user_id', $uid)->where('id', '!=', $i->id)->get() as $o) {
+                foreach (self::config($o)['map'] as $site) {
+                    $used[(int) $site] = true;
+                }
+            }
+            $drop = DB::table(Schema::DEVICES)->where('user_id', $uid)->where('source', 'smartthings')->where('target', 'other')->whereIn('id', $gone)->get()   // 붙인 곳이 있는 기기는 기록과 함께 남김
+                ->filter(static fn ($d) => ! isset($used[(int) $d->id]) && array_filter(array_map('strval', (array) json_decode((string) ($d->entities ?? ''), true))) === [])
+                ->pluck('id')->map(static fn ($x) => (int) $x)->all();
+            if ($drop !== []) {
+                $dropped = count($drop);
+                $this->ha->deleteMany($uid, $drop);
+            }
+        }
         // 지금 값 — 방금 받은 목록의 값으로 바로 (화면에 곧바로 보이게)
         $events = [];
         foreach ($triples as $t) {
@@ -1246,7 +1264,7 @@ class SmartThingsService
         $n = count($map);
         $msg = $n === 0 ? '고른 센서가 없어요 — 값을 받지 않아요.' : '센서 '.$n.'개를 이었어요'.($made > 0 ? ' (새 기기 '.$made.'개)' : '').' — 값이 바뀔 때마다 바로 들어와요.';
 
-        return [true, $msg.($skip !== [] ? ' 기기 수 한도('.Limits::member($uid).'개)라 못 만든 것: '.implode(' · ', array_slice($skip, 0, 5)) : '')];
+        return [true, $msg.($dropped > 0 ? ' 뺀 센서 '.$dropped.'개는 지웠어요.' : '').($skip !== [] ? ' 기기 수 한도('.Limits::member($uid).'개)라 못 만든 것: '.implode(' · ', array_slice($skip, 0, 5)) : '')];
     }
 
     /**
