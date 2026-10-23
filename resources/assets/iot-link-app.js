@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.7.10 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.7.11 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.10';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.11';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -450,7 +450,11 @@
       edge(sn, dn, live);
       // ③ 붙인 곳
       var tn, placed = x.target !== 'other' && !!x.where;
-      if (!placed) { tn = 't:wait'; node(2, tn, lbl('📡', '대기 칸', '아직 붙이지 않음'), 'k-wait'); }
+      if (!placed) {   // 1.7.11 대기 칸 안에 그 센서들 이름 (끊긴 것은 흐리게)
+        tn = 't:wait';
+        var wl = d.devices.filter(function (o) { return !(o.target !== 'other' && !!o.where); });
+        node(2, tn, lbl('📡', '대기 칸 ' + wl.length, '아직 붙이지 않음') + '<ul class="hal-mn-list">' + wl.map(function (o) { var oc = capsOf(o); return '<li class="' + (!o.stale && !o.never ? 'on' : 'off') + '"><i aria-hidden="true">' + (oc.state ? '⚙️' : oc.temp && oc.hum ? '🌡️' : oc.hum ? '💧' : '🌡️') + '</i>' + esc(o.name) + '</li>'; }).join('') + '</ul>', 'k-wait');
+      }
       else if (x.target === 'location') { var b = boxOf[bkey(x.location)] || { name: x.location }; tn = 't:l:' + bkey(x.location); node(2, tn, lbl('📦', b.name, b.rolls != null ? '보관함 · 롤 ' + b.rolls + '개' : '보관함'), 'k-box', ' style="--bx:' + boxCol(b) + '"'); }
       else if (x.target === 'printer') { tn = 't:p:' + x.printer_id; node(2, tn, lbl('🖨️', x.where, '프린터'), 'k-printer'); }
       else if (lnk[x.equipment_id]) { tn = 't:p:' + lnk[x.equipment_id]; }   // 1.7.9 프린터와 이어진 장비 — 프린터 하나로
