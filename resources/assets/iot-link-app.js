@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.7.13 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.7.14 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.13';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.14';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -218,9 +218,9 @@
     var reels = rl.map(function (x, i) { var w = +x.w || 1000, sz = w <= 250 ? 22 : w <= 500 ? 26 : w < 2000 ? 30 : 34, last = more > 0 && i === rl.length - 1;
       return '<i class="reel' + (x.b ? ' bottle' : '') + (x.s ? ' sealed' : '') + (last ? ' more' : '') + '" style="--sz:' + sz + 'px;--c:' + (/^#[0-9a-f]{3,8}$/i.test(x.c || '') ? x.c : '#94a3b8') + ';--p:' + (+x.p || 0) + '"' + ' title="' + (last ? (more + 1) + '개 더 — 재고 관리에서 모두 보기' : esc((x.n || (x.b ? '레진' : '필라멘트')) + ' · 남은 ' + (+x.p || 0) + '%' + (x.s ? ' · 안 뜯은 새 롤' : ''))) + '"' + '>' + (last ? '<b>+' + (more + 1) + '</b>' : '') + '</i>'; }).join('');
     var gauge = '<span class="gauge" title="🌡️ ' + (st ? esc(st.name) : '온도 센서 없음') + ' · 💧 ' + (hu ? esc(hu.name) : '습도 센서 없음') + '">💧' + (hu ? (hu.humidity == null ? '–' : hu.humidity) + '%' : '<u>빈 칸</u>') + ' 🌡️' + (st ? (st.temp == null ? '–' : st.temp) + '°' : '<u>빈 칸</u>') + '</span>';
-    return '<div class="hal-bd hal-bin' + (b.loose ? ' loose' : '') + (hot ? ' hot' : '') + '" data-drop="location" data-loc="' + esc(b.name) + '" data-ref="' + (+(b.company_id || 0)) + '" style="--bx:' + (b.loose ? '#94a3b8' : boxCol(b)) + ';--cols:' + Math.max(cols, 4) + ';--rows:' + rows + '">' +
+    return '<div class="hal-bd hal-bin' + (b.loose ? ' loose' : '') + (hot ? ' hot' : '') + '" data-drop="location" data-loc="' + esc(b.name) + '" data-ref="' + (+(b.company_id || 0)) + '"' + (b.drag != null ? ' data-mv-name="' + esc(b.name) + '" data-mv-from="' + b.drag + '" title="위 👤 · 🏢 탭으로 끌면 통째로 옮겨요"' : '') + ' style="--bx:' + (b.loose ? '#94a3b8' : boxCol(b)) + ';--cols:' + Math.max(cols, 4) + ';--rows:' + rows + '">' +
       '<span class="lid"></span><span class="body">' + gauge + (reels || '<em>' + (b.loose ? '재고 관리에 없는 위치' : b.seen ? '재고 관리 보관함' : '비었어요') + '</em>') + '</span>' +
-      '<span class="tag"' + (b.drag != null ? ' draggable="true" data-box-drag="' + esc(b.name) + '" data-from="' + b.drag + '" title="끌어서 위 👤 · 🏢 탭에 놓으면 통째로 옮겨요"' : '') + '><b>📦 ' + esc(b.name) + '</b><small>' + (b.loose ? '센서만' : b.seen ? '보관 위치' : (b.rolls || 0) + '개') + (hot ? ' · ⚠️ 습도 ' + hu.humidity_max + '% 넘음' : '') + '</small><span class="acts">' + acts + '</span></span>' +
+      '<span class="tag"><b title="' + esc(b.name) + '">📦 ' + esc(b.name) + '</b><small>' + (b.loose ? '센서만' : b.seen ? '보관 위치' : (b.rolls || 0) + '개') + (hot ? ' · ⚠️ 습도 ' + hu.humidity_max + '% 넘음' : '') + '</small><span class="acts">' + acts + '</span></span>' +
       (b.company ? '<small class="hal-bin-co">🏢 ' + esc(b.company) + '</small>' : '') +
       '<div class="hal-chips">' + (devs.length ? devs.map(function (x) { return chip(x, true); }).join('') : '<small class="hal-drop-hint">＋ 센서를 여기로</small>') + '</div></div>';
   }
@@ -332,25 +332,47 @@
       if (S.stripX[k]) el.scrollLeft = S.stripX[k];
       el.addEventListener('scroll', upd, { passive: true }); upd();
       // 1.7.10 마우스로 끌어 좌우로 (센서 칩 · 단추에서 시작하면 그것을 끌거나 누름) — 터치는 손가락으로 그냥 밀림
+      // 1.7.10 마우스로 끌어 좌우로 · 1.7.14 보관함을 위로 끌면 👤 · 🏢 탭으로 옮기기 (어디를 잡든 — 센서 칩 · 단추는 빼고). 터치는 손가락으로 밀기 · 옮기기는 ⇄ 단추
       var pan = null;
+      var tabAt = function (x, y) { var t = document.elementFromPoint(x, y); t = t && t.closest('.hal-scope [data-scope]'); var to = t && t.getAttribute('data-scope'); return t && pan && pan.bin && tabOk(to, pan.from) ? t : null; };
       el.addEventListener('pointerdown', function (e) {
-        if (e.pointerType !== 'mouse' || e.button !== 0 || e.target.closest('[data-chip],[data-box-drag],button,a,input')) return;
-        pan = { x: e.clientX, l: el.scrollLeft, moved: false, id: e.pointerId };
+        if (e.pointerType !== 'mouse' || e.button !== 0 || e.target.closest('[data-chip],button,a,input')) return;
+        var bin = e.target.closest('[data-mv-name]');
+        pan = { x: e.clientX, y: e.clientY, l: el.scrollLeft, mode: '', id: e.pointerId, bin: bin, name: bin && bin.getAttribute('data-mv-name'), from: bin ? +bin.getAttribute('data-mv-from') : 0 };
+        e.preventDefault();   // 글자 선택 · 사진 끌기로 넘어가지 않게
+        document.addEventListener('pointermove', move, true); document.addEventListener('pointerup', end, true); document.addEventListener('pointercancel', end, true);   // 줄 밖으로 빨리 나가도 이어 받음
       });
-      el.addEventListener('pointermove', function (e) {
+      var move = function (e) {
         if (!pan || e.pointerId !== pan.id) return;
-        var dx = e.clientX - pan.x;
-        if (!pan.moved && Math.abs(dx) < 6) return;
-        if (!pan.moved) { pan.moved = true; try { el.setPointerCapture(e.pointerId); } catch (er) {} w.classList.add('panning'); }
-        el.scrollLeft = pan.l - dx; e.preventDefault();
-      });
+        var dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+        if (!pan.mode) {
+          if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+          pan.mode = pan.bin && dy < 0 && -dy > Math.abs(dx) ? 'box' : 'pan';
+          try { el.setPointerCapture(e.pointerId); } catch (er) {}
+          if (pan.mode === 'pan') w.classList.add('panning');
+          else {
+            S.root.classList.add('hal-boxdrag'); pan.bin.classList.add('lifting');
+            pan.ghost = document.createElement('div'); pan.ghost.className = 'hal-ghost'; pan.ghost.textContent = '📦 ' + pan.name; document.body.appendChild(pan.ghost);
+          }
+        }
+        e.preventDefault();
+        if (pan.mode === 'pan') { el.scrollLeft = pan.l - dx; return; }
+        pan.ghost.style.left = e.clientX + 12 + 'px'; pan.ghost.style.top = e.clientY + 12 + 'px';
+        var t = tabAt(e.clientX, e.clientY);
+        qa('.hal-scope .over').forEach(function (o) { if (o !== t) o.classList.remove('over'); }); if (t) t.classList.add('over');
+        pan.ghost.classList.toggle('ok', !!t);
+      };
       var end = function (e) {
         if (!pan) return;
-        var moved = pan.moved; pan = null; w.classList.remove('panning');
+        var p = pan, t = p.mode === 'box' && e.type === 'pointerup' ? tabAt(e.clientX, e.clientY) : null;
+        pan = null; w.classList.remove('panning'); S.root.classList.remove('hal-boxdrag');
+        document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', end, true); document.removeEventListener('pointercancel', end, true);
+        qa('.hal-scope .over').forEach(function (o) { o.classList.remove('over'); });
+        if (p.ghost) p.ghost.remove(); if (p.bin) p.bin.classList.remove('lifting');
         try { el.releasePointerCapture(e.pointerId); } catch (er) {}
-        if (moved) el.addEventListener('click', function stop(ev) { ev.stopPropagation(); ev.preventDefault(); el.removeEventListener('click', stop, true); }, true);   // 끈 뒤의 누름은 「붙이기」로 치지 않음
+        if (p.mode) el.addEventListener('click', function stop(ev) { ev.stopPropagation(); ev.preventDefault(); el.removeEventListener('click', stop, true); }, true);   // 끈 뒤의 누름은 「붙이기」로 치지 않음
+        if (t) boxMove(p.name, p.from, t.getAttribute('data-scope') === 'mine' ? 0 : -1);
       };
-      el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
       w.querySelectorAll('[data-sc]').forEach(function (b) {
         var dir = +b.getAttribute('data-sc');
         b.onclick = function () { el.scrollBy({ left: dir * Math.max(180, el.clientWidth * 0.8), behavior: 'smooth' }); };
@@ -367,6 +389,7 @@
     api('POST', '/devices/' + id + '/place', { target: t, location: loc, ref: ref }).then(function (r) { toast(r.message); S.d = r.data.overview; redraw(); }).catch(function (e) { fail(e); redraw(); });
   }
   function reload() { return api('GET', '/me').then(function (r) { S.d = r.data; redraw(); }); }
+  function tabOk(to, from) { return to === 'company' ? !(from > 0 && Object.keys(coMap()).length < 2) : to === 'mine' && from > 0; }
   function coMap() { var m = {}; (S.d.companies || []).forEach(function (c) { m[c.id] = c.name; }); return m; }
   /** 1.7.12 📦 보관함 통째로 옮기기 — to: 0 개인 · 업체 번호 · -1 이면 업체에서 고름(하나면 그 업체) */
   function boxMove(name, from, to) {
@@ -415,13 +438,6 @@
   }
   function boardBind() {
     var bd = q('[data-board]'); if (!bd) return;
-    // 1.7.12 보관함 이름판을 끌어 👤 내 기기 · 🏢 업체 기기 탭에 놓으면 그쪽으로 통째로
-    qa('.hal-scope [data-scope="mine"], .hal-scope [data-scope="company"], .hal-scope [data-scope="all"]').forEach(function (t) {
-      var to = t.getAttribute('data-scope');
-      t.addEventListener('dragover', function (e) { if (!S.boxDrag || to === 'all' || (to === 'mine' && S.boxDrag.from === 0) || (to === 'company' && S.boxDrag.from > 0 && Object.keys(coMap()).length < 2)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; t.classList.add('over'); });
-      t.addEventListener('dragleave', function () { t.classList.remove('over'); });
-      t.addEventListener('drop', function (e) { if (!S.boxDrag) return; e.preventDefault(); t.classList.remove('over'); var bx = S.boxDrag; S.boxDrag = null; S.root.classList.remove('hal-boxdrag'); boxMove(bx.name, bx.from, to === 'mine' ? 0 : -1); });
-    });
     var over = function (z) { qa('.hal-bd.over').forEach(function (o) { if (o !== z) o.classList.remove('over'); }); if (z) z.classList.add('over'); };
     bd.onclick = function (e) {
       var c = e.target.closest('[data-chip]');
@@ -430,12 +446,10 @@
       var z = e.target.closest('[data-drop]'); if (z && S.pick) placeTo(S.pick, z);
     };
     bd.ondragstart = function (e) {
-      var bxd = e.target.closest && e.target.closest('[data-box-drag]');
-      if (bxd && !(e.target.closest('[data-chip]'))) { S.boxDrag = { name: bxd.getAttribute('data-box-drag'), from: +bxd.getAttribute('data-from') }; e.dataTransfer.setData('text/plain', 'box'); e.dataTransfer.effectAllowed = 'move'; S.root.classList.add('hal-boxdrag'); return; }
       var c = e.target.closest && e.target.closest('[data-chip]'); if (!c) return; e.dataTransfer.setData('text/plain', c.getAttribute('data-chip')); e.dataTransfer.effectAllowed = 'move'; bd.classList.add('picking'); };
-    bd.ondragend = function () { bd.classList.remove('picking'); over(null); S.boxDrag = null; S.root.classList.remove('hal-boxdrag'); qa('.hal-scope .over').forEach(function (t) { t.classList.remove('over'); }); };
-    bd.ondragover = function (e) { if (S.boxDrag) return; var z = e.target.closest('[data-drop]'); if (!z) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; over(z); };
-    bd.ondrop = function (e) { if (S.boxDrag) return; var z = e.target.closest('[data-drop]'); if (!z) return; e.preventDefault(); over(null); var id = +e.dataTransfer.getData('text/plain'); if (id) placeTo(id, z); };
+    bd.ondragend = function () { bd.classList.remove('picking'); over(null); };
+    bd.ondragover = function (e) { var z = e.target.closest('[data-drop]'); if (!z) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; over(z); };
+    bd.ondrop = function (e) { var z = e.target.closest('[data-drop]'); if (!z) return; e.preventDefault(); over(null); var id = +e.dataTransfer.getData('text/plain'); if (id) placeTo(id, z); };
   }
   /* 1.7.0 🗺️ 연결 지도 — 어디서 받아(🏠 Home Assistant · SmartThings) → 어느 기기가 → 어디에 붙어(📦 보관함 · 🖨️ 프린터 · 🏭 장비 · 대기 칸) → 어느 확장으로 이어지는지 한눈에
      선: 초록 = 값이 들어옴 · 회색 점선 = 끊김 · 아직 값 없음. 마디에 마우스를 올리면 그 마디의 선만 진하게, 기기를 누르면 고치기 */

@@ -1,4 +1,4 @@
-/* custom-iot_link 1.7.13 — 📡 IoT 연결 */
+/* custom-iot_link 1.7.14 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -529,7 +529,22 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
 .hal-mn-list li { display:inline-flex; align-items:center; gap:3px; max-width:100%; padding:1px 7px; border-radius:999px; background:var(--card); box-shadow:inset 0 0 0 1px var(--line); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .hal-mn-list li i { font-style:normal; font-size:10px; } .hal-mn-list li.off { color:var(--mute); opacity:.7; }
 /* 1.7.12 보관함 이름판을 끌어 위 탭에 놓기 */
-.hal-bin .tag[data-box-drag] { cursor:grab; } .hal-bin .tag[data-box-drag]:active { cursor:grabbing; }
+
 .hal-boxdrag .hal-scope [data-scope="mine"], .hal-boxdrag .hal-scope [data-scope="company"] { outline:2px dashed var(--a); outline-offset:-2px; opacity:1; animation:halPulse 1s ease-in-out infinite alternate; }
 .hal-scope button.over { background:var(--a) !important; color:#fff !important; outline-style:solid !important; animation:none !important; }
 @keyframes halPulse { from { box-shadow:0 0 0 0 rgba(37,99,235,.0); } to { box-shadow:0 0 0 4px rgba(37,99,235,.25); } }
+/* 1.7.14 이름표 2줄 — 윗줄 이름 · 아랫줄 개수와 도구 */
+.hal-bin .tag { flex-wrap:wrap; row-gap:1px; padding:3px 4px 3px 7px; }
+.hal-bin .tag b { flex:1 1 100%; max-width:100%; }
+.hal-bin .tag small { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.hal-bin .tag .acts { margin-left:auto; }
+/* 보관함을 위로 끌어 탭으로 */
+.hal-bin[data-mv-name] .body { cursor:grab; }
+.hal-bd.hal-bin.lifting { opacity:.45; transform:translateY(-4px); }
+.hal-ghost { position:fixed; z-index:9999; padding:6px 12px; border-radius:999px; background:#0f172a; color:#fff; font-size:13px; font-weight:800; pointer-events:none; box-shadow:0 6px 18px rgba(15,23,42,.35); white-space:nowrap; }
+.hal-ghost.ok { background:var(--a, #2563eb); }
+.hal-ghost::after { content:' → 위 탭에 놓기'; font-weight:600; opacity:.75; } .hal-ghost.ok::after { content:' → 여기로 옮기기'; }
+/* 둘째 줄(개수 · 도구)은 가운데 */
+.hal-bin .tag { justify-content:center; column-gap:6px; }
+.hal-bin .tag small { flex:0 1 auto; } .hal-bin .tag .acts { margin-left:0; }
+.hal-strip { -webkit-user-select:none; user-select:none; }
