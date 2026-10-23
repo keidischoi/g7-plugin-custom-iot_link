@@ -18,7 +18,7 @@ use Plugins\Custom\IotLink\Support\Settings;
  */
 final class Ha
 {
-    public const VERSION = '1.7.11';
+    public const VERSION = '1.7.12';
 
     public static function active(): bool
     {
@@ -108,6 +108,27 @@ final class Ha
             return $out;
         } catch (\Throwable) {
             return [];
+        }
+    }
+
+    /**
+     * 1.7.12 📦 보관함 통째로 옮기기 따라가기 (재고 관리 0.3.83) — 그 보관함(빈칸 · 대소문자 무시)에 붙은 센서를 개인 ↔ 업체로. 옮긴 센서 수
+     *  from · to = 업체 번호 (0 = 개인 — 이 회원 것)
+     */
+    public static function moveLocation(int $uid, string $name, int $from, int $to): int
+    {
+        $key = Rules::loc($name);
+        if ($uid <= 0 || $key === '' || $from === $to || ! self::active()) {
+            return 0;
+        }
+        try {
+            $q = DB::table(Schema::DEVICES)->where('target', 'location')->whereNotNull('location');
+            $q = $from > 0 ? $q->where('company_id', $from) : $q->where('user_id', $uid)->where(static fn ($w) => $w->whereNull('company_id')->orWhere('company_id', 0));
+            $ids = $q->get(['id', 'location'])->filter(static fn ($d) => Rules::loc((string) $d->location) === $key)->pluck('id')->all();
+
+            return $ids ? DB::table(Schema::DEVICES)->whereIn('id', $ids)->update(['company_id' => $to > 0 ? $to : null, 'updated_at' => now()]) : 0;
+        } catch (\Throwable) {
+            return 0;
         }
     }
 
