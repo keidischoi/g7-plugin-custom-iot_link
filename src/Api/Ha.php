@@ -18,7 +18,7 @@ use Plugins\Custom\IotLink\Support\Settings;
  */
 final class Ha
 {
-    public const VERSION = '1.5.2';
+    public const VERSION = '1.6.0';
 
     public static function active(): bool
     {
@@ -46,11 +46,30 @@ final class Ha
         } catch (\Throwable) {
         }
         try {
-            return DB::table(Schema::DEVICES)->whereIn('user_id', $ids)->where('target', 'location')->whereNotNull('location')->where('location', '!=', '')
-                ->orderByRaw('CASE WHEN user_id = ? THEN 0 ELSE 1 END', [$ids[0]])->orderBy('id')->get()
-                ->map(static fn ($d) => ['user_id' => (int) $d->user_id, 'location' => (string) $d->location, 'name' => (string) $d->name,
+            // 1.6.0 📦 보관함 하나에 🌡️ 온도 센서 · 💧 습도 센서가 따로 붙을 수 있음 — 회원 · 보관함마다 한 줄로 합침 (값은 먼저 붙인 것 · 마지막 소식은 늦은 쪽)
+            $out = [];
+            foreach (DB::table(Schema::DEVICES)->whereIn('user_id', $ids)->where('target', 'location')->whereNotNull('location')->where('location', '!=', '')
+                ->orderByRaw('CASE WHEN user_id = ? THEN 0 ELSE 1 END', [$ids[0]])->orderBy('id')->get() as $d) {
+                $k = (int) $d->user_id.'|'.Rules::loc((string) $d->location);
+                $row = ['user_id' => (int) $d->user_id, 'location' => (string) $d->location, 'name' => (string) $d->name,
                     'temp' => $d->temp !== null ? (float) $d->temp : null, 'humidity' => $d->humidity !== null ? (float) $d->humidity : null,
-                    'humidity_max' => $d->humidity_max !== null ? (int) $d->humidity_max : null, 'last_seen_at' => $d->last_seen_at !== null ? (string) $d->last_seen_at : null])->all();
+                    'humidity_max' => $d->humidity_max !== null ? (int) $d->humidity_max : null, 'last_seen_at' => $d->last_seen_at !== null ? (string) $d->last_seen_at : null];
+                if (! isset($out[$k])) {
+                    $out[$k] = $row;
+                    continue;
+                }
+                $o = &$out[$k];
+                $o['name'] .= ' · '.$row['name'];
+                foreach (['temp', 'humidity', 'humidity_max'] as $f) {
+                    $o[$f] ??= $row[$f];
+                }
+                if ($row['last_seen_at'] !== null && ($o['last_seen_at'] === null || $row['last_seen_at'] < $o['last_seen_at'])) {
+                    $o['last_seen_at'] = $row['last_seen_at'];   // 하나라도 끊기면 끊김으로 보이게
+                }
+                unset($o);
+            }
+
+            return array_values($out);
         } catch (\Throwable) {
             return [];
         }

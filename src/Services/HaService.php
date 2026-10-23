@@ -124,6 +124,7 @@ class HaService
             'devices' => $rows->map(fn ($d) => $this->device($d, $hist[(int) $d->id] ?? [], $pn, $equip) + ['perm' => (int) $d->user_id === $uid || in_array((int) $d->company_id, array_column($companies, 'id'), true) ? 'manage' : 'view', 'mine' => (int) $d->user_id === $uid] + ['sensors' => $byDev[(int) $d->id] ?? [], 'group' => self::group((string) ($d->grp ?? ''), (string) $d->target, $d->company_id ? (int) $d->company_id : null, $mcids ?: array_column($companies, 'id')), 'group_auto' => self::group('', (string) $d->target, $d->company_id ? (int) $d->company_id : null, $mcids ?: array_column($companies, 'id'))])->all(),
             'smartthings' => $st,
             'printers' => $printers, 'companies' => $companies, 'member_companies' => $mcos, 'equipment' => array_values($equip), 'locations' => $this->locations($uid),
+            'boxes' => Links::boxes($uid),   // 1.6.0 📦 보관함 보드 (재고 관리의 보관함 · 색 · 롤 수)
             'targets' => Rules::TARGETS,
             'link' => ['code' => $this->linkCode($uid), 'site' => rtrim((string) config('app.url'), '/'), 'repo' => (string) Settings::get('hacs_repo')],
             'slots' => Limits::exempt($uid) ? ['enabled' => false] : (new SlotService())->info($uid, $companies),   // 1.4.8 💳 · 1.4.9 관리자는 살 필요 없음
@@ -158,6 +159,7 @@ class HaService
             'temp' => $temp, 'humidity' => $hum, 'state' => (string) ($d->state ?? ''), 'is_on' => (bool) $d->is_on && ! $stale,
             'humidity_max' => $d->humidity_max !== null ? (int) $d->humidity_max : null, 'temp_max' => $d->temp_max !== null ? (int) $d->temp_max : null, 'notify' => (bool) $d->notify,
             'over' => ! $stale && (($d->humidity_max !== null && $hum !== null && $hum > (int) $d->humidity_max) || ($d->temp_max !== null && $temp !== null && $temp > (int) $d->temp_max)),
+            'caps' => self::caps($d),   // 1.6.0 📦 보관함 보드 — 온도 · 습도 칸 (각 하나씩)
             'snap_public' => (bool) ($d->snap_public ?? false), 'snap_at' => ! empty($d->snap_at) && is_file(self::snapPath((int) $d->id)) ? (string) $d->snap_at : null, 'seen' => $seen, 'stale' => $stale, 'never' => $seen === null, 'hours_30d' => $this->hours([(int) $d->id], self::ago(30 * 86400)), 'history' => $hist];
     }
 
@@ -298,6 +300,109 @@ class HaService
         }
 
         return [true, $old ? '고쳤어요.' : '기기를 만들었어요. 이제 설정 글을 Home Assistant 에 붙여 넣어 주세요.', ['id' => $id]];
+    }
+
+    /**
+     * 1.6.0 이 기기가 재는 것 — 센서 이름(HA) 또는 받은 값(SmartThings 등)으로
+     *
+     * @return array{state: bool, temp: bool, hum: bool}
+     */
+    public static function caps(object $d): array
+    {
+        $e = (array) json_decode((string) ($d->entities ?? ''), true);
+
+        return ['state' => trim((string) ($e['state'] ?? '')) !== '' || trim((string) ($d->state ?? '')) !== '',
+            'temp' => trim((string) ($e['temp'] ?? '')) !== '' || $d->temp !== null, 'hum' => trim((string) ($e['hum'] ?? '')) !== '' || $d->humidity !== null];
+    }
+
+    /**
+     * 1.6.0 📦 보관함 보드 — 기기를 붙이기 · 떼기
+     *  target: location(보관함 이름) · printer(내 프린터 번호) · equipment(업체 장비 번호) · ''(대기 칸)
+     *  한 곳에 ⚙️ 상태 · 🌡️ 온도 · 💧 습도 각 하나 — 같은 것을 재는 기기가 있으면:
+     *   - 상태 센서(장비 · 프린터)가 챔버 온습도까지 재면 그것이 우선 → 일반 온습도 센서는 붙지 않음 / 나중에 그런 상태 센서가 오면 일반 센서를 대기 칸으로
+     *   - 그 밖에는 바꿔 끼움 (있던 기기를 대기 칸으로)
+     *  보관 위치가 바뀌어도 재고 관리 보관함 이름은 따라가지 않음 (보드는 「옮기기」 — 이름 바꾸기는 재고 관리에서)
+     *
+     * @return array{0: bool, 1: string, 2?: array<string, mixed>}
+     */
+    public function place(int $uid, int $id, string $target, string $location = '', int $ref = 0): array
+    {
+        Schema::ensure();
+        $d = $this->manageable($uid)->where('id', $id)->first();
+        if (! $d) {
+            return [false, '기기를 찾을 수 없어요.'];
+        }
+        $free = ['target' => 'other', 'location' => null, 'printer_id' => null, 'equipment_id' => null, 'updated_at' => now()];
+        if ($target === '') {
+            DB::table(Schema::DEVICES)->where('id', $id)->update($free);
+
+            return [true, '📡 「'.$d->name.'」을(를) 대기 칸으로 뺐어요.', ['bounced' => []]];
+        }
+        $caps = self::caps($d);
+        $row = ['target' => $target, 'location' => null, 'printer_id' => null, 'equipment_id' => null, 'updated_at' => now()];
+        $key = static fn ($v) => mb_strtolower((string) preg_replace('/\s+/u', '', (string) $v));
+        if ($target === 'location') {
+            $loc = Rules::text($location, 40);
+            if ($loc === '') {
+                return [false, '보관함을 골라 주세요.'];
+            }
+            if (! $caps['temp'] && ! $caps['hum']) {
+                return [false, '보관함에는 온도 · 습도를 재는 센서만 붙일 수 있어요.'];
+            }
+            $row['location'] = $loc;
+            $row['company_id'] = null;
+            $same = DB::table(Schema::DEVICES)->where('user_id', $d->user_id)->where('target', 'location')->where('id', '!=', $id)->get()->filter(static fn ($o) => $key($o->location) === $key($loc));
+            $where = '📦 「'.$loc.'」';
+        } elseif ($target === 'printer') {
+            $pr = collect($this->printers($uid))->firstWhere('id', $ref);
+            if ($pr === null) {
+                return [false, '내 프린터에서 골라 주세요.'];
+            }
+            $row['printer_id'] = $pr['id'];
+            $row['company_id'] = $pr['company_id'] ?? null;
+            $same = DB::table(Schema::DEVICES)->where('target', 'printer')->where('printer_id', $pr['id'])->where('id', '!=', $id)->get();
+            $where = '🖨️ 「'.$pr['name'].'」';
+        } elseif ($target === 'equipment') {
+            $e = $this->equipment(array_column($this->companies($uid), 'id'))[$ref] ?? null;
+            if ($e === null) {
+                return [false, '내가 관리하는 업체의 장비에서 골라 주세요.'];
+            }
+            $row['equipment_id'] = $e['id'];
+            $row['company_id'] = $e['company_id'];
+            $same = DB::table(Schema::DEVICES)->where('target', 'equipment')->where('equipment_id', $e['id'])->where('id', '!=', $id)->get();
+            $where = '🏭 「'.$e['name'].'」';
+        } else {
+            return [false, '붙일 곳을 다시 골라 주세요.'];
+        }
+        // 장비(프린터 · 레이저 · CNC · 건조기 …)의 상태 센서가 이미 재는 챔버 온도 · 습도는 장비 값이 우선 — 빠진 항목만 일반 센서로 (베드 · 노즐 온도는 장비 값뿐)
+        $left = $caps;
+        foreach ($same as $o) {
+            $oc = self::caps($o);
+            if ($oc['state'] && ! $caps['state']) {
+                $left['temp'] = $left['temp'] && ! $oc['temp'];
+                $left['hum'] = $left['hum'] && ! $oc['hum'];
+            }
+        }
+        if (! $left['state'] && ! $left['temp'] && ! $left['hum']) {
+            return [false, $where.'에는 상태 센서가 챔버 온도 · 습도까지 재고 있어요 — 일반 센서는 붙이지 않아도 돼요.'];
+        }
+        $bounce = [];
+        foreach ($same as $o) {
+            $oc = self::caps($o);
+            if ($oc['state'] && ! $caps['state']) {
+                continue;   // 상태 센서는 그대로 (빈 항목만 채움)
+            }
+            if (($caps['state'] && $oc['state']) || ($left['temp'] && $oc['temp']) || ($left['hum'] && $oc['hum'])) {
+                $bounce[] = $o;   // 같은 항목을 재는 일반 센서 · 새 상태 센서가 오면 예전 상태 센서
+            }
+        }
+        foreach ($bounce as $o) {
+            DB::table(Schema::DEVICES)->where('id', $o->id)->update($free);
+        }
+        DB::table(Schema::DEVICES)->where('id', $id)->update($row);
+        $names = array_map(static fn ($o) => (string) $o->name, $bounce);
+
+        return [true, $where.'에 「'.$d->name.'」을(를) 붙였어요.'.($names ? ' (자리가 겹친 '.implode(' · ', $names).' 은(는) 대기 칸으로)' : ''), ['bounced' => $names]];
     }
 
     /** @return array{0: bool, 1: string} */
@@ -679,8 +784,9 @@ class HaService
         }
         $out = null;
         $first = 0;
-        foreach (DB::table(Schema::DEVICES)->where('target', 'printer')->where('printer_id', $printerId)->where('last_seen_at', '>=', self::ago((int) Settings::get('stale_hours') * 3600))
-            ->orderByDesc('last_seen_at')->limit(4)->get() as $d) {
+        $devs = DB::table(Schema::DEVICES)->where('target', 'printer')->where('printer_id', $printerId)->where('last_seen_at', '>=', self::ago((int) Settings::get('stale_hours') * 3600))
+            ->orderByDesc('last_seen_at')->limit(4)->get()->sortByDesc(static fn ($d) => self::caps($d)['state'] ? 1 : 0)->values();   // 1.6.0 상태 센서(장비가 보낸 챔버 값) 먼저 — 빠진 것만 일반 센서로
+        foreach ($devs as $d) {
             if ($d->temp === null && $d->humidity === null) {
                 continue;
             }

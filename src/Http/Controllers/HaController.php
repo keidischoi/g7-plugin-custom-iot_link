@@ -40,6 +40,12 @@ class HaController extends Controller
         return $this->off() ?? $this->result($this->svc->save($this->uid($r), $id, $r->all()), $r);
     }
 
+    /** 1.6.0 📦 보관함 보드 — 붙이기 · 떼기 */
+    public function place(Request $r, int $id): JsonResponse
+    {
+        return $this->off() ?? $this->result($this->svc->place($this->uid($r), $id, (string) $r->input('target', $r->filled('location') ? 'location' : ''), (string) $r->input('location', ''), (int) $r->input('ref', 0)), $r);
+    }
+
     public function delete(Request $r, int $id): JsonResponse
     {
         return $this->off() ?? $this->result($this->svc->delete($this->uid($r), $id), $r);

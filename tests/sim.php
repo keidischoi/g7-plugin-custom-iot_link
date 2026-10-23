@@ -320,6 +320,42 @@ namespace {
     [, , $x] = $svc->save(1, null, ['target' => 'printer', 'printer_id' => 5, 'ent_state' => 'sensor.p1s_print_status']);
     $prn = DB::table('hal_devices')->where('id', $x['id'])->first();
 
+    echo "■ 1.6.0 📦 보관함 보드 (붙이기 · 떼기 · 온도 하나 · 습도 하나 · 장비는 빠진 항목만)\n";
+    $mk = static function (string $name, array $ent, string $target = 'other', array $more = []): int {
+        return (int) DB::table('hal_devices')->insertGetId($more + ['user_id' => 1, 'token' => bin2hex(random_bytes(16)), 'name' => $name, 'target' => $target, 'entities' => json_encode($ent), 'notify' => 1, 'created_at' => now(), 'updated_at' => now()]);
+    };
+    $th = $mk('온습도A', ['temp' => 'sensor.a_t', 'hum' => 'sensor.a_h']);
+    $hOnly = $mk('습도B', ['hum' => 'sensor.b_h']);
+    $tOnly = $mk('온도C', ['temp' => 'sensor.c_t']);
+    $plug = $mk('플러그', ['state' => 'switch.p']);
+    $loc = static fn (int $id) => DB::table('hal_devices')->where('id', $id)->value('location');
+    [$o1] = $svc->place(1, $hOnly, 'location', '보드상자');
+    [$o2, , $r2] = $svc->place(1, $tOnly, 'location', ' 보드 상자 ');
+    t($o1 && $o2 && $r2['bounced'] === [] && $loc($hOnly) === '보드상자', '습도 하나 · 온도 하나는 같이 (이름 빈칸 · 대소문자 무시)');
+    DB::table('hal_devices')->where('id', $hOnly)->update(['humidity' => 41, 'humidity_max' => 35, 'last_seen_at' => '2026-10-20 09:00:00']);
+    DB::table('hal_devices')->where('id', $tOnly)->update(['temp' => 22.5, 'last_seen_at' => '2026-10-20 08:00:00']);
+    $was = Settings::get('enabled');
+    Settings::save(['enabled' => true]);
+    $ls = array_values(array_filter(\Plugins\Custom\IotLink\Api\Ha::locationSensors([1]), static fn ($x) => str_replace(' ', '', $x['location']) === '보드상자'));
+    Settings::save(['enabled' => $was]);
+    t(count($ls) === 1 && $ls[0]['temp'] === 22.5 && $ls[0]['humidity'] === 41.0 && $ls[0]['humidity_max'] === 35 && $ls[0]['last_seen_at'] === '2026-10-20 08:00:00' && str_contains($ls[0]['name'], '·'), '재고 관리에는 보관함마다 한 줄 (온도 · 습도 합침 · 늦은 소식)');
+    DB::table('hal_devices')->whereIn('id', [$hOnly, $tOnly])->update(['humidity' => null, 'humidity_max' => null, 'temp' => null]);
+    [$o3, , $r3] = $svc->place(1, $th, 'location', '보드상자');
+    t($o3 && count($r3['bounced']) === 2 && $loc($hOnly) === null && $loc($tOnly) === null && DB::table('hal_devices')->where('id', $hOnly)->value('target') === 'other', '온습도 센서가 오면 겹친 두 센서는 대기 칸으로');
+    t(! $svc->place(1, $plug, 'location', '보드상자')[0], '보관함에는 온도 · 습도 센서만');
+    [$o4] = $svc->place(1, $th, '');
+    t($o4 && $loc($th) === null, '대기 칸으로 빼기');
+    // 장비: 상태 센서가 챔버 온도만 재면 습도만 일반 센서로
+    $eqDev = $mk('X1C 상태', ['state' => 'sensor.x1c', 'temp' => 'sensor.x1c_chamber']);
+    [$e1] = $svc->place(1, $eqDev, 'equipment', '', 100);
+    [$e2, $m2] = $svc->place(1, $tOnly, 'equipment', '', 100);
+    [$e3, , $r4] = $svc->place(1, $th, 'equipment', '', 100);
+    t($e1 && ! $e2 && str_contains($m2, '챔버') && $e3 && $r4['bounced'] === [] && DB::table('hal_devices')->where('id', $eqDev)->value('equipment_id') == 100, '장비: 챔버 온도를 장비가 재면 온도 센서는 안 붙음 · 온습도 센서는 빠진 습도만 채우러 붙음 (장비 센서는 그대로)');
+    [$e5, , $r5] = $svc->place(1, $hOnly, 'equipment', '', 100);
+    t($e5 && $r5['bounced'] === ['온습도A'], '같은 빈 항목(습도)을 재는 일반 센서끼리는 바꿔 끼움');
+    t(! $svc->place(1, $th, 'equipment', '', 102)[0] && ! $svc->place(2, $th, 'location', '남의 것')[0], '남의 장비 · 남의 기기는 못 붙임');
+    DB::table('hal_devices')->whereIn('id', [$th, $hOnly, $tOnly, $plug, $eqDev])->delete();
+
     echo "■ 0.2.0 SmartThings (WebHook SmartApp)\n";
     // 서명 열쇠 — SmartThings 흉내 (key.smartthings.com 은 인증서 PEM 을 줌)
     $ossl = ['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA];
@@ -1110,7 +1146,7 @@ namespace {
     t(! $e3[0] && $e1[0] && DB::table('hal_devices')->find((int) $xc['id'])->name === '대표가 고침' && ! $d3[0] && DB::table('hal_devices')->find((int) $xc['id']) !== null,
         '🏢 업체 기기 — 직원은 고치기 · 지우기 X · 다른 대표 · 매니저는 고침');
     Settings::save(['keep_days' => 30]);
-    $old5 = date('Y-m-d H:i:s', time() - 5 * 86400);
+    $old5 = date('Y-m-d H:i:s', strtotime(\Plugins\Custom\IotLink\Services\HaService::now()) - 5 * 86400);
     $pdev = (int) DB::table('hal_devices')->where('user_id', 1)->whereNull('company_id')->value('id');
     DB::table('hal_readings')->insert([['device_id' => (int) $xc['id'], 'at' => $old5, 'humidity' => 40], ['device_id' => $pdev, 'at' => $old5, 'humidity' => 41]]);
     FakeCompanies::$links[10]['custom-iot_link'] = ['keep_days' => 2];
@@ -1125,7 +1161,7 @@ namespace {
     $i3 = $L->companyInfo([], 10, 3, 'staff');
     $i2 = $L->companyInfo([], 10, 2, '');
     t(($fi[0]['fields'][0]['key'] ?? '') === 'keep_days' && str_contains((string) ($i3[0]['lines'][0] ?? ''), '업체 기기 ') && str_contains((string) ($i3[0]['lines'][0] ?? ''), '30일 보관') && str_contains((string) ($i3[0]['links'][0]['url'] ?? ''), 'scope=company') && $i2 === [],
-        '🏢 내 업체 칸(센서 기록 보관) · 업체별 안내 (업체 사람에게만)');
+        '🏢 내 업체 칸(센서 기록 보관) · 업체별 안내 (업체 사람에게만)');
     $ai = (new \Plugins\Custom\IotLink\Listeners\AiLinkListener())->tools([], 3);
     $aiA = ($ai[0]['call'])(3, []);
     $aiC = ($ai[0]['call'])(3, ['scope' => 'company']);
