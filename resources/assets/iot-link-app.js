@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.6.3 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.6.4 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.6.3';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.6.4';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -221,7 +221,7 @@
       '<span class="lid"></span><span class="body">' + gauge + (reels || '<em>' + (b.loose ? '재고 관리에 없는 위치' : b.seen ? '재고 관리 보관함' : '비었어요') + '</em>') + '</span>' +
       '<span class="tag"><b>📦 ' + esc(b.name) + '</b><small>' + (b.loose ? '센서만' : b.seen ? '보관 위치' : (b.rolls || 0) + '개') + (hot ? ' · ⚠️ 습도 ' + hu.humidity_max + '% 넘음' : '') + '</small><span class="acts">' + acts + '</span></span>' +
       (b.company ? '<small class="hal-bin-co">🏢 ' + esc(b.company) + '</small>' : '') +
-      '<div class="hal-chips">' + (devs.length ? devs.map(function (x) { return chip(x, true); }).join('') : '<small class="hal-hint">센서를 여기로</small>') + '</div></div>';
+      '<div class="hal-chips">' + (devs.length ? devs.map(function (x) { return chip(x, true); }).join('') : '<small class="hal-drop-hint">＋ 센서를 여기로</small>') + '</div></div>';
   }
   function capsOf(x) { return x.caps || { state: !!x.entities.state, temp: !!x.entities.temp, hum: !!x.entities.hum }; }
   function chip(x, bare) {   // bare — 보관함 안: 온습도는 위 온습도계에 있으니 이름만
