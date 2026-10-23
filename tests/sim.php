@@ -359,6 +359,11 @@ namespace {
     DB::table('mpr_printers')->where('id', 5)->update(['state' => 'printing', 'last_via' => 'script', 'last_seen_at' => \Plugins\Custom\IotLink\Services\HaService::now()]);
     $p1 = collect($svc->printers(1))->firstWhere('id', 5);
     t($p0['state'] === '' && $p0['live'] === false && $p0['seen'] === null && $p1['state'] === 'printing' && $p1['via'] === 'script' && $p1['live'] === true, '1.7.1 🗺️ 프린터 라운지 직접 연결 (PC 연결 프로그램 · 출력 상태 · 받은 때) — 열이 없어도 됨');
+    [$c1] = $svc->place(1, $th, 'location', '업체 선반', 10);
+    $cRow = DB::table('hal_devices')->find($th);
+    [$c2] = $svc->place(1, $tOnly, 'location', '업체 선반', 0);
+    t($c1 && (int) $cRow->company_id === 10 && $cRow->location === '업체 선반' && $c2 && DB::table('hal_devices')->find($th)->location === '업체 선반' && ! $svc->place(1, $hOnly, 'location', '업체 선반', 99)[0],
+        '1.7.6 🏢 업체 보관함에 붙이면 업체 기기 · 같은 이름의 내 보관함과는 따로 · 내가 관리하지 않는 업체는 안 됨');
     DB::table('hal_devices')->whereIn('id', [$th, $hOnly, $tOnly, $plug, $eqDev])->delete();
 
     echo "■ 0.2.0 SmartThings (WebHook SmartApp)\n";

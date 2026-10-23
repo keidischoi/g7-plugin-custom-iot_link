@@ -2,7 +2,7 @@
     "name": "plugins/custom-iot_link",
     "description": "G7 IoT 연결 — Home Assistant · SmartThings 온습도 · 기기 상태 받기",
     "type": "library",
-    "version": "1.7.5",
+    "version": "1.7.6",
     "license": "MIT",
     "autoload": {
         "psr-4": {

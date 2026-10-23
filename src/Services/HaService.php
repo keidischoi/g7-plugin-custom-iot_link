@@ -349,9 +349,15 @@ class HaService
             if (! $caps['temp'] && ! $caps['hum']) {
                 return [false, '보관함에는 온도 · 습도를 재는 센서만 붙일 수 있어요.'];
             }
+            // 1.7.6 ref = 업체 번호면 🏢 업체 보관함 (내가 대표 · 관리자인 업체만) — 같은 보관함은 그 업체 기기끼리
+            $cid = $ref > 0 && in_array($ref, array_map('intval', array_column($this->companies($uid), 'id')), true) ? $ref : null;
+            if ($ref > 0 && $cid === null) {
+                return [false, '내가 관리하는 업체의 보관함에서 골라 주세요.'];
+            }
             $row['location'] = $loc;
-            $row['company_id'] = null;
-            $same = DB::table(Schema::DEVICES)->where('user_id', $d->user_id)->where('target', 'location')->where('id', '!=', $id)->get()->filter(static fn ($o) => $key($o->location) === $key($loc));
+            $row['company_id'] = $cid;
+            $same = ($cid ? DB::table(Schema::DEVICES)->where('company_id', $cid) : DB::table(Schema::DEVICES)->where('user_id', $d->user_id)->where(static fn ($w) => $w->whereNull('company_id')->orWhere('company_id', 0)))
+                ->where('target', 'location')->where('id', '!=', $id)->get()->filter(static fn ($o) => $key($o->location) === $key($loc));
             $where = '📦 「'.$loc.'」';
         } elseif ($target === 'printer') {
             $pr = collect($this->printers($uid))->firstWhere('id', $ref);

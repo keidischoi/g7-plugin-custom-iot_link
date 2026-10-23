@@ -83,7 +83,10 @@ final class Links
         $out = [];
         foreach ($cids ? self::call('inventory', self::INVENTORY, 'equipmentFor', [], $cids) : [] as $list) {
             foreach ((array) $list as $e) {
-                $out[(int) $e['id']] = ['id' => (int) $e['id'], 'company_id' => (int) $e['company_id'], 'name' => (string) ($e['name'] ?? '')];
+                $out[(int) $e['id']] = ['id' => (int) $e['id'], 'company_id' => (int) $e['company_id'], 'name' => (string) ($e['name'] ?? ''),
+                    // 1.7.6 📦 보드 · 🗺️ 지도가 장비 모양으로 그림 — 종류(fdm · laser · cnc · dryer …) · 프린터인지 · 상태(정상 · 수리 중 …)
+                    'kind' => (string) ($e['kind'] ?? ''), 'kind_label' => (string) ($e['kind_label'] ?? ''), 'is_printer' => (bool) ($e['is_printer'] ?? false),
+                    'status' => (string) ($e['status'] ?? ''), 'status_label' => (string) ($e['status_label'] ?? ''), 'status_emoji' => (string) ($e['status_emoji'] ?? '')];
             }
         }
 
