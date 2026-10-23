@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.7.2 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.7.3 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.2';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.3';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -319,7 +319,13 @@
   function prIcon(p) { var u = String((p && p.image) || ''); return /^(https?:\/\/|\/)[^"'<>\s]+$/.test(u) ? '<img class="hal-pimg" src="' + esc(u) + '" alt="" loading="lazy" onerror="this.replaceWith(\'🖨️\')">' : '🖨️'; }
   function mapView() {
     var d = S.d, N = {}, cols = [[], [], [], []], E = [];
-    var node = function (c, id, html, cls, attrs) { if (!N[id]) { N[id] = 1; cols[c].push('<div class="hal-mn ' + (cls || '') + '" data-n="' + esc(id) + '"' + (attrs || '') + '>' + html + '</div>'); } };
+    // 1.7.3 많아도 보이게 — 마디는 아이콘 · 이름만, 값 · 상태 같은 설명은 마우스를 올리면 (title)
+    var node = function (c, id, html, cls, attrs) {
+      if (N[id]) return; N[id] = 1;
+      var tip = esc(html.replace(/<small>/g, ' · ').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim());
+      attrs = attrs || ''; attrs = attrs.indexOf('title="') >= 0 ? attrs.replace('title="', 'title="' + tip + ' — ') : attrs + ' title="' + tip + '"';
+      cols[c].push('<div class="hal-mn ' + (cls || '') + '" data-n="' + esc(id) + '"' + attrs + '>' + html + '</div>');
+    };
     var edge = function (a, b, live) { for (var i = 0; i < E.length; i++) if (E[i][0] === a && E[i][1] === b) { E[i][2] = E[i][2] || live; return; } E.push([a, b, live]); };
     var lbl = function (ic, t, sub) { return '<i aria-hidden="true">' + ic + '</i><span><b>' + esc(t) + '</b>' + (sub ? '<small>' + sub + '</small>' : '') + '</span>'; };
     var boxOf = {}; (d.boxes || []).forEach(function (b) { if (!boxOf[bkey(b.name)]) boxOf[bkey(b.name)] = b; });
