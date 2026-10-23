@@ -90,6 +90,14 @@ final class Links
         return $out;
     }
 
+    /** 1.6.0 📦 보관함 보드 — 내 보관함(이름 · 색 · 롤 수 · 기록 여부) · 재고 관리 0.3.81+ (없으면 빈 목록) @return list<array<string, mixed>> */
+    public static function boxes(int $uid): array
+    {
+        $r = self::call('inventory', self::INVENTORY, 'boxes', [], $uid);
+
+        return is_array($r) ? array_values(array_filter($r, 'is_array')) : [];
+    }
+
     /** @return list<string> 회원의 필라멘트 보관 위치 (개인 것 + 속한 업체 것) */
     public static function spoolLocations(int $uid): array
     {
