@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.6.2 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.6.3 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.6.2';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.6.3';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -215,13 +215,12 @@
     var rl = b.reels || [], n = Math.min(b.rolls || rl.length, 10), cols = n <= 4 ? Math.max(1, n) : Math.ceil(n / 2), rows = n <= 4 ? 1 : 2, more = (b.rolls || 0) - rl.length;
     var st = devs.filter(function (x) { return capsOf(x).temp; })[0], hu = devs.filter(function (x) { return capsOf(x).hum; })[0], hot = hu && hu.humidity_max != null && hu.humidity != null && hu.humidity > hu.humidity_max;
     var reels = rl.map(function (x, i) { var w = +x.w || 1000, sz = w <= 250 ? 22 : w <= 500 ? 26 : w < 2000 ? 30 : 34, last = more > 0 && i === rl.length - 1;
-      return '<i class="reel' + (x.b ? ' bottle' : '') + (x.s ? ' sealed' : '') + (last ? ' more' : '') + '" style="--sz:' + sz + 'px;--c:' + (/^#[0-9a-f]{3,8}$/i.test(x.c || '') ? x.c : '#94a3b8') + ';--p:' + (+x.p || 0) + '"' + (x.n ? ' title="' + esc(x.n) + ' · ' + (+x.p || 0) + '%"' : '') + '>' + (last ? '<b>+' + (more + 1) + '</b>' : '') + '</i>'; }).join('');
+      return '<i class="reel' + (x.b ? ' bottle' : '') + (x.s ? ' sealed' : '') + (last ? ' more' : '') + '" style="--sz:' + sz + 'px;--c:' + (/^#[0-9a-f]{3,8}$/i.test(x.c || '') ? x.c : '#94a3b8') + ';--p:' + (+x.p || 0) + '"' + ' title="' + (last ? (more + 1) + '개 더 — 재고 관리에서 모두 보기' : esc((x.n || (x.b ? '레진' : '필라멘트')) + ' · 남은 ' + (+x.p || 0) + '%' + (x.s ? ' · 안 뜯은 새 롤' : ''))) + '"' + '>' + (last ? '<b>+' + (more + 1) + '</b>' : '') + '</i>'; }).join('');
     var gauge = '<span class="gauge" title="🌡️ ' + (st ? esc(st.name) : '온도 센서 없음') + ' · 💧 ' + (hu ? esc(hu.name) : '습도 센서 없음') + '">💧' + (hu ? (hu.humidity == null ? '–' : hu.humidity) + '%' : '<u>빈 칸</u>') + ' 🌡️' + (st ? (st.temp == null ? '–' : st.temp) + '°' : '<u>빈 칸</u>') + '</span>';
     return '<div class="hal-bd hal-bin' + (b.loose ? ' loose' : '') + (hot ? ' hot' : '') + '" data-drop="location" data-loc="' + esc(b.name) + '" style="--bx:' + (b.loose ? '#94a3b8' : boxCol(b)) + ';--cols:' + Math.max(cols, 4) + ';--rows:' + rows + '">' +
       '<span class="lid"></span><span class="body">' + gauge + (reels || '<em>' + (b.loose ? '재고 관리에 없는 위치' : b.seen ? '재고 관리 보관함' : '비었어요') + '</em>') + '</span>' +
       '<span class="tag"><b>📦 ' + esc(b.name) + '</b><small>' + (b.loose ? '센서만' : b.seen ? '보관 위치' : (b.rolls || 0) + '개') + (hot ? ' · ⚠️ 습도 ' + hu.humidity_max + '% 넘음' : '') + '</small><span class="acts">' + acts + '</span></span>' +
       (b.company ? '<small class="hal-bin-co">🏢 ' + esc(b.company) + '</small>' : '') +
-      (rl.length && rl[0].n ? '<ul class="hal-bin-rl">' + rl.slice(0, 4).map(function (x) { return '<li><i style="--c:' + (/^#[0-9a-f]{3,8}$/i.test(x.c || '') ? x.c : '#94a3b8') + '" class="' + (x.b ? 'bottle' : '') + '"></i><span>' + esc(x.n) + '</span><em>' + (+x.p || 0) + '%</em></li>'; }).join('') + ((b.rolls || rl.length) > 4 ? '<li class="more">외 ' + ((b.rolls || rl.length) - 4) + '개</li>' : '') + '</ul>' : '') +
       '<div class="hal-chips">' + (devs.length ? devs.map(function (x) { return chip(x, true); }).join('') : '<small class="hal-hint">센서를 여기로</small>') + '</div></div>';
   }
   function capsOf(x) { return x.caps || { state: !!x.entities.state, temp: !!x.entities.temp, hum: !!x.entities.hum }; }
