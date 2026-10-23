@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.7.11 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.7.12 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.11';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.12';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -220,7 +220,7 @@
     var gauge = '<span class="gauge" title="🌡️ ' + (st ? esc(st.name) : '온도 센서 없음') + ' · 💧 ' + (hu ? esc(hu.name) : '습도 센서 없음') + '">💧' + (hu ? (hu.humidity == null ? '–' : hu.humidity) + '%' : '<u>빈 칸</u>') + ' 🌡️' + (st ? (st.temp == null ? '–' : st.temp) + '°' : '<u>빈 칸</u>') + '</span>';
     return '<div class="hal-bd hal-bin' + (b.loose ? ' loose' : '') + (hot ? ' hot' : '') + '" data-drop="location" data-loc="' + esc(b.name) + '" data-ref="' + (+(b.company_id || 0)) + '" style="--bx:' + (b.loose ? '#94a3b8' : boxCol(b)) + ';--cols:' + Math.max(cols, 4) + ';--rows:' + rows + '">' +
       '<span class="lid"></span><span class="body">' + gauge + (reels || '<em>' + (b.loose ? '재고 관리에 없는 위치' : b.seen ? '재고 관리 보관함' : '비었어요') + '</em>') + '</span>' +
-      '<span class="tag"><b>📦 ' + esc(b.name) + '</b><small>' + (b.loose ? '센서만' : b.seen ? '보관 위치' : (b.rolls || 0) + '개') + (hot ? ' · ⚠️ 습도 ' + hu.humidity_max + '% 넘음' : '') + '</small><span class="acts">' + acts + '</span></span>' +
+      '<span class="tag"' + (b.drag != null ? ' draggable="true" data-box-drag="' + esc(b.name) + '" data-from="' + b.drag + '" title="끌어서 위 👤 · 🏢 탭에 놓으면 통째로 옮겨요"' : '') + '><b>📦 ' + esc(b.name) + '</b><small>' + (b.loose ? '센서만' : b.seen ? '보관 위치' : (b.rolls || 0) + '개') + (hot ? ' · ⚠️ 습도 ' + hu.humidity_max + '% 넘음' : '') + '</small><span class="acts">' + acts + '</span></span>' +
       (b.company ? '<small class="hal-bin-co">🏢 ' + esc(b.company) + '</small>' : '') +
       '<div class="hal-chips">' + (devs.length ? devs.map(function (x) { return chip(x, true); }).join('') : '<small class="hal-drop-hint">＋ 센서를 여기로</small>') + '</div></div>';
   }
@@ -302,10 +302,13 @@
       d.devices.forEach(function (x) { if (x.target === 'location' && x.location && cidOf(x.company_id) === cid && !have[bkey(x.location)]) { have[bkey(x.location)] = 1; boxes.push({ name: x.location, company_id: cid, rolls: 0, record: false, loose: true }); } });   // 재고 관리에 없는 보관 위치
       boxHtml += boxes.map(function (b) {
         var on = at(function (x) { return x.target === 'location' && bkey(x.location) === bkey(b.name) && cidOf(x.company_id) === cid; });
-        if (b.seen || cid) return badged(binZone(b, on, ''), badge(cid));   // 롤 수를 모르거나 🏢 업체 보관함 — 이름 바꾸기 · 지우기는 재고 관리에서
+        // 1.7.12 ⇄ 개인 ↔ 업체로 통째로 옮기기 (재고 관리 0.3.83+) — 이름판을 끌어 위 👤 · 🏢 탭에 놓아도
+        var mv = d.config.inventory && !b.seen && !b.loose && Object.keys(cos).length ? '<button type="button" class="hal-icobtn" data-box-act="move" data-name="' + esc(b.name) + '" data-from="' + cid + '" title="' + (cid ? '개인 · 다른 업체로 옮기기' : '업체로 옮기기') + ' (필라멘트 · 센서 같이)" aria-label="옮기기">⇄</button>' : '';
+        if (mv) b.drag = cid;
+        if (b.seen || cid) return badged(binZone(b, on, mv), badge(cid));   // 롤 수를 모르거나 🏢 업체 보관함 — 이름 바꾸기 · 지우기는 재고 관리에서
         var acts = d.config.inventory && !b.loose ? '<button type="button" class="hal-icobtn" data-box-act="rename" data-name="' + esc(b.name) + '" title="이름 바꾸기" aria-label="이름 바꾸기">✏️</button>' : '';
         acts += '<button type="button" class="hal-icobtn" data-box-act="del" data-name="' + esc(b.name) + '" data-rolls="' + (b.rolls || 0) + '" data-loose="' + (b.loose ? 1 : 0) + '" title="' + (b.loose ? '센서를 대기 칸으로' : '보관함 지우기') + '" aria-label="지우기">🗑</button>';
-        return badged(binZone(b, on, acts), badge(cid));
+        return badged(binZone(b, on, mv + acts), badge(cid));
       }).join('');
       prHtml += (d.printers || []).filter(function (p) { return cidOf(p.company_id) === cid; }).map(function (p) {
         var e = p.equipment_id ? (d.equipment || []).filter(function (q) { return q.id === p.equipment_id; })[0] : null;
@@ -331,7 +334,7 @@
       // 1.7.10 마우스로 끌어 좌우로 (센서 칩 · 단추에서 시작하면 그것을 끌거나 누름) — 터치는 손가락으로 그냥 밀림
       var pan = null;
       el.addEventListener('pointerdown', function (e) {
-        if (e.pointerType !== 'mouse' || e.button !== 0 || e.target.closest('[data-chip],button,a,input')) return;
+        if (e.pointerType !== 'mouse' || e.button !== 0 || e.target.closest('[data-chip],[data-box-drag],button,a,input')) return;
         pan = { x: e.clientX, l: el.scrollLeft, moved: false, id: e.pointerId };
       });
       el.addEventListener('pointermove', function (e) {
@@ -364,8 +367,27 @@
     api('POST', '/devices/' + id + '/place', { target: t, location: loc, ref: ref }).then(function (r) { toast(r.message); S.d = r.data.overview; redraw(); }).catch(function (e) { fail(e); redraw(); });
   }
   function reload() { return api('GET', '/me').then(function (r) { S.d = r.data; redraw(); }); }
+  function coMap() { var m = {}; (S.d.companies || []).forEach(function (c) { m[c.id] = c.name; }); return m; }
+  /** 1.7.12 📦 보관함 통째로 옮기기 — to: 0 개인 · 업체 번호 · -1 이면 업체에서 고름(하나면 그 업체) */
+  function boxMove(name, from, to) {
+    var cos = coMap(), opts = (from ? [[0, '👤 개인']] : []).concat(Object.keys(cos).filter(function (k) { return +k !== from; }).map(function (k) { return [+k, '🏢 ' + cos[k]]; }));
+    if (to === -1) opts = opts.filter(function (o) { return o[0] > 0; });
+    else if (to != null) opts = opts.filter(function (o) { return o[0] === to; });
+    if (!opts.length) { toast('옮길 곳이 없어요 (이미 그쪽 보관함이에요).', true); return; }
+    var dup = function (t) { return (S.d.boxes || []).some(function (x) { return +(x.company_id || 0) === t && bkey(x.name) === bkey(name); }); };
+    var go = function (t, label) {
+      if (!confirm('📦 「' + name + '」을(를) ' + label + '(으)로 통째로 옮길까요?\n안에 든 필라멘트 · 레진과 붙은 센서도 같이 옮겨져요.' + (t > 0 ? '\n업체 재고에 잡혀요.' : '') + (dup(t) ? '\n\n⚠️ 그쪽에 같은 이름의 보관함이 있어서 하나로 합쳐요.' : ''))) return;
+      api('POST', INV + '/move', { name: name, from: from, to: t }).then(function (r) { toast(r.message || '옮겼어요.'); return reload(); }).catch(fail);
+    };
+    if (opts.length === 1) { go(opts[0][0], opts[0][1]); return; }
+    var ov = modal('⇄ 「' + esc(name) + '」 옮기기', '<div class="hal-own-pick" role="radiogroup"><span>어디로 옮길까요?</span>' + opts.map(function (o, i) { return '<label class="' + (o[0] ? 'co' : 'me') + '"><input type="radio" name="bx-to" value="' + o[0] + '"' + (i === 0 ? ' checked' : '') + '> ' + esc(o[1]) + '</label>'; }).join('') + '</div>', { ok: '옮기기', onSave: function (w) {
+      var r = w.querySelector('input[name="bx-to"]:checked'), t = r ? +r.value : opts[0][0], lb = opts.filter(function (o) { return o[0] === t; })[0];
+      setTimeout(function () { go(t, lb ? lb[1] : ''); }, 0); return Promise.resolve();
+    } });
+  }
   function boxAct(b) {
     var a = b.getAttribute('data-box-act'), name = b.getAttribute('data-name') || '';
+    if (a === 'move') { boxMove(name, +b.getAttribute('data-from'), null); return; }
     if (a === 'new') {
       // 1.7.8 누구 보관함인지 고름 — 📡 전체: 👤 개인 · 🏢 업체마다 / 👤 내 기기: 개인 / 🏢 업체 기기: 업체 (하나면 그 업체)
       var sc = scope(), own = (sc === 'company' ? [] : [[0, '👤 개인']]).concat(sc === 'mine' ? [] : (S.d.companies || []).map(function (c) { return [c.id, '🏢 ' + c.name]; }));
@@ -393,6 +415,13 @@
   }
   function boardBind() {
     var bd = q('[data-board]'); if (!bd) return;
+    // 1.7.12 보관함 이름판을 끌어 👤 내 기기 · 🏢 업체 기기 탭에 놓으면 그쪽으로 통째로
+    qa('.hal-scope [data-scope="mine"], .hal-scope [data-scope="company"], .hal-scope [data-scope="all"]').forEach(function (t) {
+      var to = t.getAttribute('data-scope');
+      t.addEventListener('dragover', function (e) { if (!S.boxDrag || to === 'all' || (to === 'mine' && S.boxDrag.from === 0) || (to === 'company' && S.boxDrag.from > 0 && Object.keys(coMap()).length < 2)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; t.classList.add('over'); });
+      t.addEventListener('dragleave', function () { t.classList.remove('over'); });
+      t.addEventListener('drop', function (e) { if (!S.boxDrag) return; e.preventDefault(); t.classList.remove('over'); var bx = S.boxDrag; S.boxDrag = null; S.root.classList.remove('hal-boxdrag'); boxMove(bx.name, bx.from, to === 'mine' ? 0 : -1); });
+    });
     var over = function (z) { qa('.hal-bd.over').forEach(function (o) { if (o !== z) o.classList.remove('over'); }); if (z) z.classList.add('over'); };
     bd.onclick = function (e) {
       var c = e.target.closest('[data-chip]');
@@ -400,10 +429,13 @@
       var a = e.target.closest('[data-box-act]'); if (a) { boxAct(a); return; }
       var z = e.target.closest('[data-drop]'); if (z && S.pick) placeTo(S.pick, z);
     };
-    bd.ondragstart = function (e) { var c = e.target.closest && e.target.closest('[data-chip]'); if (!c) return; e.dataTransfer.setData('text/plain', c.getAttribute('data-chip')); e.dataTransfer.effectAllowed = 'move'; bd.classList.add('picking'); };
-    bd.ondragend = function () { bd.classList.remove('picking'); over(null); };
-    bd.ondragover = function (e) { var z = e.target.closest('[data-drop]'); if (!z) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; over(z); };
-    bd.ondrop = function (e) { var z = e.target.closest('[data-drop]'); if (!z) return; e.preventDefault(); over(null); var id = +e.dataTransfer.getData('text/plain'); if (id) placeTo(id, z); };
+    bd.ondragstart = function (e) {
+      var bxd = e.target.closest && e.target.closest('[data-box-drag]');
+      if (bxd && !(e.target.closest('[data-chip]'))) { S.boxDrag = { name: bxd.getAttribute('data-box-drag'), from: +bxd.getAttribute('data-from') }; e.dataTransfer.setData('text/plain', 'box'); e.dataTransfer.effectAllowed = 'move'; S.root.classList.add('hal-boxdrag'); return; }
+      var c = e.target.closest && e.target.closest('[data-chip]'); if (!c) return; e.dataTransfer.setData('text/plain', c.getAttribute('data-chip')); e.dataTransfer.effectAllowed = 'move'; bd.classList.add('picking'); };
+    bd.ondragend = function () { bd.classList.remove('picking'); over(null); S.boxDrag = null; S.root.classList.remove('hal-boxdrag'); qa('.hal-scope .over').forEach(function (t) { t.classList.remove('over'); }); };
+    bd.ondragover = function (e) { if (S.boxDrag) return; var z = e.target.closest('[data-drop]'); if (!z) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; over(z); };
+    bd.ondrop = function (e) { if (S.boxDrag) return; var z = e.target.closest('[data-drop]'); if (!z) return; e.preventDefault(); over(null); var id = +e.dataTransfer.getData('text/plain'); if (id) placeTo(id, z); };
   }
   /* 1.7.0 🗺️ 연결 지도 — 어디서 받아(🏠 Home Assistant · SmartThings) → 어느 기기가 → 어디에 붙어(📦 보관함 · 🖨️ 프린터 · 🏭 장비 · 대기 칸) → 어느 확장으로 이어지는지 한눈에
      선: 초록 = 값이 들어옴 · 회색 점선 = 끊김 · 아직 값 없음. 마디에 마우스를 올리면 그 마디의 선만 진하게, 기기를 누르면 고치기 */

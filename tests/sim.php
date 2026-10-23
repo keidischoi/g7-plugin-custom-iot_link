@@ -372,6 +372,16 @@ namespace {
         && collect($svc->printers(1))->firstWhere('id', 20)['equipment_id'] === 100,
         '1.7.9 업체 프린터 = 이어진 업체 장비 — 프린터에 붙여도 장비 번호가 따라감(정비 수첩 가동 시간) · 장비에 붙어 있던 상태 센서와 바꿔 끼움');
     DB::table('mpr_printers')->where('id', 20)->delete();
+    $was = Settings::get('enabled');
+    Settings::save(['enabled' => true]);
+    $H = \Plugins\Custom\IotLink\Api\Ha::class;
+    $mv1 = $H::moveLocation(1, ' 업체선반 ', 10, 0);
+    $after1 = DB::table('hal_devices')->find($th)->company_id;
+    $mv2 = $H::moveLocation(1, '업체 선반', 0, 10);
+    $mv3 = $H::moveLocation(2, '업체 선반', 0, 10);   // 남의 개인 센서는 안 움직임
+    Settings::save(['enabled' => $was]);
+    t($mv1 === 1 && $after1 === null && $mv2 === 2 && (int) DB::table('hal_devices')->find($th)->company_id === 10 && $mv3 === 0,
+        '1.7.12 📦 보관함 통째로 옮기면 붙은 센서도 따라감 (업체 → 개인 → 업체 · 같은 보관함의 내 센서 모두 · 남의 것 X)');
     DB::table('hal_devices')->whereIn('id', [$th, $hOnly, $tOnly, $plug, $eqDev])->delete();
 
     echo "■ 0.2.0 SmartThings (WebHook SmartApp)\n";
