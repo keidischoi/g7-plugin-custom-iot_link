@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.7.3 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.7.4 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.3';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.4';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -331,7 +331,7 @@
     var boxOf = {}; (d.boxes || []).forEach(function (b) { if (!boxOf[bkey(b.name)]) boxOf[bkey(b.name)] = b; });
     var inst = (d.smartthings && d.smartthings.installs) || [], stOf = {};
     inst.forEach(function (s) { (s.site_devices || []).forEach(function (id) { stOf[id] = s; }); if (s.device_id) stOf[s.device_id] = stOf[s.device_id] || s; });
-    // 1.7.1 🖨️ 내 프린터 모두 — 프린터 라운지가 직접 받는 연결(🖥️ 한 줄 스크립트)도 · 출력 상태 · 마지막으로 받은 때
+    // 1.7.1 🖨️ 내 프린터 모두 — 프린터 라운지가 직접 받는 연결(💻 PC 연결 프로그램)도 · 출력 상태 · 마지막으로 받은 때
     var PST = { printing: '🟢 출력 중', paused: '⏸ 일시정지', done: '✅ 끝남', failed: '⚠️ 실패', idle: '쉬는 중' };
     (d.printers || []).forEach(function (p) {
       var tn = 't:p:' + p.id, sub = ['프린터'];
@@ -339,7 +339,9 @@
       var on = !!p.live || d.devices.some(function (x) { return x.target === 'printer' && x.printer_id === p.id && !x.stale && !x.never; });   // 연결이 꺼졌으면 회색으로 흐릿하게
       node(2, tn, lbl(prIcon(p), p.name, esc(sub.join(' · ') + (on ? '' : ' · 연결 꺼짐'))), 'k-printer' + (on ? '' : ' gone'));
       node(3, 'x:mpr', lbl('🖨️', '프린터 라운지', '출력 상태 · 주변 온습도'), 'k-ext'); edge(tn, 'x:mpr', !!p.live);
-      if (p.via === 'script' || (p.seen && !p.via)) { node(0, 'src:hook', lbl('🖥️', '한 줄 연결', '프린터 라운지 스크립트 · 직접'), 'k-hook'); edge('src:hook', tn, !!p.live); }
+      // 1.7.4 사이트 ⇄ 💻 PC(라즈베리파이)의 연결 프로그램 ⇄ 프린터 — 프린터 라운지와 같은 이름 · SimplyPrint 는 따로
+      if (p.via === 'simply') { node(0, 'src:simply', lbl('🔗', 'SimplyPrint', '클라우드로 프린터 상태를 받음'), 'k-hook'); edge('src:simply', tn, !!p.live); }
+      else if (p.via === 'script' || (p.seen && !p.via)) { node(0, 'src:pc', lbl('💻', 'PC 연결 프로그램', 'PC · 라즈베리파이에서 프린터 ⇄ 사이트 (상태를 받고 · 원격 출력을 보냄)'), 'k-hook'); edge('src:pc', tn, !!p.live); }
     });
     d.devices.forEach(function (x) {
       var live = !x.stale && !x.never, c = capsOf(x), dn = 'd:' + x.id, v = [];
