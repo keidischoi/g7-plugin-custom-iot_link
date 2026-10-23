@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.7.9 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.7.10 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.9';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.10';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -328,6 +328,26 @@
       var upd = function () { var max = el.scrollWidth - el.clientWidth - 2; w.classList.toggle('can-l', el.scrollLeft > 2); w.classList.toggle('can-r', el.scrollLeft < max); S.stripX[k] = el.scrollLeft; };
       if (S.stripX[k]) el.scrollLeft = S.stripX[k];
       el.addEventListener('scroll', upd, { passive: true }); upd();
+      // 1.7.10 마우스로 끌어 좌우로 (센서 칩 · 단추에서 시작하면 그것을 끌거나 누름) — 터치는 손가락으로 그냥 밀림
+      var pan = null;
+      el.addEventListener('pointerdown', function (e) {
+        if (e.pointerType !== 'mouse' || e.button !== 0 || e.target.closest('[data-chip],button,a,input')) return;
+        pan = { x: e.clientX, l: el.scrollLeft, moved: false, id: e.pointerId };
+      });
+      el.addEventListener('pointermove', function (e) {
+        if (!pan || e.pointerId !== pan.id) return;
+        var dx = e.clientX - pan.x;
+        if (!pan.moved && Math.abs(dx) < 6) return;
+        if (!pan.moved) { pan.moved = true; try { el.setPointerCapture(e.pointerId); } catch (er) {} w.classList.add('panning'); }
+        el.scrollLeft = pan.l - dx; e.preventDefault();
+      });
+      var end = function (e) {
+        if (!pan) return;
+        var moved = pan.moved; pan = null; w.classList.remove('panning');
+        try { el.releasePointerCapture(e.pointerId); } catch (er) {}
+        if (moved) el.addEventListener('click', function stop(ev) { ev.stopPropagation(); ev.preventDefault(); el.removeEventListener('click', stop, true); }, true);   // 끈 뒤의 누름은 「붙이기」로 치지 않음
+      };
+      el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
       w.querySelectorAll('[data-sc]').forEach(function (b) {
         var dir = +b.getAttribute('data-sc');
         b.onclick = function () { el.scrollBy({ left: dir * Math.max(180, el.clientWidth * 0.8), behavior: 'smooth' }); };
