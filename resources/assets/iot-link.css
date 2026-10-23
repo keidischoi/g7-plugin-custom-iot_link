@@ -1,4 +1,4 @@
-/* custom-iot_link 1.7.4 — 📡 IoT 연결 */
+/* custom-iot_link 1.7.5 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -436,3 +436,27 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
 .hal-mn b { font-size:12.5px; font-weight:700; }
 .hal-mn.k-dev.off b { color:var(--mute); } .hal-mn.k-dev.hot b { color:#dc2626; }
 .hal-map-col { gap:5px; } .hal-map-cols { grid-template-columns:repeat(4, minmax(120px, 1fr)); gap:0 40px; min-width:600px; }
+/* 1.7.5 🖨️ 보드의 프린터 — 프린터 모양 (틀 · 레일 · 노즐 · 창 · 베드 · 다리 · 이름판) */
+.hal-bd.hal-prn { --pc:#2563eb; position:relative; display:flex; flex-direction:column; width:178px; max-width:100%; padding:0; border:0; border-radius:0; background:none; }
+.hal-prn .frame { position:relative; display:flex; flex-direction:column; height:150px; padding:26px 10px 10px; border:4px solid #334155; border-radius:12px 12px 6px 6px; background:linear-gradient(180deg, #475569, #1e293b); box-shadow:inset 0 0 0 2px rgba(255,255,255,.06), 0 3px 8px rgba(15,23,42,.25); transition:box-shadow .15s, border-color .15s; }
+.hal-prn .gauge { position:absolute; left:6px; right:6px; top:4px; padding:2px 4px; border-radius:6px; background:rgba(2,6,23,.75); color:#e2e8f0; font-size:10px; line-height:1.35; text-align:center; white-space:nowrap; overflow:hidden; }
+.hal-prn .gauge u { text-decoration:none; opacity:.55; }
+.hal-prn .rail { position:relative; z-index:2; height:6px; margin:0 -4px; border-radius:3px; background:linear-gradient(180deg, #cbd5e1, #64748b); }
+.hal-prn .head { position:absolute; top:-3px; left:calc(50% - 9px); width:18px; height:12px; border-radius:3px 3px 1px 1px; background:var(--pc); box-shadow:0 1px 2px rgba(0,0,0,.4); }
+.hal-prn .head::after { content:''; position:absolute; left:6px; bottom:-5px; border:3px solid transparent; border-top:5px solid #f59e0b; }
+.hal-prn.run .head { animation:halHead 2.4s ease-in-out infinite alternate; }
+@keyframes halHead { from { left:4%; } to { left:calc(96% - 18px); } }
+.hal-prn .win { flex:1 1 auto; display:flex; align-items:center; justify-content:center; min-height:0; margin:4px 0 0; border-radius:6px; background:linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.05)); overflow:hidden; }
+.hal-prn .win .hal-pimg { width:auto; height:100%; max-height:76px; max-width:100%; background:transparent; box-shadow:none; }
+.hal-prn .win em { font-style:normal; font-size:34px; opacity:.8; }
+.hal-prn .bed { height:6px; margin:4px 6px 0; border-radius:2px; background:linear-gradient(90deg, #111827, #374151, #111827); box-shadow:0 0 0 1px rgba(255,255,255,.08); }
+.hal-prn.run .bed { box-shadow:0 0 6px 1px rgba(249,115,22,.55); }
+.hal-prn .feet { display:flex; justify-content:space-between; padding:0 14px; } .hal-prn .feet i { width:18px; height:5px; border-radius:0 0 4px 4px; background:#1e293b; }
+.hal-prn .tag { position:relative; z-index:1; display:flex; align-items:center; gap:4px; margin:-14px 10px 0; padding:3px 7px; min-width:0; border:1px solid var(--line); border-left:4px solid var(--pc); border-radius:6px; background:var(--card); box-shadow:0 1px 3px rgba(15,23,42,.2); }
+.hal-prn .tag b { flex:1 1 0; min-width:0; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .hal-prn .tag small { flex:none; color:var(--mute); font-size:11px; }
+.hal-prn.run .tag small { color:#16a34a; font-weight:700; } .hal-prn.fail .tag small { color:#dc2626; font-weight:700; }
+.hal-prn > .hal-chips { justify-content:center; margin:8px 6px 0; } .hal-prn .hal-drop-hint { --bx:var(--pc); }
+.hal-prn.gone .frame, .hal-prn.gone .feet { filter:grayscale(1); opacity:.5; } .hal-prn.gone .tag { --pc:#94a3b8; }
+.hal-board.picking .hal-prn .frame { box-shadow:0 0 0 3px rgba(37,99,235,.3); }
+.hal-bd.hal-prn.over { box-shadow:none !important; } .hal-bd.hal-prn.over .frame { border-color:var(--pc); box-shadow:0 0 0 3px rgba(37,99,235,.4); }
+.hal-board.picking .hal-bd.hal-prn { box-shadow:none; }
