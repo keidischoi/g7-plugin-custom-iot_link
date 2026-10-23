@@ -950,6 +950,12 @@ namespace {
     $dels = array_values(array_filter($calls, fn ($c) => $c[0] === 'DELETE'));
     t($subsOf('ia-oauth-0001') === ['dev-th-0001', 'dev-plug-001'] && count($dels) === 1 && preg_match('#/subscriptions/sub-0000-\d+$#', $dels[0][1]) === 1 && DB::table('hal_devices')->where('id', $ams->id)->exists()
         && DB::table('hal_st_sensors')->where('st_device_id', 'dev-th-0002')->doesntExist(), '센서를 빼면 그 구독만 지움 · 사이트 기기 · 기록은 남김');
+    $st->oauthPick(1, (int) $oi->id, [['id' => 'dev-th-0001'], ['id' => 'dev-plug-001'], ['id' => 'dev-door-001']]);
+    $doorDev = (int) json_decode((string) DB::table('hal_st_installs')->where('id', $oi->id)->value('config'), true)['map']['dev-door-001'];
+    $doorWait = DB::table('hal_devices')->where('id', $doorDev)->value('target');
+    [, $msgU] = $st->oauthPick(1, (int) $oi->id, [['id' => 'dev-th-0001'], ['id' => 'dev-plug-001']]);
+    t($doorDev > 0 && $doorWait === 'other' && DB::table('hal_devices')->where('id', $doorDev)->doesntExist() && DB::table('hal_devices')->where('id', $ams->id)->exists() && str_contains($msgU, '1개는 지웠어요'),
+        '1.7.13 고른 것에서 빼면 📡 대기 칸에 있던 그 기기는 지움 (보관함 · 프린터에 붙인 기기는 기록과 함께 남김)');
     $svc->delete(1, (int) $plug->id);
     $cfg = json_decode((string) DB::table('hal_st_installs')->where('id', $oi->id)->value('config'), true);
     t(array_keys($cfg['map']) === ['dev-th-0001'] && array_unique(array_column($cfg['devices'], 1)) === ['dev-th-0001'] && $subsOf('ia-oauth-0001') === ['dev-th-0001'], '사이트 기기를 지우면 그 SmartThings 센서도 고른 것에서 빠지고 구독도 지움');
