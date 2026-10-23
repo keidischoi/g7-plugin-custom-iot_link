@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.7.7 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.7.8 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.7';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.8';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -269,7 +269,12 @@
     return machine({ shape: sh[0], eq: true, kind: e.kind, drop: 'equipment', ref: e.id, name: e.name, icon: sh[1], co: co, sub: e.kind_label, run: e.status === 'busy', live: false,
       note: bad ? (e.status_emoji || '⚠️') + ' ' + (e.status_label || e.status) : '', fail: bad }, devs);
   }
-  /* 1.7.6 보드도 탭 따라 — 👤 내 기기(개인 보관함 · 내 프린터) · 🏢 업체 기기(업체마다 보관함 · 업체 프린터 · 장비) · 📡 전체(둘 다, 주인마다 나눠서) */
+  /* 1.7.6 보드도 탭 따라 — 👤 내 기기(개인 보관함 · 내 프린터) · 🏢 업체 기기(업체마다 보관함 · 업체 프린터 · 장비) · 📡 전체(둘 다)
+     1.7.8 주인마다 나누면 멀어서 끌기 힘듦 → 종류(보관함 · 프린터 · 장비)마다 한 줄에 같이 늘어놓고 ‹ › 단추로 좌우로 · 개인 · 업체는 배지로 */
+  function strip(html, key) {
+    return '<div class="hal-strip-w" data-strip="' + key + '"><button type="button" class="hal-sc l" data-sc="-1" aria-label="왼쪽으로"><i aria-hidden="true"></i></button><div class="hal-bins hal-strip">' + html + '</div><button type="button" class="hal-sc r" data-sc="1" aria-label="오른쪽으로"><i aria-hidden="true"></i></button></div>';
+  }
+  function badged(html, b) { return b ? html.replace(/^(<div [^>]*>)/, '$1' + b) : html; }
   function board() {
     var d = S.d, sc = scope(), cos = {}, owners = [];
     (d.companies || []).forEach(function (c) { cos[c.id] = c.name; });
@@ -280,9 +285,12 @@
     var cidOf = function (v) { return +(v || 0); };
     if (sc !== 'company') owners.push(0);
     if (sc !== 'mine') Object.keys(cos).forEach(function (k) { owners.push(+k); });
-    var sec = function (cid) {
+    var multi = owners.length > 1;
+    var badge = function (cid) { return cid ? '<span class="hal-own co" title="업체 것">🏢 ' + esc(cos[cid] || '업체') + '</span>' : multi ? '<span class="hal-own me" title="내 것">👤 개인</span>' : ''; };
+    var boxHtml = '', prHtml = '', eqHtml = '';
+    owners.forEach(function (cid) {
       var boxes = [], have = {};
-      (d.boxes || []).forEach(function (b) {   // 1.6.2 이름이 같으면 한 보관함으로 — 1.7.6 주인(개인 · 업체)마다 따로
+      (d.boxes || []).forEach(function (b) {   // 1.6.2 이름이 같으면 한 보관함으로 — 주인(개인 · 업체)마다 따로
         if (cidOf(b.company_id) !== cid) return;
         var k = bkey(b.name), o = have[k];
         if (!o) { o = have[k] = Object.assign({}, b, { reels: (b.reels || []).slice() }); boxes.push(o); return; }
@@ -290,24 +298,37 @@
       });
       if (!cid && !(d.boxes || []).length) (d.locations || []).forEach(function (l) { if (l && !have[bkey(l)]) { have[bkey(l)] = 1; boxes.push({ name: l, key: bkey(l), rolls: 0, record: false, reels: [], seen: true }); } });   // 1.6.1 재고 관리가 아직 보관함을 안 알려 주면 위치 이름만으로
       d.devices.forEach(function (x) { if (x.target === 'location' && x.location && cidOf(x.company_id) === cid && !have[bkey(x.location)]) { have[bkey(x.location)] = 1; boxes.push({ name: x.location, company_id: cid, rolls: 0, record: false, loose: true }); } });   // 재고 관리에 없는 보관 위치
-      var boxHtml = boxes.map(function (b) {
+      boxHtml += boxes.map(function (b) {
         var on = at(function (x) { return x.target === 'location' && bkey(x.location) === bkey(b.name) && cidOf(x.company_id) === cid; });
-        if (b.seen || cid) return binZone(b, on, '');   // 롤 수를 모르거나 🏢 업체 보관함 — 이름 바꾸기 · 지우기는 재고 관리에서
+        if (b.seen || cid) return badged(binZone(b, on, ''), badge(cid));   // 롤 수를 모르거나 🏢 업체 보관함 — 이름 바꾸기 · 지우기는 재고 관리에서
         var acts = d.config.inventory && !b.loose ? '<button type="button" class="hal-icobtn" data-box-act="rename" data-name="' + esc(b.name) + '" title="이름 바꾸기" aria-label="이름 바꾸기">✏️</button>' : '';
         acts += '<button type="button" class="hal-icobtn" data-box-act="del" data-name="' + esc(b.name) + '" data-rolls="' + (b.rolls || 0) + '" data-loose="' + (b.loose ? 1 : 0) + '" title="' + (b.loose ? '센서를 대기 칸으로' : '보관함 지우기') + '" aria-label="지우기">🗑</button>';
-        return binZone(b, on, acts);
+        return badged(binZone(b, on, acts), badge(cid));
       }).join('');
-      var prHtml = (d.printers || []).filter(function (p) { return cidOf(p.company_id) === cid; }).map(function (p) { return prnZone(p, at(function (x) { return x.target === 'printer' && x.printer_id === p.id; })); }).join('');
-      var eqHtml = cid ? (d.equipment || []).filter(function (e) { return e.company_id === cid; }).map(function (e) { return eqZone(e, at(function (x) { return x.target === 'equipment' && x.equipment_id === e.id; }), ''); }).join('') : '';
-      var head = owners.length > 1 ? '<h2 class="hal-bd-own">' + (cid ? '🏢 ' + esc(cos[cid]) : '👤 내 것') + '</h2>' : '';
-      return '<section class="hal-bd-sec' + (cid ? ' co' : '') + '">' + head +
-        '<h3 class="hal-bd-t k-box">📦 ' + (cid ? '업체 보관함' : '보관함') + (d.config.inventory && !cid ? '<button type="button" class="hal-btn sm" data-box-act="new">➕ 보관함 만들기</button>' : '') + '</h3><div class="hal-bins">' + (boxHtml || '<p class="hal-hint">보관함이 없어요' + (d.config.inventory ? (cid ? ' — 재고 관리의 업체 서랍에서 만들어요' : ' — 「➕ 보관함 만들기」로 만들어요') : '') + '.</p>') + '</div>' +
-        (prHtml ? '<h3 class="hal-bd-t k-printer">🖨️ ' + (cid ? '업체 프린터' : '내 프린터') + '</h3><div class="hal-bins">' + prHtml + '</div>' : '') +
-        (eqHtml ? '<h3 class="hal-bd-t k-equip">🏭 업체 장비</h3><div class="hal-bins">' + eqHtml + '</div>' : '') + '</section>';
-    };
-    return '<div class="hal-board' + (S.pick ? ' picking' : '') + '" data-board><p class="hal-hint">센서 칩을 붙일 곳에 끌어 놓으세요 · 휴대폰은 칩을 누르고 놓을 곳을 눌러요. 보관함은 🌡️ 하나 · 💧 하나 — 겹치면 바꿔 끼우고 예전 센서는 대기 칸으로 가요. 장비는 ⚙️ 상태 센서가 보내는 챔버 온습도가 먼저라 빠진 것만 일반 센서로 채워요.</p>' +
+      prHtml += (d.printers || []).filter(function (p) { return cidOf(p.company_id) === cid; }).map(function (p) { return badged(prnZone(p, at(function (x) { return x.target === 'printer' && x.printer_id === p.id; })), badge(cid)); }).join('');
+      if (cid) eqHtml += (d.equipment || []).filter(function (e) { return e.company_id === cid; }).map(function (e) { return badged(eqZone(e, at(function (x) { return x.target === 'equipment' && x.equipment_id === e.id; }), ''), badge(cid)); }).join('');
+    });
+    var noBox = '<p class="hal-hint">보관함이 없어요' + (d.config.inventory ? ' — 「➕ 보관함 만들기」로 만들어요' : '') + '.</p>';
+    return '<div class="hal-board' + (S.pick ? ' picking' : '') + '" data-board><p class="hal-hint">센서 칩을 붙일 곳에 끌어 놓으세요 · 휴대폰은 칩을 누르고 놓을 곳을 눌러요. 줄이 길면 ‹ › 로 넘겨요 (끄는 중에 ‹ › 위에 대면 넘어가요). 보관함은 🌡️ 하나 · 💧 하나 — 겹치면 바꿔 끼우고 예전 센서는 대기 칸으로 가요.</p>' +
       '<section class="hal-bd free" data-drop=""><header><i aria-hidden="true">📡</i><b>대기 칸</b><small>아직 붙이지 않은 센서 — 여기로 끌면 떼어져요</small></header><div class="hal-chips">' + (free.length ? free.map(chip).join('') : '<small class="hal-hint">모든 센서가 붙어 있어요</small>') + '</div></section>' +
-      owners.map(sec).join('') + '</div>';
+      '<h3 class="hal-bd-t k-box">📦 보관함' + (d.config.inventory && (sc !== 'company' || (d.companies || []).length) ? '<button type="button" class="hal-btn sm" data-box-act="new">➕ 보관함 만들기</button>' : '') + '</h3>' + (boxHtml ? strip(boxHtml, 'box') : noBox) +
+      (prHtml ? '<h3 class="hal-bd-t k-printer">🖨️ 프린터</h3>' + strip(prHtml, 'printer') : '') +
+      (eqHtml ? '<h3 class="hal-bd-t k-equip">🏭 업체 장비</h3>' + strip(eqHtml, 'equip') : '') + '</div>';
+  }
+  /** ‹ › 단추 — 넘칠 때만 · 끝에 닿으면 그쪽 단추를 숨김 · 넘긴 자리 기억(다시 그려도) */
+  function stripBind() {
+    S.stripX = S.stripX || {};
+    qa('[data-strip]').forEach(function (w) {
+      var k = w.getAttribute('data-strip'), el = w.querySelector('.hal-strip');
+      var upd = function () { var max = el.scrollWidth - el.clientWidth - 2; w.classList.toggle('can-l', el.scrollLeft > 2); w.classList.toggle('can-r', el.scrollLeft < max); S.stripX[k] = el.scrollLeft; };
+      if (S.stripX[k]) el.scrollLeft = S.stripX[k];
+      el.addEventListener('scroll', upd, { passive: true }); upd();
+      w.querySelectorAll('[data-sc]').forEach(function (b) {
+        var dir = +b.getAttribute('data-sc');
+        b.onclick = function () { el.scrollBy({ left: dir * Math.max(180, el.clientWidth * 0.8), behavior: 'smooth' }); };
+        b.addEventListener('dragover', function (e) { e.preventDefault(); el.scrollLeft += dir * 14; });   // 끄는 중에 단추 위에 대면 넘어감
+      });
+    });
   }
   function placeTo(id, z) {
     var x = find(id); if (!x) return;
@@ -321,8 +342,17 @@
   function boxAct(b) {
     var a = b.getAttribute('data-box-act'), name = b.getAttribute('data-name') || '';
     if (a === 'new') {
-      var nm = (prompt('새 보관함 이름', '') || '').trim(); if (!nm) return;
-      api('POST', INV, { name: nm, company_id: 0 }).then(function (r) { toast(r.message || '📦 보관함을 만들었어요.'); return reload(); }).catch(fail);
+      // 1.7.8 누구 보관함인지 고름 — 📡 전체: 👤 개인 · 🏢 업체마다 / 👤 내 기기: 개인 / 🏢 업체 기기: 업체 (하나면 그 업체)
+      var sc = scope(), own = (sc === 'company' ? [] : [[0, '👤 개인']]).concat(sc === 'mine' ? [] : (S.d.companies || []).map(function (c) { return [c.id, '🏢 ' + c.name]; }));
+      var html = '<label>보관함 이름<input type="text" data-bx-name maxlength="40" placeholder="예: 드라이박스 · 서랍 2칸"></label>' +
+        (own.length > 1 ? '<div class="hal-own-pick" role="radiogroup" aria-label="누구 보관함"><span>누구 보관함인가요?</span>' + own.map(function (o, i) { return '<label class="' + (o[0] ? 'co' : 'me') + '"><input type="radio" name="bx-own" value="' + o[0] + '"' + (i === 0 ? ' checked' : '') + '> ' + esc(o[1]) + '</label>'; }).join('') + '</div>'
+          : '<p class="hal-hint">' + esc(own[0] ? own[0][1] : '👤 개인') + ' 보관함으로 만들어요.</p>');
+      var ov = modal('📦 보관함 만들기', html, { ok: '만들기', onSave: function (w) {
+        var nm = (w.querySelector('[data-bx-name]').value || '').trim(), r = w.querySelector('input[name="bx-own"]:checked'), cid = r ? +r.value : own[0] ? own[0][0] : 0;
+        if (!nm) return Promise.reject(new Error('보관함 이름을 넣어 주세요.'));
+        return api('POST', INV, { name: nm, company_id: cid }).then(function (res) { toast(res.message || '📦 보관함을 만들었어요.'); return reload(); });
+      } });
+      var inp = ov.querySelector('[data-bx-name]'); if (inp) inp.focus();
     } else if (a === 'rename') {
       var to = (prompt('「' + name + '」 새 이름 (롤 · 센서의 보관 위치도 같이 바뀌어요)', name) || '').trim(); if (!to || to === name) return;
       api('POST', INV + '/rename', { from: name, to: to }).then(function (r) { toast(r.message || '이름을 바꿨어요.'); return reload(); }).catch(fail);
@@ -471,6 +501,7 @@
     qa('details[data-grp]').forEach(function (g) { g.addEventListener('toggle', function () { var was = grpFold(g.getAttribute('data-grp')); try { localStorage.setItem('hal:grp:' + g.getAttribute('data-grp'), g.open ? '1' : '0'); } catch (e) {} if (g.open && was) redraw(); }); });   // 1.4.7 접혀 있던 묶음을 펴면 그 카드를 그림   // 1.4.6 접은 분류 기억
     stBind();
     boardBind();
+    stripBind();
     mapBind();
     qa('[data-snap]').forEach(function (b) { snapLoad(b); b.onclick = function () { var u = SNAP[b.getAttribute('data-snap')]; if (u && u.url) modal('📷 ' + esc(find(b.getAttribute('data-snap')).name), '<img class="hal-snapbig" src="' + u.url + '" alt="">'); }; });
     qa('[data-new]').forEach(function (b) { b.onclick = function () { connectBox(); }; });
