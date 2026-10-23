@@ -1,9 +1,9 @@
-/*! custom-iot_link 1.6.5 — IoT 연결 화면 불러오기 (이 플러그인 화면 data-hal-app 이 있을 때만 앱 · CSS 를 받음) */
+/*! custom-iot_link 1.7.0 — IoT 연결 화면 불러오기 (이 플러그인 화면 data-hal-app 이 있을 때만 앱 · CSS 를 받음) */
 (function () {
   'use strict';
   if (window.__halLoader) return;
   window.__halLoader = true;
-  var API = '/api/plugins/custom-iot_link', V = '1.6.5', loading = false;
+  var API = '/api/plugins/custom-iot_link', V = '1.7.0', loading = false;
   function css() {
     if (document.getElementById('hal-css')) return;
     var l = document.createElement('link'); l.id = 'hal-css'; l.rel = 'stylesheet'; l.href = API + '/assets/iot-link.css?v=' + V; document.head.appendChild(l);
