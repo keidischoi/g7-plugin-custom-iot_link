@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.6.5 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.7.0 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.6.5';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.0';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -157,13 +157,14 @@
   function srcPick() { var v = pref('src', 'all'); return v === 'ha' || v === 'st' ? v : 'all'; }
   /* 1.5.0 🏢 내 기기 · 업체 기기 따로 — 업체 장비 · 업체 프린터에 붙인 기기는 업체 대표 · 관리자가 함께 고치고, 직원은 보기만 */
   function hasCo() { return !!((S.d.member_companies || []).length || (S.d.companies || []).length || S.d.devices.some(function (x) { return x.company_id; })); }
-  function scope() { if (!hasCo()) return 'all'; var v = pref('scope', ''); if (!v) { v = new URLSearchParams(location.search).get('scope') === 'company' ? 'company' : 'mine'; } return v === 'company' ? 'company' : 'mine'; }
-  function inScope(x) { var sc = scope(); return sc === 'all' || (sc === 'company' ? !!x.company_id : !x.company_id); }
+  function scope() { if (pref('scope', '') === 'map') return 'map'; if (!hasCo()) return 'all'; var v = pref('scope', ''); if (!v) { v = new URLSearchParams(location.search).get('scope') === 'company' ? 'company' : 'mine'; } return v === 'company' ? 'company' : 'mine'; }
+  function inScope(x) { var sc = scope(); return sc === 'all' || sc === 'map' || (sc === 'company' ? !!x.company_id : !x.company_id); }
   function scopeBar() {
-    if (!hasCo()) return '';
     var sc = scope(), nm = S.d.devices.filter(function (x) { return !x.company_id; }).length, nc = S.d.devices.length - nm;
+    var mapTab = '<button type="button" role="tab" data-scope="map" class="' + (sc === 'map' ? 'on' : '') + '" title="받는 곳 → 기기 → 붙인 곳 → 이어지는 확장">🗺️ 연결 지도</button>';   // 1.7.0
+    if (!hasCo()) return '<div class="hal-scope" role="tablist" aria-label="보기"><button type="button" role="tab" data-scope="all" class="' + (sc !== 'map' ? 'on' : '') + '">📡 기기 <small>' + S.d.devices.length + '</small></button>' + mapTab + '</div>';
     return '<div class="hal-scope" role="tablist" aria-label="기기 범위"><button type="button" role="tab" data-scope="mine" class="' + (sc === 'mine' ? 'on' : '') + '">👤 내 기기 <small>' + nm + '</small></button>' +
-      '<button type="button" role="tab" data-scope="company" class="' + (sc === 'company' ? 'on' : '') + '">🏢 업체 기기 <small>' + nc + '</small></button></div>' +
+      '<button type="button" role="tab" data-scope="company" class="' + (sc === 'company' ? 'on' : '') + '">🏢 업체 기기 <small>' + nc + '</small></button>' + mapTab + '</div>' +
       (sc === 'company' ? '<p class="hal-hint">🏢 업체 장비 · 업체 프린터에 붙인 기기 — 그 업체 대표 · 관리자가 함께 고치고, 직원은 보기만 해요. 기록 보관은 🏢 내 업체 › 📡 IoT 연결 칸에서 더 짧게 정할 수 있어요.</p>' : '');
   }
   function shown() { var sp = srcPick(); return S.d.devices.filter(function (x) { return inScope(x) && (sp === 'all' || srcOf(x) === sp); }); }
@@ -312,6 +313,70 @@
     bd.ondragover = function (e) { var z = e.target.closest('[data-drop]'); if (!z) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; over(z); };
     bd.ondrop = function (e) { var z = e.target.closest('[data-drop]'); if (!z) return; e.preventDefault(); over(null); var id = +e.dataTransfer.getData('text/plain'); if (id) placeTo(id, z); };
   }
+  /* 1.7.0 🗺️ 연결 지도 — 어디서 받아(🏠 Home Assistant · SmartThings) → 어느 기기가 → 어디에 붙어(📦 보관함 · 🖨️ 프린터 · 🏭 장비 · 대기 칸) → 어느 확장으로 이어지는지 한눈에
+     선: 초록 = 값이 들어옴 · 회색 점선 = 끊김 · 아직 값 없음. 마디에 마우스를 올리면 그 마디의 선만 진하게, 기기를 누르면 고치기 */
+  function mapView() {
+    var d = S.d, N = {}, cols = [[], [], [], []], E = [];
+    var node = function (c, id, html, cls, attrs) { if (!N[id]) { N[id] = 1; cols[c].push('<div class="hal-mn ' + (cls || '') + '" data-n="' + esc(id) + '"' + (attrs || '') + '>' + html + '</div>'); } };
+    var edge = function (a, b, live) { for (var i = 0; i < E.length; i++) if (E[i][0] === a && E[i][1] === b) { E[i][2] = E[i][2] || live; return; } E.push([a, b, live]); };
+    var lbl = function (ic, t, sub) { return '<i aria-hidden="true">' + ic + '</i><span><b>' + esc(t) + '</b>' + (sub ? '<small>' + sub + '</small>' : '') + '</span>'; };
+    var boxOf = {}; (d.boxes || []).forEach(function (b) { if (!boxOf[bkey(b.name)]) boxOf[bkey(b.name)] = b; });
+    var inst = (d.smartthings && d.smartthings.installs) || [], stOf = {};
+    inst.forEach(function (s) { (s.site_devices || []).forEach(function (id) { stOf[id] = s; }); if (s.device_id) stOf[s.device_id] = stOf[s.device_id] || s; });
+    d.devices.forEach(function (x) {
+      var live = !x.stale && !x.never, c = capsOf(x), dn = 'd:' + x.id, v = [];
+      if (c.temp && x.temp != null) v.push('🌡️ ' + x.temp + '°'); if (c.hum && x.humidity != null) v.push('💧 ' + x.humidity + '%'); if (c.state) v.push(x.is_on ? '⚙️ 가동 중' : '⏸ 쉬는 중');
+      // ① 출처
+      var s = srcOf(x) === 'st' ? stOf[x.id] : null, sn;
+      if (srcOf(x) === 'ha') { sn = 'src:ha'; node(0, sn, haLogo() + '<span><b>Home Assistant</b><small>값을 보내는 집</small></span>', 'k-ha'); }
+      else if (s) { sn = 'src:st' + s.id; node(0, sn, stLogo() + '<span><b>' + esc(s.location || 'SmartThings') + '</b><small>SmartThings' + (s.status === 'active' ? '' : ' · ⚠️ ' + esc(s.status)) + '</small></span>', 'k-st'); }
+      else { sn = 'src:st'; node(0, sn, stLogo() + '<span><b>SmartThings</b><small>클라우드 센서</small></span>', 'k-st'); }
+      // ② 기기
+      node(1, dn, lbl(c.state ? '⚙️' : c.temp && c.hum ? '🌡️' : c.hum ? '💧' : '🌡️', x.name, (live ? '<em class="on">●</em> ' : '<em class="off">●</em> ') + (v.join(' · ') || agoText(x.seen))), 'k-dev' + (live ? '' : ' off') + (x.over ? ' hot' : ''), x.perm === 'view' ? '' : ' data-edit="' + x.id + '" role="button" tabindex="0" title="눌러서 고치기"');
+      edge(sn, dn, live);
+      // ③ 붙인 곳
+      var tn, placed = x.target !== 'other' && !!x.where;
+      if (!placed) { tn = 't:wait'; node(2, tn, lbl('📡', '대기 칸', '아직 붙이지 않음'), 'k-wait'); }
+      else if (x.target === 'location') { var b = boxOf[bkey(x.location)] || { name: x.location }; tn = 't:l:' + bkey(x.location); node(2, tn, lbl('📦', b.name, b.rolls != null ? '보관함 · 롤 ' + b.rolls + '개' : '보관함'), 'k-box', ' style="--bx:' + boxCol(b) + '"'); }
+      else if (x.target === 'printer') { tn = 't:p:' + x.printer_id; node(2, tn, lbl('🖨️', x.where, '프린터'), 'k-printer'); }
+      else { tn = 't:e:' + x.equipment_id; node(2, tn, lbl('🏭', x.where, '장비'), 'k-equip'); }
+      edge(dn, tn, live);
+      // ④ 이어지는 확장
+      if (!placed) return;
+      if (x.target === 'location' && d.config.inventory) { node(3, 'x:inv', lbl('🧵', '재고 관리', '보관함 습도 · 건조일 · 알림'), 'k-ext'); edge(tn, 'x:inv', live); }
+      if (x.target === 'printer') { node(3, 'x:mpr', lbl('🖨️', '프린터 라운지', '출력 상태 · 주변 온습도'), 'k-ext'); edge(tn, 'x:mpr', live); }
+      if (x.target === 'equipment' && d.config.inventory) { node(3, 'x:eq', lbl('🏭', '업체 장비', '장비 상태 · 온습도'), 'k-ext'); edge(tn, 'x:eq', live); }
+      if (c.state && x.target !== 'location') { node(3, 'x:mnt', lbl('🛠', '정비 수첩', '가동 시간 → 정비 때'), 'k-ext'); edge(tn, 'x:mnt', live); }
+    });
+    S.mapE = E;
+    var T = [['📥', '받는 곳'], ['📡', '기기'], ['📌', '붙인 곳'], ['🔗', '이어지는 곳']];
+    return '<div class="hal-map-wrap"><p class="hal-hint">선이 <b class="hal-map-k on">초록</b>이면 값이 들어오고, <b class="hal-map-k off">회색 점선</b>이면 끊겼거나 아직 값이 없어요. 마디에 마우스를 올리면 그 연결만 진하게 · 기기를 누르면 고치기.</p>' +
+      '<div class="hal-map" data-map><svg class="hal-map-svg" aria-hidden="true"></svg><div class="hal-map-cols">' + cols.map(function (c, i) { return '<div class="hal-map-col"><h4><i aria-hidden="true">' + T[i][0] + '</i>' + T[i][1] + ' <small>' + c.length + '</small></h4>' + (c.join('') || '<p class="hal-hint">—</p>') + '</div>'; }).join('') + '</div></div></div>';
+  }
+  /** 선 그리기 — 마디의 실제 자리를 재서 곡선으로 (창 크기가 바뀌면 다시) */
+  function mapLines() {
+    var m = q('[data-map]'); if (!m) return;
+    var svg = m.querySelector('svg'), r0 = m.getBoundingClientRect(), pos = {};
+    m.querySelectorAll('[data-n]').forEach(function (el) { var r = el.getBoundingClientRect(); pos[el.getAttribute('data-n')] = { l: r.left - r0.left + m.scrollLeft, r: r.right - r0.left + m.scrollLeft, y: r.top - r0.top + m.scrollTop + r.height / 2 }; });   // 좁은 화면은 옆으로 밀림 — 민 만큼 더함
+    svg.setAttribute('width', m.scrollWidth); svg.setAttribute('height', m.scrollHeight);
+    svg.innerHTML = (S.mapE || []).map(function (e) {
+      var a = pos[e[0]], b = pos[e[1]]; if (!a || !b) return '';
+      var x1 = a.r, x2 = b.l, dx = Math.max(24, (x2 - x1) / 2);
+      return '<path data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" d="M' + x1 + ' ' + a.y + ' C' + (x1 + dx) + ' ' + a.y + ' ' + (x2 - dx) + ' ' + b.y + ' ' + x2 + ' ' + b.y + '"/>';
+    }).join('');
+  }
+  function mapBind() {
+    var m = q('[data-map]'); if (!m) return;
+    mapLines();
+    if (!S.mapRs) { S.mapRs = true; var t = 0; addEventListener('resize', function () { clearTimeout(t); t = setTimeout(function () { if (S.root && S.root.querySelector('[data-map]')) mapLines(); }, 120); }); }
+    var hl = function (id) {
+      var keep = {}; if (id) keep[id] = 1;
+      m.querySelectorAll('path').forEach(function (p) { var hit = id && (p.getAttribute('data-a') === id || p.getAttribute('data-b') === id); p.classList.toggle('hl', !!hit); p.classList.toggle('dim', !!id && !hit); if (hit) { keep[p.getAttribute('data-a')] = 1; keep[p.getAttribute('data-b')] = 1; } });
+      m.querySelectorAll('[data-n]').forEach(function (el) { el.classList.toggle('dim', !!id && !keep[el.getAttribute('data-n')]); });
+    };
+    m.addEventListener('mouseover', function (e) { var n = e.target.closest('[data-n]'); hl(n ? n.getAttribute('data-n') : ''); });
+    m.addEventListener('mouseleave', function () { hl(''); });
+  }
   function redraw() { var y = window.scrollY; draw(); window.scrollTo(0, y); }
   function selBind() {
     qa('[data-sel-on]').forEach(function (b) { b.onclick = function () { S.sel = {}; redraw(); }; });
@@ -337,7 +402,7 @@
     wrap('<section class="hal-hero"><div><h1>📡 IoT 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 재고 관리 · 정비 수첩 · 내 프린터에 이어요.</p></div>' +
       '<div class="hal-stats"><span title="연결할 수 있는 기기 (관리자가 정함)">기기 <b>' + d.devices.length + '</b>' + (d.limits ? (d.limits.admin ? ' <small title="관리자는 기기 수 한도가 없어요">· 관리자 무제한</small>' : ' / ' + d.limits.member) : '') + '</span><span>🟢 연결됨 <b>' + live + '</b></span>' + (over ? '<span class="hot">⚠️ 기준 넘음 <b>' + over + '</b></span>' : '') + '<button class="hal-btn ghost" data-guide title="연결 방법 보기" aria-label="연결 방법 보기">❓ 연결 방법</button>' + (d.devices.length > 1 && !S.sel ? '<button class="hal-btn ghost" data-sel-on title="체크 박스로 골라 한 번에 분류 옮기기 · 지우기">☑️ 여러 개 고르기</button>' : '') + (d.slots && d.slots.enabled ? ' <button class="hal-btn ghost" data-slot title="코인 · 마일리지로 센서 칸 사기">💳 칸 늘리기</button>' : '') + ' <button class="hal-btn light" data-new>➕ 기기 연결</button></div></section>' +
       stCard() +
-      (d.devices.length ? scopeBar() + (S.sel ? selBar() : '') + tools() + (pref('view', 'card') === 'board' ? board() : grouped()) +
+      (d.devices.length ? scopeBar() + (scope() === 'map' ? mapView() : (S.sel ? selBar() : '') + tools() + (pref('view', 'card') === 'board' ? board() : grouped())) +
         '<p class="hal-note">' + (liveSec() ? '🔄 이 화면은 ' + (liveSec() >= 60 && liveSec() % 60 === 0 ? liveSec() / 60 + '분' : liveSec() + '초') + '마다 스스로 새 값을 받아 와요' : '🔄 새 값을 보려면 화면을 새로 고쳐 주세요') + ' (Home Assistant 는 ' + (d.config.send_mode === 'change' ? '값이 변하면' : (d.config.interval_min || 10) + '분마다') + ' · 상태가 바뀌면 바로 보내요).</p><p class="hal-note">🔒 받는 주소는 비밀번호와 같아요 — 남에게 보이지 마세요. 사이트가 내 집으로 접속하지 않고, 내 Home Assistant 가 보내는 값만 받아요.' + (d.config.inventory ? ' · <a href="/inventory?tab=drawer" data-go>🧵 필라멘트 서랍 보기 (재고 관리)</a>' : '') + '</p>'
         : '<section class="hal-start"><h2>' + haLogo() + ' Home Assistant 는 세 걸음이면 돼요</h2><ol><li><b>① HACS 에서 「3ds」 설치</b><span>단추 한 번으로 저장소가 들어가요</span></li><li><b>② 사이트 주소 · 연결 코드 붙여 넣기</b><span>복사 단추 두 번</span></li><li><b>③ 「⚡ 알아서 찾아 연결」 → 확인</b><span>내 프린터 · 필라멘트 보관 위치와 이름이 맞는 것을 찾아 줘요</span></li></ol><div class="hal-row center"><button class="hal-btn pri big" data-new>➕ 첫 기기 연결하기</button><button class="hal-btn big" data-guide>❓ 그림으로 보는 연결 방법</button></div></section>'));
     qa('[data-guide]').forEach(function (b) { b.onclick = function () { guideBox(); }; });
@@ -349,6 +414,7 @@
     qa('details[data-grp]').forEach(function (g) { g.addEventListener('toggle', function () { var was = grpFold(g.getAttribute('data-grp')); try { localStorage.setItem('hal:grp:' + g.getAttribute('data-grp'), g.open ? '1' : '0'); } catch (e) {} if (g.open && was) redraw(); }); });   // 1.4.7 접혀 있던 묶음을 펴면 그 카드를 그림   // 1.4.6 접은 분류 기억
     stBind();
     boardBind();
+    mapBind();
     qa('[data-snap]').forEach(function (b) { snapLoad(b); b.onclick = function () { var u = SNAP[b.getAttribute('data-snap')]; if (u && u.url) modal('📷 ' + esc(find(b.getAttribute('data-snap')).name), '<img class="hal-snapbig" src="' + u.url + '" alt="">'); }; });
     qa('[data-new]').forEach(function (b) { b.onclick = function () { connectBox(); }; });
     qa('[data-slot]').forEach(function (b) { b.onclick = function () { slotBox(); }; });   // 1.4.8 💳
