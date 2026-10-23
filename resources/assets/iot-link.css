@@ -1,4 +1,4 @@
-/* custom-iot_link 1.7.5 — 📡 IoT 연결 */
+/* custom-iot_link 1.7.6 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -460,3 +460,34 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
 .hal-board.picking .hal-prn .frame { box-shadow:0 0 0 3px rgba(37,99,235,.3); }
 .hal-bd.hal-prn.over { box-shadow:none !important; } .hal-bd.hal-prn.over .frame { border-color:var(--pc); box-shadow:0 0 0 3px rgba(37,99,235,.4); }
 .hal-board.picking .hal-bd.hal-prn { box-shadow:none; }
+/* 1.7.6 🏭 업체 장비 — 종류마다 모양 (보라 이름판) */
+.hal-prn.eq { --pc:#7c3aed; }
+.hal-prn .hal-bin-co { margin:3px 10px 0; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* 작업대 — 레이저 · CNC · UV · 플로터 · 진공 성형: 넓고 낮게, 위 뚜껑 · 바둑판 베드 · 헤드가 움직임 */
+.hal-bd.hal-prn.s-flat { width:220px; }
+.hal-prn.s-flat .frame { height:118px; border-radius:6px 6px 4px 4px; border-top-width:10px; }
+.hal-prn.s-flat .win { background:repeating-linear-gradient(0deg, rgba(255,255,255,.07) 0 1px, transparent 1px 8px), repeating-linear-gradient(90deg, rgba(255,255,255,.07) 0 1px, transparent 1px 8px), rgba(255,255,255,.04); }
+.hal-prn.s-flat .bed { display:none; }
+.hal-prn.k-laser .head::after { left:7px; bottom:-26px; width:2px; height:24px; border:0; background:linear-gradient(#ef4444, rgba(239,68,68,0)); opacity:0; }
+.hal-prn.k-laser.run .head::after { opacity:1; box-shadow:0 0 6px #ef4444; }
+.hal-prn.k-cnc .head { background:#94a3b8; } .hal-prn.k-cnc .head::after { border-top-color:#e2e8f0; }
+/* 함 — 건조기 · 세척 · 경화: 둥근 문 · 다이얼 */
+.hal-bd.hal-prn.s-box { width:160px; }
+.hal-prn.s-box .rail, .hal-prn.s-box .bed { display:none; }
+.hal-prn.s-box .frame { padding-top:30px; border-radius:14px; }
+.hal-prn.s-box .win { flex:none; align-self:center; width:72px; height:72px; margin-top:4px; border-radius:50%; border:4px solid #94a3b8; }
+.hal-prn.s-box .frame::after { content:''; position:absolute; right:10px; bottom:12px; width:12px; height:12px; border-radius:50%; background:#cbd5e1; box-shadow:inset -2px -2px 0 #64748b; }
+.hal-prn.s-box.run .win em { display:inline-block; animation:halSpin 3s linear infinite; }
+@keyframes halSpin { to { transform:rotate(360deg); } }
+/* 패널 — 그 밖의 장비: 화면 · 단추 */
+.hal-bd.hal-prn.s-cab { width:160px; }
+.hal-prn.s-cab .rail, .hal-prn.s-cab .bed { display:none; }
+.hal-prn.s-cab .frame { padding-top:30px; border-radius:8px; }
+.hal-prn.s-cab .win { border-radius:4px; background:linear-gradient(180deg, #0f172a, #1e293b); box-shadow:inset 0 0 0 2px rgba(148,163,184,.35); }
+.hal-prn.s-cab .frame::after { content:''; position:absolute; left:50%; bottom:3px; transform:translateX(-50%); width:36px; height:5px; border-radius:3px; background:repeating-linear-gradient(90deg, #22c55e 0 8px, transparent 8px 14px); opacity:.35; }
+.hal-prn.s-cab.run .frame::after { opacity:1; }
+/* 1.7.6 보드 — 주인(👤 내 것 · 🏢 업체)마다 구역 */
+.hal-bd-sec { display:flex; flex-direction:column; gap:12px; }
+.hal-bd-sec + .hal-bd-sec { margin-top:10px; padding-top:16px; border-top:2px dashed var(--line); }
+.hal-bd-own { display:flex; align-items:center; gap:6px; margin:0 2px; font-size:16px; }
+.hal-bd-sec.co .hal-bd-own { color:#7c3aed; }

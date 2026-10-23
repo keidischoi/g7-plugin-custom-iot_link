@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.7.5 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.7.6 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.5';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.6';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -157,13 +157,13 @@
   function srcPick() { var v = pref('src', 'all'); return v === 'ha' || v === 'st' ? v : 'all'; }
   /* 1.5.0 🏢 내 기기 · 업체 기기 따로 — 업체 장비 · 업체 프린터에 붙인 기기는 업체 대표 · 관리자가 함께 고치고, 직원은 보기만 */
   function hasCo() { return !!((S.d.member_companies || []).length || (S.d.companies || []).length || S.d.devices.some(function (x) { return x.company_id; })); }
-  function scope() { if (pref('scope', '') === 'map') return 'map'; if (!hasCo()) return 'all'; var v = pref('scope', ''); if (!v) { v = new URLSearchParams(location.search).get('scope') === 'company' ? 'company' : 'mine'; } return v === 'company' ? 'company' : 'mine'; }
+  function scope() { if (pref('scope', '') === 'map') return 'map'; if (!hasCo()) return 'all'; var v = pref('scope', ''); if (!v) { v = new URLSearchParams(location.search).get('scope') === 'company' ? 'company' : 'mine'; } return v === 'company' ? 'company' : v === 'all' ? 'all' : 'mine'; }   // 1.7.6 📡 전체
   function inScope(x) { var sc = scope(); return sc === 'all' || sc === 'map' || (sc === 'company' ? !!x.company_id : !x.company_id); }
   function scopeBar() {
     var sc = scope(), nm = S.d.devices.filter(function (x) { return !x.company_id; }).length, nc = S.d.devices.length - nm;
     var mapTab = '<button type="button" role="tab" data-scope="map" class="' + (sc === 'map' ? 'on' : '') + '" title="받는 곳 → 기기 → 붙인 곳 → 이어지는 확장">🗺️ 연결 지도</button>';   // 1.7.0
     if (!hasCo()) return '<div class="hal-scope" role="tablist" aria-label="보기"><button type="button" role="tab" data-scope="all" class="' + (sc !== 'map' ? 'on' : '') + '">📡 기기 <small>' + S.d.devices.length + '</small></button>' + mapTab + '</div>';
-    return '<div class="hal-scope" role="tablist" aria-label="기기 범위"><button type="button" role="tab" data-scope="mine" class="' + (sc === 'mine' ? 'on' : '') + '">👤 내 기기 <small>' + nm + '</small></button>' +
+    return '<div class="hal-scope" role="tablist" aria-label="기기 범위"><button type="button" role="tab" data-scope="all" class="' + (sc === 'all' ? 'on' : '') + '">📡 전체 <small>' + S.d.devices.length + '</small></button><button type="button" role="tab" data-scope="mine" class="' + (sc === 'mine' ? 'on' : '') + '">👤 내 기기 <small>' + nm + '</small></button>' +
       '<button type="button" role="tab" data-scope="company" class="' + (sc === 'company' ? 'on' : '') + '">🏢 업체 기기 <small>' + nc + '</small></button>' + mapTab + '</div>' +
       (sc === 'company' ? '<p class="hal-hint">🏢 업체 장비 · 업체 프린터에 붙인 기기 — 그 업체 대표 · 관리자가 함께 고치고, 직원은 보기만 해요. 기록 보관은 🏢 내 업체 › 📡 IoT 연결 칸에서 더 짧게 정할 수 있어요.</p>' : '');
   }
@@ -218,7 +218,7 @@
     var reels = rl.map(function (x, i) { var w = +x.w || 1000, sz = w <= 250 ? 22 : w <= 500 ? 26 : w < 2000 ? 30 : 34, last = more > 0 && i === rl.length - 1;
       return '<i class="reel' + (x.b ? ' bottle' : '') + (x.s ? ' sealed' : '') + (last ? ' more' : '') + '" style="--sz:' + sz + 'px;--c:' + (/^#[0-9a-f]{3,8}$/i.test(x.c || '') ? x.c : '#94a3b8') + ';--p:' + (+x.p || 0) + '"' + ' title="' + (last ? (more + 1) + '개 더 — 재고 관리에서 모두 보기' : esc((x.n || (x.b ? '레진' : '필라멘트')) + ' · 남은 ' + (+x.p || 0) + '%' + (x.s ? ' · 안 뜯은 새 롤' : ''))) + '"' + '>' + (last ? '<b>+' + (more + 1) + '</b>' : '') + '</i>'; }).join('');
     var gauge = '<span class="gauge" title="🌡️ ' + (st ? esc(st.name) : '온도 센서 없음') + ' · 💧 ' + (hu ? esc(hu.name) : '습도 센서 없음') + '">💧' + (hu ? (hu.humidity == null ? '–' : hu.humidity) + '%' : '<u>빈 칸</u>') + ' 🌡️' + (st ? (st.temp == null ? '–' : st.temp) + '°' : '<u>빈 칸</u>') + '</span>';
-    return '<div class="hal-bd hal-bin' + (b.loose ? ' loose' : '') + (hot ? ' hot' : '') + '" data-drop="location" data-loc="' + esc(b.name) + '" style="--bx:' + (b.loose ? '#94a3b8' : boxCol(b)) + ';--cols:' + Math.max(cols, 4) + ';--rows:' + rows + '">' +
+    return '<div class="hal-bd hal-bin' + (b.loose ? ' loose' : '') + (hot ? ' hot' : '') + '" data-drop="location" data-loc="' + esc(b.name) + '" data-ref="' + (+(b.company_id || 0)) + '" style="--bx:' + (b.loose ? '#94a3b8' : boxCol(b)) + ';--cols:' + Math.max(cols, 4) + ';--rows:' + rows + '">' +
       '<span class="lid"></span><span class="body">' + gauge + (reels || '<em>' + (b.loose ? '재고 관리에 없는 위치' : b.seen ? '재고 관리 보관함' : '비었어요') + '</em>') + '</span>' +
       '<span class="tag"><b>📦 ' + esc(b.name) + '</b><small>' + (b.loose ? '센서만' : b.seen ? '보관 위치' : (b.rolls || 0) + '개') + (hot ? ' · ⚠️ 습도 ' + hu.humidity_max + '% 넘음' : '') + '</small><span class="acts">' + acts + '</span></span>' +
       (b.company ? '<small class="hal-bin-co">🏢 ' + esc(b.company) + '</small>' : '') +
@@ -244,53 +244,77 @@
   function zone(cls, attrs, head, devs, kinds) {
     return '<div class="hal-bd ' + cls + '" ' + attrs + '><header>' + head + '</header>' + slotRow(devs, kinds) + '<div class="hal-chips">' + (devs.length ? devs.map(chip).join('') : '<small class="hal-hint">여기로 끌어 놓기</small>') + '</div></div>';
   }
-  /** 1.7.5 🖨️ 프린터 모양 — 틀 · 위 레일과 노즐(출력 중이면 움직임) · 창 안의 프린터 사진 · 베드 · 다리 · 앞면 이름판 · 위 계기판(⚙️ · 🌡️ · 💧) */
-  function prnZone(p, devs) {
+  /** 1.7.5 🖨️ 프린터 모양 — 틀 · 위 레일과 노즐(출력 중이면 움직임) · 창 안의 프린터 사진 · 베드 · 다리 · 앞면 이름판 · 위 계기판(⚙️ · 🌡️ · 💧)
+      1.7.6 🏭 업체 장비도 같은 틀로 — 종류마다 모양: 3D 프린터 · 작업대(레이저 · CNC · UV · 플로터 · 진공 성형) · 함(건조기 · 세척 · 경화) · 패널(그 밖) */
+  var EQ_SHAPE = { laser: ['flat', '🔴'], cnc: ['flat', '🪚'], uv_print: ['flat', '🖌️'], plotter: ['flat', '✂️'], vacuum: ['flat', '🫧'], dryer: ['box', '🌀'], wash_cure: ['box', '💡'],
+    scanner: ['cab', '📷'], post: ['cab', '🎨'], injection: ['cab', '💉'], measure: ['cab', '📏'], other: ['cab', '🏭'] };
+  function machine(o, devs) {
     var sd = devs.filter(function (x) { return capsOf(x).state; }), all = sd.concat(devs.filter(function (x) { return !capsOf(x).state; }));
-    var pick = function (k) { return all.filter(function (o) { return capsOf(o)[k]; })[0]; }, st = pick('state'), te = pick('temp'), hu = pick('hum');
-    var PS = { printing: '출력 중', paused: '일시정지', done: '끝남', failed: '실패', idle: '쉬는 중' };
-    var run = p.state === 'printing' || (st && st.is_on), on = !!p.live || devs.some(function (x) { return !x.stale && !x.never; });
-    var stTxt = st ? (st.is_on ? '가동 중' : '쉬는 중') : PS[p.state] || '';
-    var img = prIcon(p), gauge = '<span class="gauge">⚙️' + (stTxt ? esc(stTxt) : '<u>빈 칸</u>') + ' 🌡️' + (te ? (te.temp == null ? '–' : te.temp) + '°' : '<u>빈 칸</u>') + ' 💧' + (hu ? (hu.humidity == null ? '–' : hu.humidity) + '%' : '<u>빈 칸</u>') + '</span>';
-    return '<div class="hal-bd hal-prn' + (run ? ' run' : '') + (on ? '' : ' gone') + (p.state === 'failed' ? ' fail' : '') + '" data-drop="printer" data-ref="' + p.id + '" title="' + esc(p.name + (stTxt ? ' · ' + stTxt : '') + (p.seen ? ' · ' + agoText(p.seen) : '') + (on ? '' : ' · 연결 꺼짐')) + '">' +
-      '<span class="frame">' + gauge + '<span class="rail"><i class="head"></i></span><span class="win">' + (img.charAt(0) === '<' ? img : '<em>🖨️</em>') + '</span><span class="bed"></span></span><span class="feet"><i></i><i></i></span>' +
-      '<span class="tag"><b>🖨️ ' + esc(p.name) + '</b><small>' + (on ? (stTxt || '연결됨') : '연결 꺼짐') + '</small></span>' +
+    var pick = function (k) { return all.filter(function (q) { return capsOf(q)[k]; })[0]; }, st = pick('state'), te = pick('temp'), hu = pick('hum');
+    var run = !!o.run || !!(st && st.is_on), on = !!o.live || devs.some(function (x) { return !x.stale && !x.never; }) || (o.eq && !devs.length);   // 장비는 센서가 없으면 끊긴 게 아님
+    var stTxt = st ? (st.is_on ? '가동 중' : '쉬는 중') : o.stTxt || '';
+    var gauge = '<span class="gauge">⚙️' + (stTxt ? esc(stTxt) : '<u>빈 칸</u>') + ' 🌡️' + (te ? (te.temp == null ? '–' : te.temp) + '°' : '<u>빈 칸</u>') + ' 💧' + (hu ? (hu.humidity == null ? '–' : hu.humidity) + '%' : '<u>빈 칸</u>') + '</span>';
+    return '<div class="hal-bd hal-prn s-' + o.shape + (o.eq ? ' eq k-' + esc(o.kind || 'other') : '') + (run ? ' run' : '') + (on ? '' : ' gone') + (o.fail ? ' fail' : '') + '" data-drop="' + o.drop + '" data-ref="' + o.ref + '" title="' + esc(o.name + (o.sub ? ' · ' + o.sub : '') + (stTxt ? ' · ' + stTxt : '') + (o.seen ? ' · ' + agoText(o.seen) : '') + (on ? '' : ' · 연결 꺼짐')) + '">' +
+      '<span class="frame">' + gauge + '<span class="rail"><i class="head"></i></span><span class="win">' + (o.img && o.img.charAt(0) === '<' ? o.img : '<em>' + o.icon + '</em>') + '</span><span class="bed"></span></span><span class="feet"><i></i><i></i></span>' +
+      '<span class="tag"><b>' + o.icon + ' ' + esc(o.name) + '</b><small>' + esc(o.note || (o.eq && !devs.length ? '센서 없음' : on ? (stTxt || '연결됨') : '연결 꺼짐')) + '</small></span>' +
+      (o.co ? '<small class="hal-bin-co">🏢 ' + esc(o.co) + (o.sub ? ' · ' + esc(o.sub) : '') + '</small>' : '') +
       '<div class="hal-chips">' + (devs.length ? devs.map(function (x) { return chip(x, true); }).join('') : '<small class="hal-drop-hint">＋ 센서를 여기로</small>') + '</div></div>';
   }
+  function prnZone(p, devs) {
+    var PS = { printing: '출력 중', paused: '일시정지', done: '끝남', failed: '실패', idle: '쉬는 중' };
+    return machine({ shape: 'printer', drop: 'printer', ref: p.id, name: p.name, icon: '🖨️', img: prIcon(p), run: p.state === 'printing', live: p.live, stTxt: PS[p.state] || '', seen: p.seen, fail: p.state === 'failed' }, devs);
+  }
+  function eqZone(e, devs, co) {
+    var sh = e.is_printer ? ['printer', e.kind === 'fdm' ? '🖨️' : '🧪'] : EQ_SHAPE[e.kind] || EQ_SHAPE.other, bad = e.status && e.status !== 'ok' && e.status !== 'busy';
+    return machine({ shape: sh[0], eq: true, kind: e.kind, drop: 'equipment', ref: e.id, name: e.name, icon: sh[1], co: co, sub: e.kind_label, run: e.status === 'busy', live: false,
+      note: bad ? (e.status_emoji || '⚠️') + ' ' + (e.status_label || e.status) : '', fail: bad }, devs);
+  }
+  /* 1.7.6 보드도 탭 따라 — 👤 내 기기(개인 보관함 · 내 프린터) · 🏢 업체 기기(업체마다 보관함 · 업체 프린터 · 장비) · 📡 전체(둘 다, 주인마다 나눠서) */
   function board() {
-    var d = S.d, devs = d.devices, cos = {}, boxes = [], have = {};
+    var d = S.d, sc = scope(), cos = {}, owners = [];
     (d.companies || []).forEach(function (c) { cos[c.id] = c.name; });
-    (d.boxes || []).forEach(function (b) {   // 1.6.2 업체 보관함도 — 이름이 같으면 한 보관함으로 (센서는 이름으로 붙음)
-      var k = bkey(b.name), o = have[k];
-      if (!o) { o = have[k] = Object.assign({}, b, { reels: (b.reels || []).slice() }); boxes.push(o); return; }
-      o.rolls = (o.rolls || 0) + (b.rolls || 0); o.reels = o.reels.concat(b.reels || []).slice(0, 10); if (b.company && !o.company) o.company = b.company;
-    });
-    (d.locations || []).forEach(function (l) { if (l && !have[bkey(l)]) { have[bkey(l)] = 1; boxes.push({ name: l, key: bkey(l), rolls: 0, record: false, reels: [], seen: true }); } });   // 1.6.1 센서가 없는 보관함도 — 업체 보관함 · 재고 관리가 아직 롤을 안 알려 주면 위치 이름만으로
-    devs.forEach(function (x) { if (x.target === 'location' && x.location && !have[bkey(x.location)]) { have[bkey(x.location)] = 1; boxes.push({ name: x.location, rolls: 0, record: false, loose: true }); } });   // 재고 관리에 없는 보관 위치
+    var devs = d.devices.filter(inScope);
     var placed = function (x) { return x.target !== 'other' && !!x.where; };
     var free = devs.filter(function (x) { return !placed(x); });
-    var at = function (fn) { return devs.filter(function (x) { return placed(x) && fn(x); }); };
-    var boxHtml = boxes.map(function (b) {
-      if (b.seen) return binZone(b, at(function (x) { return x.target === 'location' && bkey(x.location) === bkey(b.name); }), '');   // 롤 수를 모르니 이름 바꾸기 · 지우기는 재고 관리에서
-      if (b.company_id > 0) return binZone(b, at(function (x) { return x.target === 'location' && bkey(x.location) === bkey(b.name); }), '');   // 🏢 업체 보관함 — 이름 바꾸기 · 지우기는 재고 관리(업체)에서
-      var acts = d.config.inventory && !b.loose ? '<button type="button" class="hal-icobtn" data-box-act="rename" data-name="' + esc(b.name) + '" title="이름 바꾸기" aria-label="이름 바꾸기">✏️</button>' : '';
-      acts += '<button type="button" class="hal-icobtn" data-box-act="del" data-name="' + esc(b.name) + '" data-rolls="' + (b.rolls || 0) + '" data-loose="' + (b.loose ? 1 : 0) + '" title="' + (b.loose ? '센서를 대기 칸으로' : '보관함 지우기') + '" aria-label="지우기">🗑</button>';
-      return binZone(b, at(function (x) { return x.target === 'location' && bkey(x.location) === bkey(b.name); }), acts);
-    }).join('');
-    var prHtml = (d.printers || []).map(function (p) { return prnZone(p, at(function (x) { return x.target === 'printer' && x.printer_id === p.id; })); }).join('');
-    var eqHtml = (d.equipment || []).filter(function (e) { return cos[e.company_id] != null; }).map(function (e) { return zone('equip', 'data-drop="equipment" data-ref="' + e.id + '"', '<i aria-hidden="true">🏭</i><span class="hal-bd-kind">장비</span><b>' + esc(e.name) + '</b><small>' + esc(cos[e.company_id]) + '</small>', at(function (x) { return x.target === 'equipment' && x.equipment_id === e.id; }), ['state', 'temp', 'hum']); }).join('');
+    var at = function (fn) { return d.devices.filter(function (x) { return placed(x) && fn(x); }); };
+    var cidOf = function (v) { return +(v || 0); };
+    if (sc !== 'company') owners.push(0);
+    if (sc !== 'mine') Object.keys(cos).forEach(function (k) { owners.push(+k); });
+    var sec = function (cid) {
+      var boxes = [], have = {};
+      (d.boxes || []).forEach(function (b) {   // 1.6.2 이름이 같으면 한 보관함으로 — 1.7.6 주인(개인 · 업체)마다 따로
+        if (cidOf(b.company_id) !== cid) return;
+        var k = bkey(b.name), o = have[k];
+        if (!o) { o = have[k] = Object.assign({}, b, { reels: (b.reels || []).slice() }); boxes.push(o); return; }
+        o.rolls = (o.rolls || 0) + (b.rolls || 0); o.reels = o.reels.concat(b.reels || []).slice(0, 10);
+      });
+      if (!cid && !(d.boxes || []).length) (d.locations || []).forEach(function (l) { if (l && !have[bkey(l)]) { have[bkey(l)] = 1; boxes.push({ name: l, key: bkey(l), rolls: 0, record: false, reels: [], seen: true }); } });   // 1.6.1 재고 관리가 아직 보관함을 안 알려 주면 위치 이름만으로
+      d.devices.forEach(function (x) { if (x.target === 'location' && x.location && cidOf(x.company_id) === cid && !have[bkey(x.location)]) { have[bkey(x.location)] = 1; boxes.push({ name: x.location, company_id: cid, rolls: 0, record: false, loose: true }); } });   // 재고 관리에 없는 보관 위치
+      var boxHtml = boxes.map(function (b) {
+        var on = at(function (x) { return x.target === 'location' && bkey(x.location) === bkey(b.name) && cidOf(x.company_id) === cid; });
+        if (b.seen || cid) return binZone(b, on, '');   // 롤 수를 모르거나 🏢 업체 보관함 — 이름 바꾸기 · 지우기는 재고 관리에서
+        var acts = d.config.inventory && !b.loose ? '<button type="button" class="hal-icobtn" data-box-act="rename" data-name="' + esc(b.name) + '" title="이름 바꾸기" aria-label="이름 바꾸기">✏️</button>' : '';
+        acts += '<button type="button" class="hal-icobtn" data-box-act="del" data-name="' + esc(b.name) + '" data-rolls="' + (b.rolls || 0) + '" data-loose="' + (b.loose ? 1 : 0) + '" title="' + (b.loose ? '센서를 대기 칸으로' : '보관함 지우기') + '" aria-label="지우기">🗑</button>';
+        return binZone(b, on, acts);
+      }).join('');
+      var prHtml = (d.printers || []).filter(function (p) { return cidOf(p.company_id) === cid; }).map(function (p) { return prnZone(p, at(function (x) { return x.target === 'printer' && x.printer_id === p.id; })); }).join('');
+      var eqHtml = cid ? (d.equipment || []).filter(function (e) { return e.company_id === cid; }).map(function (e) { return eqZone(e, at(function (x) { return x.target === 'equipment' && x.equipment_id === e.id; }), ''); }).join('') : '';
+      var head = owners.length > 1 ? '<h2 class="hal-bd-own">' + (cid ? '🏢 ' + esc(cos[cid]) : '👤 내 것') + '</h2>' : '';
+      return '<section class="hal-bd-sec' + (cid ? ' co' : '') + '">' + head +
+        '<h3 class="hal-bd-t k-box">📦 ' + (cid ? '업체 보관함' : '보관함') + (d.config.inventory && !cid ? '<button type="button" class="hal-btn sm" data-box-act="new">➕ 보관함 만들기</button>' : '') + '</h3><div class="hal-bins">' + (boxHtml || '<p class="hal-hint">보관함이 없어요' + (d.config.inventory ? (cid ? ' — 재고 관리의 업체 서랍에서 만들어요' : ' — 「➕ 보관함 만들기」로 만들어요') : '') + '.</p>') + '</div>' +
+        (prHtml ? '<h3 class="hal-bd-t k-printer">🖨️ ' + (cid ? '업체 프린터' : '내 프린터') + '</h3><div class="hal-bins">' + prHtml + '</div>' : '') +
+        (eqHtml ? '<h3 class="hal-bd-t k-equip">🏭 업체 장비</h3><div class="hal-bins">' + eqHtml + '</div>' : '') + '</section>';
+    };
     return '<div class="hal-board' + (S.pick ? ' picking' : '') + '" data-board><p class="hal-hint">센서 칩을 붙일 곳에 끌어 놓으세요 · 휴대폰은 칩을 누르고 놓을 곳을 눌러요. 보관함은 🌡️ 하나 · 💧 하나 — 겹치면 바꿔 끼우고 예전 센서는 대기 칸으로 가요. 장비는 ⚙️ 상태 센서가 보내는 챔버 온습도가 먼저라 빠진 것만 일반 센서로 채워요.</p>' +
       '<section class="hal-bd free" data-drop=""><header><i aria-hidden="true">📡</i><b>대기 칸</b><small>아직 붙이지 않은 센서 — 여기로 끌면 떼어져요</small></header><div class="hal-chips">' + (free.length ? free.map(chip).join('') : '<small class="hal-hint">모든 센서가 붙어 있어요</small>') + '</div></section>' +
-      '<h3 class="hal-bd-t k-box">📦 보관함' + (d.config.inventory ? '<button type="button" class="hal-btn sm" data-box-act="new">➕ 보관함 만들기</button>' : '') + '</h3><div class="hal-bins">' + (boxHtml || '<p class="hal-hint">보관함이 없어요' + (d.config.inventory ? ' — 「➕ 보관함 만들기」로 만들어요' : '') + '.</p>') + '</div>' +
-      (prHtml ? '<h3 class="hal-bd-t k-printer">🖨️ 내 프린터</h3><div class="hal-bins">' + prHtml + '</div>' : '') +
-      (eqHtml ? '<h3 class="hal-bd-t k-equip">🏭 업체 장비</h3><div class="hal-bd-grid">' + eqHtml + '</div>' : '') + '</div>';
+      owners.map(sec).join('') + '</div>';
   }
   function placeTo(id, z) {
     var x = find(id); if (!x) return;
     if (x.perm === 'view') { toast('🏢 업체 기기는 그 업체 대표 · 관리자만 옮길 수 있어요.', true); return; }
     var t = z.getAttribute('data-drop'), loc = z.getAttribute('data-loc') || '', ref = +(z.getAttribute('data-ref') || 0);
     S.pick = 0;
-    if (t === '' ? x.target === 'other' : t === 'location' ? x.target === 'location' && bkey(x.location) === bkey(loc) : x.target === t && (t === 'printer' ? x.printer_id : x.equipment_id) === ref) { redraw(); return; }   // 제자리
+    if (t === '' ? x.target === 'other' : t === 'location' ? x.target === 'location' && bkey(x.location) === bkey(loc) && +(x.company_id || 0) === ref : x.target === t && (t === 'printer' ? x.printer_id : x.equipment_id) === ref) { redraw(); return; }   // 제자리
     api('POST', '/devices/' + id + '/place', { target: t, location: loc, ref: ref }).then(function (r) { toast(r.message); S.d = r.data.overview; redraw(); }).catch(function (e) { fail(e); redraw(); });
   }
   function reload() { return api('GET', '/me').then(function (r) { S.d = r.data; redraw(); }); }
