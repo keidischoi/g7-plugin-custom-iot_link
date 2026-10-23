@@ -1,5 +1,5 @@
 {
-    "version": "1.7.13",
+    "version": "1.7.14",
     "layout_name": "iot_link",
     "extends": "_user_base",
     "meta": {
