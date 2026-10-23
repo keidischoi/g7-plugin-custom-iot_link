@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.7.4 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.7.5 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.4';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.5';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -244,6 +244,19 @@
   function zone(cls, attrs, head, devs, kinds) {
     return '<div class="hal-bd ' + cls + '" ' + attrs + '><header>' + head + '</header>' + slotRow(devs, kinds) + '<div class="hal-chips">' + (devs.length ? devs.map(chip).join('') : '<small class="hal-hint">여기로 끌어 놓기</small>') + '</div></div>';
   }
+  /** 1.7.5 🖨️ 프린터 모양 — 틀 · 위 레일과 노즐(출력 중이면 움직임) · 창 안의 프린터 사진 · 베드 · 다리 · 앞면 이름판 · 위 계기판(⚙️ · 🌡️ · 💧) */
+  function prnZone(p, devs) {
+    var sd = devs.filter(function (x) { return capsOf(x).state; }), all = sd.concat(devs.filter(function (x) { return !capsOf(x).state; }));
+    var pick = function (k) { return all.filter(function (o) { return capsOf(o)[k]; })[0]; }, st = pick('state'), te = pick('temp'), hu = pick('hum');
+    var PS = { printing: '출력 중', paused: '일시정지', done: '끝남', failed: '실패', idle: '쉬는 중' };
+    var run = p.state === 'printing' || (st && st.is_on), on = !!p.live || devs.some(function (x) { return !x.stale && !x.never; });
+    var stTxt = st ? (st.is_on ? '가동 중' : '쉬는 중') : PS[p.state] || '';
+    var img = prIcon(p), gauge = '<span class="gauge">⚙️' + (stTxt ? esc(stTxt) : '<u>빈 칸</u>') + ' 🌡️' + (te ? (te.temp == null ? '–' : te.temp) + '°' : '<u>빈 칸</u>') + ' 💧' + (hu ? (hu.humidity == null ? '–' : hu.humidity) + '%' : '<u>빈 칸</u>') + '</span>';
+    return '<div class="hal-bd hal-prn' + (run ? ' run' : '') + (on ? '' : ' gone') + (p.state === 'failed' ? ' fail' : '') + '" data-drop="printer" data-ref="' + p.id + '" title="' + esc(p.name + (stTxt ? ' · ' + stTxt : '') + (p.seen ? ' · ' + agoText(p.seen) : '') + (on ? '' : ' · 연결 꺼짐')) + '">' +
+      '<span class="frame">' + gauge + '<span class="rail"><i class="head"></i></span><span class="win">' + (img.charAt(0) === '<' ? img : '<em>🖨️</em>') + '</span><span class="bed"></span></span><span class="feet"><i></i><i></i></span>' +
+      '<span class="tag"><b>🖨️ ' + esc(p.name) + '</b><small>' + (on ? (stTxt || '연결됨') : '연결 꺼짐') + '</small></span>' +
+      '<div class="hal-chips">' + (devs.length ? devs.map(function (x) { return chip(x, true); }).join('') : '<small class="hal-drop-hint">＋ 센서를 여기로</small>') + '</div></div>';
+  }
   function board() {
     var d = S.d, devs = d.devices, cos = {}, boxes = [], have = {};
     (d.companies || []).forEach(function (c) { cos[c.id] = c.name; });
@@ -264,12 +277,12 @@
       acts += '<button type="button" class="hal-icobtn" data-box-act="del" data-name="' + esc(b.name) + '" data-rolls="' + (b.rolls || 0) + '" data-loose="' + (b.loose ? 1 : 0) + '" title="' + (b.loose ? '센서를 대기 칸으로' : '보관함 지우기') + '" aria-label="지우기">🗑</button>';
       return binZone(b, at(function (x) { return x.target === 'location' && bkey(x.location) === bkey(b.name); }), acts);
     }).join('');
-    var prHtml = (d.printers || []).map(function (p) { return zone('printer', 'data-drop="printer" data-ref="' + p.id + '"', '<i aria-hidden="true">' + prIcon(p) + '</i><span class="hal-bd-kind">프린터</span><b>' + esc(p.name) + '</b>', at(function (x) { return x.target === 'printer' && x.printer_id === p.id; }), ['state', 'temp', 'hum']); }).join('');
+    var prHtml = (d.printers || []).map(function (p) { return prnZone(p, at(function (x) { return x.target === 'printer' && x.printer_id === p.id; })); }).join('');
     var eqHtml = (d.equipment || []).filter(function (e) { return cos[e.company_id] != null; }).map(function (e) { return zone('equip', 'data-drop="equipment" data-ref="' + e.id + '"', '<i aria-hidden="true">🏭</i><span class="hal-bd-kind">장비</span><b>' + esc(e.name) + '</b><small>' + esc(cos[e.company_id]) + '</small>', at(function (x) { return x.target === 'equipment' && x.equipment_id === e.id; }), ['state', 'temp', 'hum']); }).join('');
     return '<div class="hal-board' + (S.pick ? ' picking' : '') + '" data-board><p class="hal-hint">센서 칩을 붙일 곳에 끌어 놓으세요 · 휴대폰은 칩을 누르고 놓을 곳을 눌러요. 보관함은 🌡️ 하나 · 💧 하나 — 겹치면 바꿔 끼우고 예전 센서는 대기 칸으로 가요. 장비는 ⚙️ 상태 센서가 보내는 챔버 온습도가 먼저라 빠진 것만 일반 센서로 채워요.</p>' +
       '<section class="hal-bd free" data-drop=""><header><i aria-hidden="true">📡</i><b>대기 칸</b><small>아직 붙이지 않은 센서 — 여기로 끌면 떼어져요</small></header><div class="hal-chips">' + (free.length ? free.map(chip).join('') : '<small class="hal-hint">모든 센서가 붙어 있어요</small>') + '</div></section>' +
       '<h3 class="hal-bd-t k-box">📦 보관함' + (d.config.inventory ? '<button type="button" class="hal-btn sm" data-box-act="new">➕ 보관함 만들기</button>' : '') + '</h3><div class="hal-bins">' + (boxHtml || '<p class="hal-hint">보관함이 없어요' + (d.config.inventory ? ' — 「➕ 보관함 만들기」로 만들어요' : '') + '.</p>') + '</div>' +
-      (prHtml ? '<h3 class="hal-bd-t k-printer">🖨️ 내 프린터</h3><div class="hal-bd-grid">' + prHtml + '</div>' : '') +
+      (prHtml ? '<h3 class="hal-bd-t k-printer">🖨️ 내 프린터</h3><div class="hal-bins">' + prHtml + '</div>' : '') +
       (eqHtml ? '<h3 class="hal-bd-t k-equip">🏭 업체 장비</h3><div class="hal-bd-grid">' + eqHtml + '</div>' : '') + '</div>';
   }
   function placeTo(id, z) {
