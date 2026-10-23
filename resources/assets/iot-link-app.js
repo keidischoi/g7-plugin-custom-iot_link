@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.7.8 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.7.9 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.8';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.9';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -260,9 +260,10 @@
       (o.co ? '<small class="hal-bin-co">🏢 ' + esc(o.co) + (o.sub ? ' · ' + esc(o.sub) : '') + '</small>' : '') +
       '<div class="hal-chips">' + (devs.length ? devs.map(function (x) { return chip(x, true); }).join('') : '<small class="hal-drop-hint">＋ 센서를 여기로</small>') + '</div></div>';
   }
-  function prnZone(p, devs) {
-    var PS = { printing: '출력 중', paused: '일시정지', done: '끝남', failed: '실패', idle: '쉬는 중' };
-    return machine({ shape: 'printer', drop: 'printer', ref: p.id, name: p.name, icon: '🖨️', img: prIcon(p), run: p.state === 'printing', live: p.live, stTxt: PS[p.state] || '', seen: p.seen, fail: p.state === 'failed' }, devs);
+  function prnZone(p, devs, e) {   // 1.7.9 e = 이어진 업체 장비 (프린터 라운지 「재고 장비로도」) — 하나로 보임
+    var PS = { printing: '출력 중', paused: '일시정지', done: '끝남', failed: '실패', idle: '쉬는 중' }, bad = e && e.status && e.status !== 'ok' && e.status !== 'busy';
+    return machine({ shape: 'printer', drop: 'printer', ref: p.id, name: p.name, icon: '🖨️', img: prIcon(p), run: p.state === 'printing', live: p.live, stTxt: PS[p.state] || '', seen: p.seen, fail: p.state === 'failed' || bad,
+      note: bad ? (e.status_emoji || '⚠️') + ' ' + (e.status_label || e.status) : '', sub: e ? '🏭 업체 장비와 이어짐' : '' }, devs);
   }
   function eqZone(e, devs, co) {
     var sh = e.is_printer ? ['printer', e.kind === 'fdm' ? '🖨️' : '🧪'] : EQ_SHAPE[e.kind] || EQ_SHAPE.other, bad = e.status && e.status !== 'ok' && e.status !== 'busy';
@@ -285,7 +286,8 @@
     var cidOf = function (v) { return +(v || 0); };
     if (sc !== 'company') owners.push(0);
     if (sc !== 'mine') Object.keys(cos).forEach(function (k) { owners.push(+k); });
-    var multi = owners.length > 1;
+    var multi = owners.length > 1, linked = {};
+    (d.printers || []).forEach(function (p) { if (p.equipment_id) linked[p.equipment_id] = p.id; });   // 1.7.9 업체 프린터 = 업체 장비 (이어진 것은 하나로)
     var badge = function (cid) { return cid ? '<span class="hal-own co" title="업체 것">🏢 ' + esc(cos[cid] || '업체') + '</span>' : multi ? '<span class="hal-own me" title="내 것">👤 개인</span>' : ''; };
     var boxHtml = '', prHtml = '', eqHtml = '';
     owners.forEach(function (cid) {
@@ -305,8 +307,11 @@
         acts += '<button type="button" class="hal-icobtn" data-box-act="del" data-name="' + esc(b.name) + '" data-rolls="' + (b.rolls || 0) + '" data-loose="' + (b.loose ? 1 : 0) + '" title="' + (b.loose ? '센서를 대기 칸으로' : '보관함 지우기') + '" aria-label="지우기">🗑</button>';
         return badged(binZone(b, on, acts), badge(cid));
       }).join('');
-      prHtml += (d.printers || []).filter(function (p) { return cidOf(p.company_id) === cid; }).map(function (p) { return badged(prnZone(p, at(function (x) { return x.target === 'printer' && x.printer_id === p.id; })), badge(cid)); }).join('');
-      if (cid) eqHtml += (d.equipment || []).filter(function (e) { return e.company_id === cid; }).map(function (e) { return badged(eqZone(e, at(function (x) { return x.target === 'equipment' && x.equipment_id === e.id; }), ''), badge(cid)); }).join('');
+      prHtml += (d.printers || []).filter(function (p) { return cidOf(p.company_id) === cid; }).map(function (p) {
+        var e = p.equipment_id ? (d.equipment || []).filter(function (q) { return q.id === p.equipment_id; })[0] : null;
+        return badged(prnZone(p, at(function (x) { return (x.target === 'printer' && x.printer_id === p.id) || (!!p.equipment_id && x.target === 'equipment' && x.equipment_id === p.equipment_id); }), e), badge(cid));
+      }).join('');
+      if (cid) eqHtml += (d.equipment || []).filter(function (e) { return e.company_id === cid && !linked[e.id]; }).map(function (e) { return badged(eqZone(e, at(function (x) { return x.target === 'equipment' && x.equipment_id === e.id; }), ''), badge(cid)); }).join('');
     });
     var noBox = '<p class="hal-hint">보관함이 없어요' + (d.config.inventory ? ' — 「➕ 보관함 만들기」로 만들어요' : '') + '.</p>';
     return '<div class="hal-board' + (S.pick ? ' picking' : '') + '" data-board><p class="hal-hint">센서 칩을 붙일 곳에 끌어 놓으세요 · 휴대폰은 칩을 누르고 놓을 곳을 눌러요. 줄이 길면 ‹ › 로 넘겨요 (끄는 중에 ‹ › 위에 대면 넘어가요). 보관함은 🌡️ 하나 · 💧 하나 — 겹치면 바꿔 끼우고 예전 센서는 대기 칸으로 가요.</p>' +
@@ -399,6 +404,7 @@
     var inst = (d.smartthings && d.smartthings.installs) || [], stOf = {};
     inst.forEach(function (s) { (s.site_devices || []).forEach(function (id) { stOf[id] = s; }); if (s.device_id) stOf[s.device_id] = stOf[s.device_id] || s; });
     // 1.7.1 🖨️ 내 프린터 모두 — 프린터 라운지가 직접 받는 연결(💻 PC 연결 프로그램)도 · 출력 상태 · 마지막으로 받은 때
+    var lnk = {}; (d.printers || []).forEach(function (p) { if (p.equipment_id) lnk[p.equipment_id] = p.id; });
     var PST = { printing: '🟢 출력 중', paused: '⏸ 일시정지', done: '✅ 끝남', failed: '⚠️ 실패', idle: '쉬는 중' };
     (d.printers || []).forEach(function (p) {
       var tn = 't:p:' + p.id, sub = ['프린터'];
@@ -406,6 +412,7 @@
       var on = !!p.live || d.devices.some(function (x) { return x.target === 'printer' && x.printer_id === p.id && !x.stale && !x.never; });   // 연결이 꺼졌으면 회색으로 흐릿하게
       node(2, tn, lbl(prIcon(p), p.name, esc(sub.join(' · ') + (on ? '' : ' · 연결 꺼짐'))), 'k-printer' + (on ? '' : ' gone'));
       node(3, 'x:mpr', lbl('🖨️', '프린터 라운지', '출력 상태 · 주변 온습도'), 'k-ext'); edge(tn, 'x:mpr', !!p.live);
+      if (p.equipment_id && d.config.inventory) { node(3, 'x:eq', lbl('🏭', '업체 장비', '장비 상태 · 온습도'), 'k-ext'); edge(tn, 'x:eq', !!p.live); }   // 1.7.9 이어진 업체 장비
       // 1.7.4 사이트 ⇄ 💻 PC(라즈베리파이)의 연결 프로그램 ⇄ 프린터 — 프린터 라운지와 같은 이름 · SimplyPrint 는 따로
       if (p.via === 'simply') { node(0, 'src:simply', lbl('🔗', 'SimplyPrint', '클라우드로 프린터 상태를 받음'), 'k-hook'); edge('src:simply', tn, !!p.live); }
       else if (p.via === 'script' || (p.seen && !p.via)) { node(0, 'src:pc', lbl('💻', 'PC 연결 프로그램', 'PC · 라즈베리파이에서 프린터 ⇄ 사이트 (상태를 받고 · 원격 출력을 보냄)'), 'k-hook'); edge('src:pc', tn, !!p.live); }
@@ -426,6 +433,7 @@
       if (!placed) { tn = 't:wait'; node(2, tn, lbl('📡', '대기 칸', '아직 붙이지 않음'), 'k-wait'); }
       else if (x.target === 'location') { var b = boxOf[bkey(x.location)] || { name: x.location }; tn = 't:l:' + bkey(x.location); node(2, tn, lbl('📦', b.name, b.rolls != null ? '보관함 · 롤 ' + b.rolls + '개' : '보관함'), 'k-box', ' style="--bx:' + boxCol(b) + '"'); }
       else if (x.target === 'printer') { tn = 't:p:' + x.printer_id; node(2, tn, lbl('🖨️', x.where, '프린터'), 'k-printer'); }
+      else if (lnk[x.equipment_id]) { tn = 't:p:' + lnk[x.equipment_id]; }   // 1.7.9 프린터와 이어진 장비 — 프린터 하나로
       else { tn = 't:e:' + x.equipment_id; node(2, tn, lbl('🏭', x.where, '장비'), 'k-equip'); }
       edge(dn, tn, live);
       // ④ 이어지는 확장
