@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.7.0 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.7.1 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.0';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.1';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -323,6 +323,16 @@
     var boxOf = {}; (d.boxes || []).forEach(function (b) { if (!boxOf[bkey(b.name)]) boxOf[bkey(b.name)] = b; });
     var inst = (d.smartthings && d.smartthings.installs) || [], stOf = {};
     inst.forEach(function (s) { (s.site_devices || []).forEach(function (id) { stOf[id] = s; }); if (s.device_id) stOf[s.device_id] = stOf[s.device_id] || s; });
+    // 1.7.1 🖨️ 내 프린터 모두 — 프린터 라운지가 직접 받는 연결(🖥️ 한 줄 스크립트)도 · 출력 상태 · 마지막으로 받은 때
+    var PST = { printing: '🟢 출력 중', paused: '⏸ 일시정지', done: '✅ 끝남', failed: '⚠️ 실패', idle: '쉬는 중' };
+    (d.printers || []).forEach(function (p) {
+      var tn = 't:p:' + p.id, sub = ['프린터'];
+      if (PST[p.state]) sub.push(PST[p.state]); if (p.seen) sub.push(agoText(p.seen));
+      var on = !!p.live || d.devices.some(function (x) { return x.target === 'printer' && x.printer_id === p.id && !x.stale && !x.never; });   // 연결이 꺼졌으면 회색으로 흐릿하게
+      node(2, tn, lbl('🖨️', p.name, esc(sub.join(' · ') + (on ? '' : ' · 연결 꺼짐'))), 'k-printer' + (on ? '' : ' gone'));
+      node(3, 'x:mpr', lbl('🖨️', '프린터 라운지', '출력 상태 · 주변 온습도'), 'k-ext'); edge(tn, 'x:mpr', !!p.live);
+      if (p.via === 'script' || (p.seen && !p.via)) { node(0, 'src:hook', lbl('🖥️', '한 줄 연결', '프린터 라운지 스크립트 · 직접'), 'k-hook'); edge('src:hook', tn, !!p.live); }
+    });
     d.devices.forEach(function (x) {
       var live = !x.stale && !x.never, c = capsOf(x), dn = 'd:' + x.id, v = [];
       if (c.temp && x.temp != null) v.push('🌡️ ' + x.temp + '°'); if (c.hum && x.humidity != null) v.push('💧 ' + x.humidity + '%'); if (c.state) v.push(x.is_on ? '⚙️ 가동 중' : '⏸ 쉬는 중');
@@ -982,7 +992,7 @@
   var liveBusy = false, liveAt = 0;
   /** 0.1.5 다시 받는 간격 (초) — 관리자 설정 (0 = 끔) */
   function liveSec() { var c = S.d && S.d.config, v = c && c.refresh_sec != null ? +c.refresh_sec : 60; return v > 0 ? Math.max(5, v) : 0; }
-  function sig(d) { return JSON.stringify([d.devices.map(function (x) { return [x.id, x.temp, x.humidity, x.state, x.is_on, x.seen, x.stale, x.over, x.snap_at, x.hours_30d, x.name, x.where, x.humidity_max, x.temp_max, x.snap_public, x.sensors, x.target, x.location, x.printer_id, x.equipment_id]; }), d.smartthings, d.boxes]); }
+  function sig(d) { return JSON.stringify([d.devices.map(function (x) { return [x.id, x.temp, x.humidity, x.state, x.is_on, x.seen, x.stale, x.over, x.snap_at, x.hours_30d, x.name, x.where, x.humidity_max, x.temp_max, x.snap_public, x.sensors, x.target, x.location, x.printer_id, x.equipment_id]; }), d.smartthings, d.boxes, (d.printers || []).map(function (p) { return [p.id, p.state, p.live, p.via]; })]); }
   function live() {
     if (liveBusy || !S.root || !S.d || S.root.hasAttribute('data-hal-admin') || document.hidden || document.querySelector('.hal-modal') || !document.contains(S.root)) return;
     liveBusy = true; liveAt = Date.now();

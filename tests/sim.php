@@ -354,6 +354,11 @@ namespace {
     [$e5, , $r5] = $svc->place(1, $hOnly, 'equipment', '', 100);
     t($e5 && $r5['bounced'] === ['온습도A'], '같은 빈 항목(습도)을 재는 일반 센서끼리는 바꿔 끼움');
     t(! $svc->place(1, $th, 'equipment', '', 102)[0] && ! $svc->place(2, $th, 'location', '남의 것')[0], '남의 장비 · 남의 기기는 못 붙임');
+    $p0 = collect($svc->printers(1))->firstWhere('id', 5);
+    \Illuminate\Support\Facades\Schema::table('mpr_printers', function ($t) { $t->string('state')->default('idle'); $t->string('last_via')->nullable(); $t->timestamp('last_seen_at')->nullable(); });
+    DB::table('mpr_printers')->where('id', 5)->update(['state' => 'printing', 'last_via' => 'script', 'last_seen_at' => \Plugins\Custom\IotLink\Services\HaService::now()]);
+    $p1 = collect($svc->printers(1))->firstWhere('id', 5);
+    t($p0['state'] === '' && $p0['live'] === false && $p0['seen'] === null && $p1['state'] === 'printing' && $p1['via'] === 'script' && $p1['live'] === true, '1.7.1 🗺️ 프린터 라운지 직접 연결 (한 줄 스크립트 · 출력 상태 · 받은 때) — 열이 없어도 됨');
     DB::table('hal_devices')->whereIn('id', [$th, $hOnly, $tOnly, $plug, $eqDev])->delete();
 
     echo "■ 0.2.0 SmartThings (WebHook SmartApp)\n";
