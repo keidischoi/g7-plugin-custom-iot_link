@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.7.1 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.7.2 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.1';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.2';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -264,7 +264,7 @@
       acts += '<button type="button" class="hal-icobtn" data-box-act="del" data-name="' + esc(b.name) + '" data-rolls="' + (b.rolls || 0) + '" data-loose="' + (b.loose ? 1 : 0) + '" title="' + (b.loose ? '센서를 대기 칸으로' : '보관함 지우기') + '" aria-label="지우기">🗑</button>';
       return binZone(b, at(function (x) { return x.target === 'location' && bkey(x.location) === bkey(b.name); }), acts);
     }).join('');
-    var prHtml = (d.printers || []).map(function (p) { return zone('printer', 'data-drop="printer" data-ref="' + p.id + '"', '<i aria-hidden="true">🖨️</i><span class="hal-bd-kind">프린터</span><b>' + esc(p.name) + '</b>', at(function (x) { return x.target === 'printer' && x.printer_id === p.id; }), ['state', 'temp', 'hum']); }).join('');
+    var prHtml = (d.printers || []).map(function (p) { return zone('printer', 'data-drop="printer" data-ref="' + p.id + '"', '<i aria-hidden="true">' + prIcon(p) + '</i><span class="hal-bd-kind">프린터</span><b>' + esc(p.name) + '</b>', at(function (x) { return x.target === 'printer' && x.printer_id === p.id; }), ['state', 'temp', 'hum']); }).join('');
     var eqHtml = (d.equipment || []).filter(function (e) { return cos[e.company_id] != null; }).map(function (e) { return zone('equip', 'data-drop="equipment" data-ref="' + e.id + '"', '<i aria-hidden="true">🏭</i><span class="hal-bd-kind">장비</span><b>' + esc(e.name) + '</b><small>' + esc(cos[e.company_id]) + '</small>', at(function (x) { return x.target === 'equipment' && x.equipment_id === e.id; }), ['state', 'temp', 'hum']); }).join('');
     return '<div class="hal-board' + (S.pick ? ' picking' : '') + '" data-board><p class="hal-hint">센서 칩을 붙일 곳에 끌어 놓으세요 · 휴대폰은 칩을 누르고 놓을 곳을 눌러요. 보관함은 🌡️ 하나 · 💧 하나 — 겹치면 바꿔 끼우고 예전 센서는 대기 칸으로 가요. 장비는 ⚙️ 상태 센서가 보내는 챔버 온습도가 먼저라 빠진 것만 일반 센서로 채워요.</p>' +
       '<section class="hal-bd free" data-drop=""><header><i aria-hidden="true">📡</i><b>대기 칸</b><small>아직 붙이지 않은 센서 — 여기로 끌면 떼어져요</small></header><div class="hal-chips">' + (free.length ? free.map(chip).join('') : '<small class="hal-hint">모든 센서가 붙어 있어요</small>') + '</div></section>' +
@@ -315,6 +315,8 @@
   }
   /* 1.7.0 🗺️ 연결 지도 — 어디서 받아(🏠 Home Assistant · SmartThings) → 어느 기기가 → 어디에 붙어(📦 보관함 · 🖨️ 프린터 · 🏭 장비 · 대기 칸) → 어느 확장으로 이어지는지 한눈에
      선: 초록 = 값이 들어옴 · 회색 점선 = 끊김 · 아직 값 없음. 마디에 마우스를 올리면 그 마디의 선만 진하게, 기기를 누르면 고치기 */
+  /** 1.7.2 프린터 사진(프린터 라운지 · 3D 카탈로그) — 없거나 못 불러오면 🖨️ */
+  function prIcon(p) { var u = String((p && p.image) || ''); return /^(https?:\/\/|\/)[^"'<>\s]+$/.test(u) ? '<img class="hal-pimg" src="' + esc(u) + '" alt="" loading="lazy" onerror="this.replaceWith(\'🖨️\')">' : '🖨️'; }
   function mapView() {
     var d = S.d, N = {}, cols = [[], [], [], []], E = [];
     var node = function (c, id, html, cls, attrs) { if (!N[id]) { N[id] = 1; cols[c].push('<div class="hal-mn ' + (cls || '') + '" data-n="' + esc(id) + '"' + (attrs || '') + '>' + html + '</div>'); } };
@@ -329,7 +331,7 @@
       var tn = 't:p:' + p.id, sub = ['프린터'];
       if (PST[p.state]) sub.push(PST[p.state]); if (p.seen) sub.push(agoText(p.seen));
       var on = !!p.live || d.devices.some(function (x) { return x.target === 'printer' && x.printer_id === p.id && !x.stale && !x.never; });   // 연결이 꺼졌으면 회색으로 흐릿하게
-      node(2, tn, lbl('🖨️', p.name, esc(sub.join(' · ') + (on ? '' : ' · 연결 꺼짐'))), 'k-printer' + (on ? '' : ' gone'));
+      node(2, tn, lbl(prIcon(p), p.name, esc(sub.join(' · ') + (on ? '' : ' · 연결 꺼짐'))), 'k-printer' + (on ? '' : ' gone'));
       node(3, 'x:mpr', lbl('🖨️', '프린터 라운지', '출력 상태 · 주변 온습도'), 'k-ext'); edge(tn, 'x:mpr', !!p.live);
       if (p.via === 'script' || (p.seen && !p.via)) { node(0, 'src:hook', lbl('🖥️', '한 줄 연결', '프린터 라운지 스크립트 · 직접'), 'k-hook'); edge('src:hook', tn, !!p.live); }
     });
