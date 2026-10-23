@@ -860,9 +860,14 @@ class HaService
         try {
             $cos = $this->hasCol('mpr_printers', 'company_id') ? array_column($this->companies($uid), 'name', 'id') : [];   // 1.5.0 🏢 내가 대표 · 관리자인 업체의 프린터도
             $q = DB::table('mpr_printers')->where(fn ($w) => $cos ? $w->where(fn ($a) => $a->where('user_id', $uid)->whereNull('company_id'))->orWhereIn('company_id', array_keys($cos)) : $w->where('user_id', $uid));
+            $stale = self::ago((int) Settings::get('stale_hours') * 3600);
+
             return $q->orderBy('sort')->orderBy('id')->get()
                 ->map(fn ($p) => ['id' => (int) $p->id, 'name' => (isset($p->company_id) && $p->company_id ? '🏢 '.($cos[(int) $p->company_id] ?? '업체').' · ' : '').trim(($p->nickname ? $p->nickname.' · ' : '').$p->brand.' '.$p->model),
-                    'brand' => (string) $p->brand, 'model' => (string) $p->model, 'nickname' => (string) ($p->nickname ?? ''), 'company_id' => isset($p->company_id) && $p->company_id ? (int) $p->company_id : null])->all();   // 0.1.10 통합이 HA 기기와 이름을 맞춤
+                    'brand' => (string) $p->brand, 'model' => (string) $p->model, 'nickname' => (string) ($p->nickname ?? ''), 'company_id' => isset($p->company_id) && $p->company_id ? (int) $p->company_id : null,
+                    // 1.7.1 🗺️ 연결 지도 — 프린터 라운지가 직접 받는 연결 (한 줄 스크립트 · HA · SmartThings) · 출력 상태 · 마지막으로 받은 때 (읽기만)
+                    'state' => (string) ($p->state ?? ''), 'via' => (string) ($p->last_via ?? ''), 'seen' => isset($p->last_seen_at) && $p->last_seen_at ? (string) $p->last_seen_at : null,
+                    'live' => isset($p->last_seen_at) && $p->last_seen_at && (string) $p->last_seen_at >= $stale])->all();   // 0.1.10 통합이 HA 기기와 이름을 맞춤
         } catch (\Throwable) {
             return [];
         }

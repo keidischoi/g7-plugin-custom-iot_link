@@ -1,4 +1,4 @@
-/* custom-iot_link 1.7.0 — 📡 IoT 연결 */
+/* custom-iot_link 1.7.1 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -427,3 +427,5 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
 .hal-mn.k-printer { border-left:4px solid #2563eb; } .hal-mn.k-equip { border-left:4px solid #7c3aed; }
 .hal-mn.k-wait { border:2px dashed color-mix(in srgb, var(--mute) 55%, transparent); background:var(--soft); }
 .hal-mn.k-ext { background:var(--soft); border-color:transparent; }
+.hal-mn.k-hook { border-left:4px solid #0f766e; }   /* 1.7.1 🖥️ 한 줄 연결 */
+.hal-mn.gone { filter:grayscale(1); opacity:.55; border-left-color:#94a3b8; } .hal-mn.gone.dim { opacity:.25; }   /* 1.7.1 연결이 꺼진 프린터 */
