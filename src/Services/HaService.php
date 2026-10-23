@@ -246,6 +246,7 @@ class HaService
             }
             $row['printer_id'] = $p['id'];
             $row['company_id'] = $p['company_id'] ?? null;   // 1.5.0 🏢 업체 프린터에 붙이면 업체 기기
+            $row['equipment_id'] = $p['equipment_id'] ?? null;   // 1.7.9 이어진 업체 장비 — 정비 수첩 가동 시간이 그대로 이어짐
             $auto = $p['name'];
         } elseif ($target === 'equipment') {
             $cids = array_column($this->companies($uid), 'id');
@@ -366,7 +367,10 @@ class HaService
             }
             $row['printer_id'] = $pr['id'];
             $row['company_id'] = $pr['company_id'] ?? null;
-            $same = DB::table(Schema::DEVICES)->where('target', 'printer')->where('printer_id', $pr['id'])->where('id', '!=', $id)->get();
+            $row['equipment_id'] = $pr['equipment_id'] ?? null;   // 1.7.9 이어진 업체 장비 — 같은 기계라 칸도 같이 셈
+            $eq = $row['equipment_id'];
+            $same = DB::table(Schema::DEVICES)->where('id', '!=', $id)->where(static fn ($w) => $w->where(static fn ($a) => $a->where('target', 'printer')->where('printer_id', $pr['id']))
+                ->when($eq, static fn ($q) => $q->orWhere(static fn ($a) => $a->where('target', 'equipment')->where('equipment_id', $eq))))->get();
             $where = '🖨️ 「'.$pr['name'].'」';
         } elseif ($target === 'equipment') {
             $e = $this->equipment(array_column($this->companies($uid), 'id'))[$ref] ?? null;
@@ -872,7 +876,8 @@ class HaService
                 ->map(fn ($p) => ['id' => (int) $p->id, 'name' => (isset($p->company_id) && $p->company_id ? '🏢 '.($cos[(int) $p->company_id] ?? '업체').' · ' : '').trim(($p->nickname ? $p->nickname.' · ' : '').$p->brand.' '.$p->model),
                     'brand' => (string) $p->brand, 'model' => (string) $p->model, 'nickname' => (string) ($p->nickname ?? ''), 'company_id' => isset($p->company_id) && $p->company_id ? (int) $p->company_id : null,
                     // 1.7.1 🗺️ 연결 지도 — 프린터 라운지가 직접 받는 연결 (PC 연결 프로그램 · HA · SmartThings) · 출력 상태 · 마지막으로 받은 때 (읽기만)
-                    'image' => (string) ($p->image_url ?? ''), 'state' => (string) ($p->state ?? ''), 'via' => (string) ($p->last_via ?? ''), 'seen' => isset($p->last_seen_at) && $p->last_seen_at ? (string) $p->last_seen_at : null,
+                    'image' => (string) ($p->image_url ?? ''), 'equipment_id' => isset($p->equipment_id) && $p->equipment_id ? (int) $p->equipment_id : null,   // 1.7.9 이어진 업체 장비 (하나로 보임)
+                     'state' => (string) ($p->state ?? ''), 'via' => (string) ($p->last_via ?? ''), 'seen' => isset($p->last_seen_at) && $p->last_seen_at ? (string) $p->last_seen_at : null,
                     'live' => isset($p->last_seen_at) && $p->last_seen_at && (string) $p->last_seen_at >= $stale])->all();   // 0.1.10 통합이 HA 기기와 이름을 맞춤
         } catch (\Throwable) {
             return [];

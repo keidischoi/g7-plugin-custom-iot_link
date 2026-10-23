@@ -364,6 +364,14 @@ namespace {
     [$c2] = $svc->place(1, $tOnly, 'location', '업체 선반', 0);
     t($c1 && (int) $cRow->company_id === 10 && $cRow->location === '업체 선반' && $c2 && DB::table('hal_devices')->find($th)->location === '업체 선반' && ! $svc->place(1, $hOnly, 'location', '업체 선반', 99)[0],
         '1.7.6 🏢 업체 보관함에 붙이면 업체 기기 · 같은 이름의 내 보관함과는 따로 · 내가 관리하지 않는 업체는 안 됨');
+    \Illuminate\Support\Facades\Schema::table('mpr_printers', function ($t) { $t->integer('equipment_id')->nullable(); });
+    DB::table('mpr_printers')->insert(['id' => 20, 'user_id' => 1, 'brand' => 'Bambu Lab', 'model' => 'H2D', 'hook_token' => str_repeat('e', 32), 'equipment_id' => 100]);
+    [$u1, , $u2] = $svc->place(1, $plug, 'printer', '', 20);
+    $pRow = DB::table('hal_devices')->find($plug);
+    t($u1 && (int) $pRow->printer_id === 20 && (int) $pRow->equipment_id === 100 && $u2['bounced'] === ['X1C 상태'] && DB::table('hal_devices')->find($eqDev)->target === 'other'
+        && collect($svc->printers(1))->firstWhere('id', 20)['equipment_id'] === 100,
+        '1.7.9 업체 프린터 = 이어진 업체 장비 — 프린터에 붙여도 장비 번호가 따라감(정비 수첩 가동 시간) · 장비에 붙어 있던 상태 센서와 바꿔 끼움');
+    DB::table('mpr_printers')->where('id', 20)->delete();
     DB::table('hal_devices')->whereIn('id', [$th, $hOnly, $tOnly, $plug, $eqDev])->delete();
 
     echo "■ 0.2.0 SmartThings (WebHook SmartApp)\n";
