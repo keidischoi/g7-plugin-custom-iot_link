@@ -1,4 +1,4 @@
-/* custom-iot_link 1.7.7 — 📡 IoT 연결 */
+/* custom-iot_link 1.7.8 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -495,3 +495,27 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
 .hal-prn .win .hal-pimg { max-height:none; height:100%; width:100%; object-fit:cover; border-radius:0;
   -webkit-mask-image:radial-gradient(ellipse 72% 70% at 50% 50%, #000 45%, rgba(0,0,0,.6) 65%, transparent 100%); mask-image:radial-gradient(ellipse 72% 70% at 50% 50%, #000 45%, rgba(0,0,0,.6) 65%, transparent 100%); }
 .hal-mn > i .hal-pimg { -webkit-mask-image:radial-gradient(circle at 50% 50%, #000 55%, transparent 100%); mask-image:radial-gradient(circle at 50% 50%, #000 55%, transparent 100%); box-shadow:none; background:transparent; }
+/* 1.7.8 종류마다 한 줄 · ‹ › 로 좌우 · 개인 · 업체 배지 */
+.hal-strip-w { position:relative; margin:0 -4px; }
+.hal-bins.hal-strip { flex-wrap:nowrap; align-items:flex-start; overflow-x:auto; overflow-y:hidden; scrollbar-width:none; padding:12px 10px 8px; }
+.hal-bins.hal-strip::-webkit-scrollbar { display:none; }
+.hal-strip > .hal-bd { flex:none; }
+.hal-sc { position:absolute; top:50%; z-index:5; display:none; align-items:center; justify-content:center; width:40px; height:40px; margin-top:-20px; padding:0; border:0; border-radius:50%; cursor:pointer;
+  background:radial-gradient(circle at 35% 30%, #fff, #e2e8f0); box-shadow:0 4px 12px rgba(15,23,42,.25), inset 0 0 0 1px rgba(15,23,42,.08); transition:transform .15s, box-shadow .15s; }
+.hal-sc:hover { transform:scale(1.08); box-shadow:0 6px 16px rgba(15,23,42,.3), inset 0 0 0 2px var(--a); }
+.hal-sc i { width:12px; height:12px; border:solid #334155; border-width:0 3.5px 3.5px 0; border-radius:2px; }
+.hal-sc.l { left:-6px; } .hal-sc.l i { transform:translateX(2px) rotate(135deg); }
+.hal-sc.r { right:-6px; } .hal-sc.r i { transform:translateX(-2px) rotate(-45deg); }
+.hal-strip-w.can-l .hal-sc.l, .hal-strip-w.can-r .hal-sc.r { display:flex; }
+.hal-strip-w.can-l::before, .hal-strip-w.can-r::after { content:''; position:absolute; top:0; bottom:0; z-index:4; width:40px; pointer-events:none; }
+.hal-strip-w.can-l::before { left:0; background:linear-gradient(90deg, var(--card, #fff), transparent); }
+.hal-strip-w.can-r::after { right:0; background:linear-gradient(-90deg, var(--card, #fff), transparent); }
+.hal-board.picking .hal-sc { box-shadow:0 0 0 3px rgba(37,99,235,.45), 0 4px 12px rgba(15,23,42,.25); }
+.hal-own { position:absolute; top:-10px; left:8px; z-index:3; max-width:calc(100% - 16px); padding:1px 8px; border-radius:999px; font-size:10.5px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; box-shadow:0 1px 3px rgba(15,23,42,.25); }
+.hal-own.me { background:#0ea5e9; color:#fff; } .hal-own.co { background:#7c3aed; color:#fff; }
+.hal-bd.hal-bin, .hal-bd.hal-prn { position:relative; }
+/* 1.7.8 보관함 만들기 — 누구 보관함 */
+.hal-own-pick { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:10px; } .hal-own-pick > span { width:100%; color:var(--mute); font-size:12.5px; font-weight:700; }
+.hal-own-pick label { display:inline-flex; align-items:center; gap:4px; padding:6px 12px; border:2px solid var(--line); border-radius:999px; font-weight:700; cursor:pointer; }
+.hal-own-pick label.me:has(input:checked) { border-color:#0ea5e9; background:color-mix(in srgb, #0ea5e9 12%, var(--card)); }
+.hal-own-pick label.co:has(input:checked) { border-color:#7c3aed; background:color-mix(in srgb, #7c3aed 12%, var(--card)); }
