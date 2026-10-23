@@ -1,4 +1,4 @@
-/* custom-iot_link 1.7.6 — 📡 IoT 연결 */
+/* custom-iot_link 1.7.7 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -491,3 +491,7 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
 .hal-bd-sec + .hal-bd-sec { margin-top:10px; padding-top:16px; border-top:2px dashed var(--line); }
 .hal-bd-own { display:flex; align-items:center; gap:6px; margin:0 2px; font-size:16px; }
 .hal-bd-sec.co .hal-bd-own { color:#7c3aed; }
+/* 1.7.7 프린터 사진 — 네모난 가장자리를 흐리게 (창 안에 자연스럽게) */
+.hal-prn .win .hal-pimg { max-height:none; height:100%; width:100%; object-fit:cover; border-radius:0;
+  -webkit-mask-image:radial-gradient(ellipse 72% 70% at 50% 50%, #000 45%, rgba(0,0,0,.6) 65%, transparent 100%); mask-image:radial-gradient(ellipse 72% 70% at 50% 50%, #000 45%, rgba(0,0,0,.6) 65%, transparent 100%); }
+.hal-mn > i .hal-pimg { -webkit-mask-image:radial-gradient(circle at 50% 50%, #000 55%, transparent 100%); mask-image:radial-gradient(circle at 50% 50%, #000 55%, transparent 100%); box-shadow:none; background:transparent; }
