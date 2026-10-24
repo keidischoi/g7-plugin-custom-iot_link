@@ -42,6 +42,77 @@ class HaService
     /* ───────── 1.5.0 🏢 업체 기기 — 그 업체 대표 · 관리자가 함께 관리 · 직원은 보기 ───────── */
 
     /** 내가 고치고 지울 수 있는 기기 (내 것 · 내가 대표 · 관리자인 업체 기기) */
+    /** 1.9.0 습도가 구간 밖인가 — 'high' · 'low' · '' */
+    public static function outH(object $d, ?float $hum): string
+    {
+        if ($hum === null) {
+            return '';
+        }
+        if ($d->humidity_max !== null && $hum > (int) $d->humidity_max) {
+            return 'high';
+        }
+
+        return isset($d->humidity_min) && $hum < (int) $d->humidity_min ? 'low' : '';
+    }
+
+    /** 1.9.0 온도가 구간 밖인가 — 'high' · 'low' · '' */
+    public static function outT(object $d, ?float $temp): string
+    {
+        if ($temp === null) {
+            return '';
+        }
+        if ($d->temp_max !== null && $temp > (int) $d->temp_max) {
+            return 'high';
+        }
+
+        return isset($d->temp_min) && $temp < (int) $d->temp_min ? 'low' : '';
+    }
+
+    /** 1.9.0 「40~60%」 · 「60% 넘으면」 · 「30% 밑이면」 */
+    public static function rangeText(?int $min, ?int $max, string $u): string
+    {
+        return $min !== null && $max !== null ? $min.'~'.$max.$u : ($max !== null ? $max.$u.' 넘으면' : ($min !== null ? $min.$u.' 밑이면' : ''));
+    }
+
+    /**
+     * 1.9.0 📦 보관함에서 바로 — 그 기기의 알림 구간만 고침 (아래 · 위, 비우면 그쪽은 안 봄)
+     *
+     * @param  array<string, mixed>  $in  humidity_min · humidity_max · temp_min · temp_max (보낸 것만)
+     * @return array{0: bool, 1: string}
+     */
+    public function setRange(int $uid, int $id, array $in): array
+    {
+        $d = $this->manageable($uid)->where('id', $id)->first();
+        if ($d === null) {
+            return [false, '고칠 수 있는 기기가 아니에요.'];
+        }
+        $lim = static fn ($v, int $min, int $max) => $v === null || $v === '' || ! is_numeric($v) ? null : max($min, min($max, (int) round((float) $v)));
+        $row = [];
+        foreach (['humidity_min' => [0, 100], 'humidity_max' => [1, 100], 'temp_min' => [-40, 400], 'temp_max' => [-40, 400]] as $k => [$a, $b]) {
+            if (array_key_exists($k, $in)) {
+                $row[$k] = $lim($in[$k], $a, $b);
+            }
+        }
+        $hMin = array_key_exists('humidity_min', $row) ? $row['humidity_min'] : ($d->humidity_min ?? null);
+        $hMax = array_key_exists('humidity_max', $row) ? $row['humidity_max'] : $d->humidity_max;
+        $tMin = array_key_exists('temp_min', $row) ? $row['temp_min'] : ($d->temp_min ?? null);
+        $tMax = array_key_exists('temp_max', $row) ? $row['temp_max'] : $d->temp_max;
+        if (($hMin !== null && $hMax !== null && $hMin >= $hMax) || ($tMin !== null && $tMax !== null && $tMin >= $tMax)) {
+            return [false, '아래 값은 위 값보다 작아야 해요.'];
+        }
+        if ($row === []) {
+            return [false, '바꿀 값이 없어요.'];
+        }
+        DB::table(Schema::DEVICES)->where('id', $d->id)->update($row + ['alerted_at' => null, 'updated_at' => now()]);   // 구간이 바뀌면 알림을 다시 볼 수 있게
+
+        $h = self::rangeText($hMin !== null ? (int) $hMin : null, $hMax !== null ? (int) $hMax : null, '%');
+        $t = self::rangeText($tMin !== null ? (int) $tMin : null, $tMax !== null ? (int) $tMax : null, '°C');
+
+        $txt = implode(' · ', array_filter([$h !== '' ? '습도 '.$h : '', $t !== '' ? '온도 '.$t : '']));
+
+        return [true, $txt !== '' ? '🔔 「'.$d->name.'」 알림 구간 — '.$txt : '🔔 「'.$d->name.'」 알림 구간을 비웠어요 (알림 없음)'];
+    }
+
     public function manageable(int $uid): \Illuminate\Database\Query\Builder
     {
         $cids = array_column($this->companies($uid), 'id');
@@ -158,7 +229,9 @@ class HaService
             'entities' => array_merge(array_fill_keys(Rules::ENTITIES, ''), array_intersect_key((array) json_decode((string) ($d->entities ?? ''), true), array_flip(Rules::ENTITIES))),
             'temp' => $temp, 'humidity' => $hum, 'state' => (string) ($d->state ?? ''), 'is_on' => (bool) $d->is_on && ! $stale,
             'humidity_max' => $d->humidity_max !== null ? (int) $d->humidity_max : null, 'temp_max' => $d->temp_max !== null ? (int) $d->temp_max : null, 'notify' => (bool) $d->notify,
-            'over' => ! $stale && (($d->humidity_max !== null && $hum !== null && $hum > (int) $d->humidity_max) || ($d->temp_max !== null && $temp !== null && $temp > (int) $d->temp_max)),
+            'humidity_min' => isset($d->humidity_min) ? (int) $d->humidity_min : null, 'temp_min' => isset($d->temp_min) ? (int) $d->temp_min : null,   // 1.9.0
+            'over' => ! $stale && (self::outH($d, $hum) !== '' || self::outT($d, $temp) !== ''),   // 1.9.0 위로 넘거나 아래로 내려가면
+            'low' => ! $stale && (self::outH($d, $hum) === 'low' || self::outT($d, $temp) === 'low'),
             'caps' => self::caps($d),   // 1.6.0 📦 보관함 보드 — 온도 · 습도 칸 (각 하나씩)
             'snap_public' => (bool) ($d->snap_public ?? false), 'snap_at' => ! empty($d->snap_at) && is_file(self::snapPath((int) $d->id)) ? (string) $d->snap_at : null, 'seen' => $seen, 'stale' => $stale, 'never' => $seen === null, 'hours_30d' => $this->hours([(int) $d->id], self::ago(30 * 86400)), 'history' => $hist];
     }
@@ -285,6 +358,13 @@ class HaService
             return [false, 'Home Assistant 의 센서 이름을 하나는 적어 주세요 (예: sensor.drybox_humidity).'];
         }
         $lim = static fn ($v, int $min, int $max) => $v === null || $v === '' || ! is_numeric($v) ? null : max($min, min($max, (int) $v));
+        // 1.9.0 아래 기준 — 보낸 것만 고침 (HA 통합 · 예전 화면은 안 보내니 그대로)
+        if (array_key_exists('humidity_min', $in)) {
+            $row['humidity_min'] = $lim($in['humidity_min'], 0, 100);
+        }
+        if (array_key_exists('temp_min', $in)) {
+            $row['temp_min'] = $lim($in['temp_min'], -40, 400);
+        }
         $row += ['name' => $name, 'entities' => json_encode($ent), 'humidity_max' => $lim($in['humidity_max'] ?? null, 1, 100), 'temp_max' => $lim($in['temp_max'] ?? null, -40, 400),
             'notify' => array_key_exists('notify', $in) ? filter_var($in['notify'], FILTER_VALIDATE_BOOLEAN) : (bool) ($old->notify ?? true),
             'snap_public' => array_key_exists('snap_public', $in) ? filter_var($in['snap_public'], FILTER_VALIDATE_BOOLEAN) : (bool) ($old->snap_public ?? false), 'updated_at' => now()];
@@ -695,15 +775,15 @@ class HaService
         // 기준을 넘으면 알림 — 한 번 보내면 내려올 때까지(또는 일정 시간) 다시 안 보냄
         $hum = $v['humidity'] ?? ($d->humidity !== null ? (float) $d->humidity : null);
         $temp = $v['temp'] ?? ($d->temp !== null ? (float) $d->temp : null);
-        $overH = $d->humidity_max !== null && $hum !== null && $hum > (int) $d->humidity_max;
-        $overT = $d->temp_max !== null && $temp !== null && $temp > (int) $d->temp_max;
+        $overH = self::outH($d, $hum) !== '';   // 1.9.0 위로 넘거나 아래로 내려가면
+        $overT = self::outT($d, $temp) !== '';
         if ($overH || $overT) {
             if ($d->notify && ($d->alerted_at === null || (string) $d->alerted_at < self::ago((int) Settings::get('alert_gap_hours') * 3600))) {
                 $set['alerted_at'] = $now;
                 $this->alert($d, $overH ? $hum : null, $overT ? $temp : null);
             }
-        } elseif ($d->alerted_at !== null && ($d->humidity_max === null || $hum === null || $hum <= (int) $d->humidity_max - 3)) {
-            $set['alerted_at'] = null;   // 기준보다 3% 넘게 내려오면 다음 번에 다시 알림
+        } elseif ($d->alerted_at !== null && ($hum === null || (($d->humidity_max === null || $hum <= (int) $d->humidity_max - 3) && (! isset($d->humidity_min) || $hum >= (int) $d->humidity_min + 3)))) {
+            $set['alerted_at'] = null;   // 구간 안으로 3% 넘게 들어오면 다음 번에 다시 알림 (1.9.0 아래쪽도)
         }
         DB::table(Schema::DEVICES)->where('id', $d->id)->update($set);
         if ($d->target === 'printer' && $d->printer_id && $v['state'] !== null) {
@@ -719,7 +799,10 @@ class HaService
     private function alert(object $d, ?float $hum, ?float $temp): void
     {
         $ch = array_keys(array_filter(['database' => (bool) Settings::get('notify_site'), 'mail' => (bool) Settings::get('notify_mail')]));
-        $what = array_filter([$hum !== null ? '습도 '.$hum.'% (기준 '.$d->humidity_max.'%)' : null, $temp !== null ? '온도 '.$temp.'°C (기준 '.$d->temp_max.'°C)' : null]);
+        $hMin = isset($d->humidity_min) ? (int) $d->humidity_min : null;
+        $tMin = isset($d->temp_min) ? (int) $d->temp_min : null;
+        $what = array_filter([$hum !== null ? '습도 '.$hum.'%'.($hMin === null ? ' (기준 '.$d->humidity_max.'%)' : ' '.(self::outH($d, $hum) === 'low' ? '너무 낮음' : '너무 높음').' (구간 '.self::rangeText($hMin, $d->humidity_max !== null ? (int) $d->humidity_max : null, '%').')') : null,
+            $temp !== null ? '온도 '.$temp.'°C'.($tMin === null ? ' (기준 '.$d->temp_max.'°C)' : ' '.(self::outT($d, $temp) === 'low' ? '너무 낮음' : '너무 높음').' (구간 '.self::rangeText($tMin, $d->temp_max !== null ? (int) $d->temp_max : null, '°C').')') : null]);   // 1.9.0 아래 기준이 있으면 구간으로
         $lines = ['🏠 '.$d->name.' — '.implode(' · ', $what)];
         // 1.4.0 그 보관 위치에 있는 필라멘트 · 레진 — 재고 관리에 물어봄 (내 것 + 내가 대표 · 관리자인 업체의 개봉한 것)
         if ($d->target === 'location' && $d->location && $hum !== null) {
@@ -731,7 +814,7 @@ class HaService
                 $lines[] = '🏢 업체 재고: '.implode(' · ', $at['company']).' — 건조를 챙겨 주세요.';
             }
         }
-        Notify::send((int) $d->user_id, $ch, '[IoT 연결] '.$d->name.' '.($hum !== null ? '습도가 높아요 💧' : '온도가 높아요 🌡️'), implode("\n", $lines));
+        Notify::send((int) $d->user_id, $ch, '[IoT 연결] '.$d->name.' '.($hum !== null ? (self::outH($d, $hum) === 'low' ? '습도가 낮아요 💧' : '습도가 높아요 💧') : (self::outT($d, $temp) === 'low' ? '온도가 낮아요 🌡️' : '온도가 높아요 🌡️')), implode("\n", $lines));
     }
 
     /** 내 프린터에 붙인 기기 — 그 프린터의 자동 연결(custom-my_printer)로 상태를 넘김. 그 플러그인이 없거나 바뀌었으면 조용히 건너뜀 */

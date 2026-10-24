@@ -1,4 +1,4 @@
-/* custom-iot_link 1.8.6 — 📡 IoT 연결 */
+/* custom-iot_link 1.9.0 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -594,3 +594,11 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
 .hal-gauge-bar{display:block;flex:1;height:12px;border-radius:99px;background:rgba(148,163,184,.25);overflow:hidden}.hal-gauge-bar i{display:block;height:100%;background:#14b8a6}
 .hal-gauge-k{margin:0;font-size:12px;opacity:.8;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}.hal-gauge-k .c{width:12px;height:12px;border-radius:3px;margin-right:2px}
 .hal-over{color:#e11d48;font-weight:800}
+/* 1.9.0 🔔 알림 구간 */
+.hal-bin .gauge.rng{cursor:pointer;pointer-events:auto;z-index:3}.hal-bin .gauge.rng:hover{background:rgba(13,148,136,.95)}
+.hal-rng-f{border:1px solid var(--line);border-radius:12px;padding:8px 12px 10px;margin:0 0 10px}.hal-rng-f legend{font-weight:800;padding:0 4px}
+.hal-rng-in{display:flex;align-items:center;gap:6px;margin:4px 0 8px}.hal-rng-in input{width:90px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:inherit;font:inherit}
+.hal-slotl li.off{opacity:.6}
+/* 1.9.0 ⚙️ 관리자 설정 탭 */
+.hal-atabs{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 12px}
+.hal-form [hidden],[data-tg][hidden]{display:none!important}

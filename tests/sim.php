@@ -292,6 +292,21 @@ namespace {
     t($tagOther === '' && DB::table('hal_devices')->where('id', $nd['id'])->value('ha_server_name') === '본가 HA', '1.8.2 통합이 켤 때 알려 준 기기 — 그 회원 것만 서버가 적힘');
     DB::table('hal_devices')->where('id', $nd['id'])->update(['ha_server' => null, 'ha_server_name' => null]);
     DB::table('hal_devices')->whereIn('id', [(int) $sa['id'], (int) $sb['id']])->delete();
+    // 1.9.0 🔔 알림 구간 (아래 · 위) — 보관함에서 바로
+    $rg = (int) $nd['id'];
+    [$r1, $m1] = $svc->setRange(1, $rg, ['humidity_min' => 30, 'humidity_max' => 50]);
+    [$r2, $m2] = $svc->setRange(1, $rg, ['humidity_min' => 60, 'humidity_max' => 50]);
+    t($r1 && str_contains($m1, '습도 30~50%') && ! $r2 && str_contains($m2, '작아야') && ! $svc->setRange(2, $rg, ['humidity_min' => 10])[0], '1.9.0 구간 저장 · 아래 ≥ 위 거절 · 남의 기기 거절');
+    $svc->ingest($nd['token'], ['humidity' => 20]);
+    $lo = collect($svc->overview(1)['devices'])->firstWhere('id', $rg);
+    $alLo = DB::table('hal_devices')->where('id', $rg)->value('alerted_at');
+    $svc->ingest($nd['token'], ['humidity' => 40]);
+    $mid = collect($svc->overview(1)['devices'])->firstWhere('id', $rg);
+    $alMid = DB::table('hal_devices')->where('id', $rg)->value('alerted_at');
+    t($lo['over'] === true && $lo['low'] === true && $lo['humidity_min'] === 30 && $alLo !== null && $mid['over'] === false && $alMid === null, '1.9.0 아래로 내려가면 알림 (low) · 구간 안으로 들어오면 다시 알림 준비');
+    [$r3] = $svc->setRange(1, $rg, ['humidity_min' => null]);
+    t($r3 && DB::table('hal_devices')->where('id', $rg)->value('humidity_min') === null && (int) DB::table('hal_devices')->where('id', $rg)->value('humidity_max') === 50, '1.9.0 한쪽만 비우기 (보낸 것만 바뀜)');
+    $svc->setRange(1, $rg, ['humidity_max' => 30]);
     [$okW, , $wd] = $svc->hubSave(1, null, ['target' => 'location', 'location' => 'Awair 거실 공기', 'ent_hum' => 'sensor.awair_h']);
     [$okP, , $pd] = $svc->hubSave(1, null, ['target' => 'location', 'location' => 'Bambu Lab P1S', 'ent_hum' => 'sensor.p1s_h']);
     [$okD, , $dd] = $svc->hubSave(1, null, ['target' => 'location', 'location' => '드라이', 'ent_hum' => 'sensor.dry_h']);
@@ -1200,7 +1215,7 @@ namespace {
     }
     [$k2] = $sl->cancel(1, (int) $s13->id, 0);
     $b13 = DB::table('hal_slots')->find($s13->id);
-    t($k2 && $b13->status === 'cancelled' && (int) $b13->size === 0 && $GLOBALS['wallet148']['coin'][1] === 5000 && $L3::member(1) === 20 && ! $sl->cancel(1, (int) $s13->id, 1)[0], '나머지 모두 취소 — 낸 값 모두 돌아옴 · 칸 끝남 · 다시 취소 안 됨');
+    t($k2 && $b13->status === 'cancelled' && (int) $b13->size === 10 && (int) $b13->amount === 847 && $GLOBALS['wallet148']['coin'][1] === 5000 && $L3::member(1) === 20 && ! $sl->cancel(1, (int) $s13->id, 1)[0], '나머지 모두 취소 — 낸 값 모두 돌아옴 · 칸 끝남 · 다시 취소 안 됨');
     t($svc->overview(1)['slots']['cancel_days'] === 3 && isset($svc->overview(1)['slots']['slots'][0]['cancel']), '화면에 취소 날 수 · 칸마다 취소할 수 있는 수');
     Settings::save(['slot_enabled' => false]);
     $v4 = $sl->info(1, $cos1); $v4a = $sl->info(1, $cos1, true);

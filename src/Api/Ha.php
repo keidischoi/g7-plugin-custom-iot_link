@@ -18,7 +18,7 @@ use Plugins\Custom\IotLink\Support\Settings;
  */
 final class Ha
 {
-    public const VERSION = '1.8.6';
+    public const VERSION = '1.9.0';
 
     public static function active(): bool
     {
@@ -53,14 +53,17 @@ final class Ha
                 $k = (int) $d->user_id.'|'.(int) ($d->company_id ?? 0).'|'.Rules::loc((string) $d->location);   // 1.7.19 개인 보관함 · 업체 보관함은 따로
                 $row = ['user_id' => (int) $d->user_id, 'company_id' => (int) ($d->company_id ?? 0), 'location' => (string) $d->location, 'name' => (string) $d->name,
                     'temp' => $d->temp !== null ? (float) $d->temp : null, 'humidity' => $d->humidity !== null ? (float) $d->humidity : null,
-                    'humidity_max' => $d->humidity_max !== null ? (int) $d->humidity_max : null, 'last_seen_at' => $d->last_seen_at !== null ? (string) $d->last_seen_at : null];
+                    'humidity_max' => $d->humidity_max !== null ? (int) $d->humidity_max : null, 'last_seen_at' => $d->last_seen_at !== null ? (string) $d->last_seen_at : null,
+                    // 1.9.0 🔔 보관함에서 바로 구간 고치기 — 습도 · 온도를 재는 기기 번호와 그 구간
+                    'humidity_min' => isset($d->humidity_min) ? (int) $d->humidity_min : null, 'temp_min' => isset($d->temp_min) ? (int) $d->temp_min : null, 'temp_max' => $d->temp_max !== null ? (int) $d->temp_max : null,
+                    'hum_id' => $d->humidity !== null || $d->humidity_max !== null ? (int) $d->id : null, 'temp_id' => $d->temp !== null || $d->temp_max !== null ? (int) $d->id : null];
                 if (! isset($out[$k])) {
                     $out[$k] = $row;
                     continue;
                 }
                 $o = &$out[$k];
                 $o['name'] .= ' · '.$row['name'];
-                foreach (['temp', 'humidity', 'humidity_max'] as $f) {
+                foreach (['temp', 'humidity', 'humidity_max', 'humidity_min', 'temp_min', 'temp_max', 'hum_id', 'temp_id'] as $f) {   // 1.9.0 구간 · 기기 번호도
                     $o[$f] ??= $row[$f];
                 }
                 if ($row['last_seen_at'] !== null && ($o['last_seen_at'] === null || $row['last_seen_at'] < $o['last_seen_at'])) {
