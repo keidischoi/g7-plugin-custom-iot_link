@@ -21,6 +21,7 @@ final class Settings
         'slot_mode' => 'once',         // 1.4.8 once: 한 번 사면 계속 · monthly: 달마다 결제 (자동 연장 · 모자라면 칸이 끝남 — 기기는 지우지 않고 새로 못 붙임)
         'slot_coin_price' => 0,        // 1.4.8 센서 1개 값 (코인 · 0 = 안 팖)
         'slot_coin_price10' => 0,      // 1.4.8 센서 10개 묶음 값 (코인 · 0 = 안 팖)
+        'slot_cancel_days' => 3,       // 1.8.3 산 뒤 이 날 수 안 · 안 쓴 칸만 취소(환불) — 0 = 취소 안 받음
         'slot_mileage_price' => 0,     // 1.4.8 센서 1개 값 (마일리지)
         'slot_mileage_price10' => 0,   // 1.4.8 센서 10개 묶음 값 (마일리지)
         'max_devices_companies' => '', // 1.4.7 업체마다 다르게 「업체번호:개수」 쉼표로 (예: 3:100, 7:0 — 0 = 막지 않음)
@@ -117,6 +118,7 @@ final class Settings
         foreach (['slot_coin_price', 'slot_coin_price10', 'slot_mileage_price', 'slot_mileage_price10'] as $k) {
             $out[$k] = max(0, min(100000000, $out[$k]));
         }
+        $out['slot_cancel_days'] = max(0, min(30, (int) $out['slot_cancel_days']));   // 1.8.3
         $out['max_devices_members'] = self::limitList($out['max_devices_members'], true);
         $out['max_devices_companies'] = self::limitList($out['max_devices_companies'], false);
         $out['interval_min'] = max(1, min(60, $out['interval_min']));

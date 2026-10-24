@@ -27,7 +27,7 @@ class HaController extends Controller
     /** @param array{0: bool, 1: string, 2?: mixed} $r */
     private function result(array $r, Request $req): JsonResponse
     {
-        return response()->json(['success' => $r[0], 'message' => $r[1], 'data' => $r[0] ? (is_array($r[2] ?? null) ? $r[2] : []) + ['overview' => $this->svc->overview($this->uid($req))] : null], $r[0] ? 200 : 422);
+        return response()->json(['success' => $r[0], 'message' => $r[1], 'data' => $r[0] ? (is_array($r[2] ?? null) ? $r[2] : []) + ['overview' => $this->svc->overview($this->uid($req))] : (is_array($r[2] ?? null) ? $r[2] : null)], $r[0] ? 200 : 422);   // 1.8.3 실패에도 까닭(reason) — 모자라면 화면이 충전 안내
     }
 
     public function index(Request $r): JsonResponse
@@ -65,6 +65,12 @@ class HaController extends Controller
         $uid = $this->uid($r);
 
         return $this->off() ?? $this->result((new SlotService())->buy($uid, (string) $r->input('currency', ''), (int) $r->input('n', 1), (string) $r->input('for', 'me'), $this->svc->companies($uid)), $r);
+    }
+
+    /** 1.8.3 💳 칸 취소 (환불) */
+    public function slotCancel(Request $r, int $id): JsonResponse
+    {
+        return $this->off() ?? $this->result((new SlotService())->cancel($this->uid($r), $id, (int) $r->input('n', 0)), $r);
     }
 
     /** 1.4.8 💳 자동 연장 켜고 끄기 */

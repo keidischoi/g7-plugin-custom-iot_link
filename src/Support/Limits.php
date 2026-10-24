@@ -64,10 +64,7 @@ final class Limits
     /** 1.4.8 💳 산 센서 칸 (쓰는 중 · 달마다는 기한 안) — $cid 없으면 회원 칸, 있으면 그 업체 칸 (누가 샀든) */
     public static function bought(int $uid, ?int $cid): int
     {
-        if (! Settings::get('slot_enabled')) {
-            return 0;
-        }
-        try {
+        try {   // 1.8.3 판매를 꺼도 이미 산 칸은 그대로 셈 (예전엔 끄면 산 칸이 한도에서 빠졌음)
             $q = DB::table(Schema::SLOTS)->where('status', 'active')->where(fn ($w) => $w->whereNull('expires_at')->orWhere('expires_at', '>', now()));
             $cid ? $q->where('company_id', $cid) : $q->where('user_id', $uid)->whereNull('company_id');
 

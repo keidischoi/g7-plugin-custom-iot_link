@@ -43,6 +43,7 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () {
     Route::post('devices/{id}/place', [HaController::class, 'place'])->whereNumber('id')->middleware('throttle:60,1')->name('devices.place');   // 1.6.0 📦 보관함 보드
     Route::post('devices/{id}/rotate', [HaController::class, 'rotate'])->whereNumber('id')->name('devices.rotate');
     Route::post('slots/buy', [HaController::class, 'slotBuy'])->middleware('throttle:10,1')->name('slots.buy');   // 1.4.8 💳 센서 칸
+    Route::post('slots/{id}/cancel', [HaController::class, 'slotCancel'])->whereNumber('id')->middleware('throttle:10,1')->name('slots.cancel');   // 1.8.3
     Route::put('slots/{id}', [HaController::class, 'slotAuto'])->whereNumber('id')->name('slots.update');
     Route::post('devices/group', [HaController::class, 'groupMany'])->middleware('throttle:30,1')->name('devices.group_many');   // 1.4.6 📁 분류 옮기기
     Route::post('devices/delete', [HaController::class, 'deleteMany'])->middleware('throttle:20,1')->name('devices.destroy_many');   // 1.4.5 여러 기기 한 번에

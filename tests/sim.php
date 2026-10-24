@@ -1134,7 +1134,9 @@ namespace {
         if ($what === "format") return null;
         if ($what === "spend") { [$uid, $amt, $reason, $opt] = $a; if (isset($GLOBALS["spent148"][$opt["ref"]])) return ["ok" => true, "duplicate" => true];
             if (($GLOBALS["wallet148"][$cur][$uid] ?? 0) < $amt) return ["ok" => false, "status" => "insufficient"];
-            $GLOBALS["wallet148"][$cur][$uid] -= $amt; $GLOBALS["spent148"][$opt["ref"]] = $amt; return ["ok" => true, "amount" => $amt]; }
+            $GLOBALS["wallet148"][$cur][$uid] -= $amt; $GLOBALS["spent148"][$opt["ref"]] = $amt; $GLOBALS["payer148"][$opt["ref"]] = [$cur, $uid]; return ["ok" => true, "amount" => $amt]; }
+        if ($what === "refund") { [$ext, $ref, $opt] = $a; if (! isset($GLOBALS["spent148"][$ref])) return ["ok" => false, "status" => "not_found", "message" => "없음"];
+            $back = min((int) $opt["amount"], $GLOBALS["spent148"][$ref]); $GLOBALS["spent148"][$ref] -= $back; [$c2, $u2] = $GLOBALS["payer148"][$ref]; $GLOBALS["wallet148"][$c2][$u2] += $back; return ["ok" => true, "amount" => $back]; }
         return $d; } }');
     \Plugins\Custom\IotLink\Support\Points::$hookManager = 'FakeHM148';
     \Plugins\Custom\IotLink\Support\Points::reset();
@@ -1150,7 +1152,7 @@ namespace {
     t($b1 && $GLOBALS['wallet148']['coin'][1] === 200 && \Plugins\Custom\IotLink\Support\Limits::member(1) === 30 && str_contains($m1, '30개'), '10개 묶음 800 → 회원 한도 20 + 10 = 30');
     [$b2, , $d2] = $sl->buy(1, 'coin', 10, 'me', $cos1);
     t(! $b2 && ($d2['reason'] ?? '') === 'insufficient' && DB::table('hal_slots')->count() === 1, '모자라면 거절 · 기록 안 남음');
-    t(! $sl->buy(1, 'coin', 5, 'me', $cos1)[0] && ! $sl->buy(1, 'mileage', 1, 'me', $cos1)[0], '1 · 10 밖 · 팔지 않는 수단은 거절');
+    t(! $sl->buy(1, 'coin', 5, 'me', $cos1)[0] && ! $sl->buy(1, 'mileage', 1, 'me', $cos1)[0], '잔액보다 비싼 개수 · 팔지 않는 수단은 거절');
     Settings::save(['max_devices_company' => 3]);
     t(! $sl->buy(1, 'coin', 1, 'c11', $cos1)[0] && count($sl->info(1, $cos1)['targets']) === 2, '남의 업체엔 못 삼 · 업체 한도가 있으면 「🏢 업체」도 고름');
     [$b3] = $sl->buy(1, 'coin', 1, 'c10', $cos1);
@@ -1168,8 +1170,41 @@ namespace {
     t($b4 && $rn === 1 && $GLOBALS['wallet148']['coin'][1] === 50 && $st1->status === 'active' && DB::table('hal_slots')->find($mid)->status === 'expired' && \Plugins\Custom\IotLink\Support\Limits::member(1) === 30, '달마다 — 기한이 지나면 연장 결제 · 자동 연장을 끄면 끝나고 한도에서 빠짐');
     $ov8 = $svc->overview(1);
     t($ov8['slots']['enabled'] === true && count($ov8['slots']['slots']) === 3 && $ov8['limits']['member'] === 30, '화면에 산 칸 목록 · 한도');
+    echo "■ 1.8.3 💳 개수를 정해 사기 · 취소(환불) · 판매를 꺼도 산 칸은 셈\n";
+    DB::table('hal_slots')->delete();
+    Settings::save(['slot_enabled' => true, 'slot_mode' => 'once', 'slot_coin_price' => 100, 'slot_coin_price10' => 800, 'slot_mileage_price' => 0, 'slot_mileage_price10' => 0, 'max_devices' => 20, 'max_devices_company' => 0, 'slot_cancel_days' => 3]);
+    $GLOBALS['wallet148']['coin'][1] = 5000;
+    $P3 = \Plugins\Custom\IotLink\Support\Points::class; $L3 = \Plugins\Custom\IotLink\Support\Limits::class;
+    t($P3::total('coin', 1) === 100 && $P3::total('coin', 10) === 800 && $P3::total('coin', 13) === 1100 && $P3::total('coin', 25) === 2100 && $P3::total('coin', 0) === 0 && $P3::total('mileage', 3) === 0, '값 셈 — 10개마다 묶음 값 + 나머지 1개 값 · 못 사는 수단은 0');
+    [$q1, $qm] = $sl->buy(1, 'coin', 13, 'me', $cos1);
+    $s13 = DB::table('hal_slots')->orderByDesc('id')->first();
+    t($q1 && (int) $s13->size === 13 && (int) $s13->amount === 1100 && $GLOBALS['wallet148']['coin'][1] === 3900 && $L3::member(1) === 33 && ! $sl->buy(1, 'coin', 101, 'me', $cos1)[0] && ! $sl->buy(1, 'coin', 0, 'me', $cos1)[0], '13개 = 800 + 300 · 한도 20 + 13 · 0 · 101개는 거절');
+    $used3 = DB::table('hal_devices')->where('user_id', 1)->count();
+    $c13 = $sl->cancelable(1, $s13);
+    t($c13['n'] === min(13, 33 - $used3) && $sl->cancelable(2, $s13)['n'] === 0, '취소할 수 있는 수 = 안 쓴 칸 (산 사람만)');
+    [$k1, $km] = $sl->cancel(1, (int) $s13->id, 3);
+    $a13 = DB::table('hal_slots')->find($s13->id);
+    t($k1 && (int) $a13->size === 10 && (int) $a13->amount === 1100 - 253 && $GLOBALS['wallet148']['coin'][1] === 3900 + 253 && str_contains($km, '3개') && $L3::member(1) === 30, '3개 취소 — 낸 값의 몫(1100 × 3 ÷ 13 = 253) 돌려줌 · 칸 10개로');
+    Settings::save(['slot_enabled' => false]);
+    t($L3::member(1) === 30, '판매를 꺼도 산 칸은 한도에 그대로');
+    Settings::save(['slot_enabled' => true, 'slot_cancel_days' => 0]);
+    t($sl->cancelable(1, DB::table('hal_slots')->find($s13->id))['why'] === '취소를 받지 않아요' && ! $sl->cancel(1, (int) $s13->id, 1)[0], '관리자가 0 일로 두면 취소 안 받음');
+    Settings::save(['slot_cancel_days' => 3]);
+    DB::table('hal_slots')->where('id', $s13->id)->update(['created_at' => now()->subDays(4)]);
+    t(str_contains($sl->cancelable(1, DB::table('hal_slots')->find($s13->id))['why'], '3일이 지났어요'), '산 뒤 정한 날이 지나면 취소 못 함');
+    DB::table('hal_slots')->where('id', $s13->id)->update(['created_at' => now()]);
+    if ($used3 >= 2) {   // 쓰는 중 — 기본 한도를 지금 기기 수 - 1 로 두면 이 칸 중 1개는 쓰는 중
+        Settings::save(['max_devices' => $used3 - 1]);
+        t($sl->cancelable(1, DB::table('hal_slots')->find($s13->id))['n'] === 9 && str_contains($sl->cancel(1, (int) $s13->id, 10)[1], '9개까지'), '쓰는 중인 칸은 빼고 취소 (기기를 떼면 취소)');
+        Settings::save(['max_devices' => 20]);
+    }
+    [$k2] = $sl->cancel(1, (int) $s13->id, 0);
+    $b13 = DB::table('hal_slots')->find($s13->id);
+    t($k2 && $b13->status === 'cancelled' && (int) $b13->size === 0 && $GLOBALS['wallet148']['coin'][1] === 5000 && $L3::member(1) === 20 && ! $sl->cancel(1, (int) $s13->id, 1)[0], '나머지 모두 취소 — 낸 값 모두 돌아옴 · 칸 끝남 · 다시 취소 안 됨');
+    t($svc->overview(1)['slots']['cancel_days'] === 3 && isset($svc->overview(1)['slots']['slots'][0]['cancel']), '화면에 취소 날 수 · 칸마다 취소할 수 있는 수');
+    DB::table('hal_slots')->delete();
     $js8 = (string) file_get_contents(dirname(__DIR__).'/resources/assets/iot-link-app.js');
-    t(str_contains($js8, 'function slotBox()') && str_contains($js8, "'/slots/buy'") && str_contains($js8, "['slot_coin_price10',"), '화면 — 💳 칸 늘리기 · 관리자 값 (1개 · 10개)');
+    t(str_contains($js8, 'function slotBox()') && str_contains($js8, "'/slots/buy'") && str_contains($js8, "['slot_coin_price10',") && str_contains($js8, 'data-slot-qty=') && str_contains($js8, "'/cancel'") && str_contains($js8, "e.data.reason === 'insufficient'") && str_contains($js8, "['slot_cancel_days',"), '화면 — 💳 칸 늘리기 · 개수 · 취소 · 모자라면 충전 안내 · 관리자 값');
     Settings::save(['slot_enabled' => false, 'max_devices_company' => 0]);
     echo "■ 1.4.9 관리자 예외\n";
     $L9 = \Plugins\Custom\IotLink\Support\Limits::class;
