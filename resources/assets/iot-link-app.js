@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.9.4 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.9.5 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.9.4';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.9.5';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -609,8 +609,11 @@
       cols[c].push('<div class="hal-mn ' + (cls || '') + '" data-n="' + esc(id) + '"' + attrs + '>' + html + '</div>');
     };
     var edge = function (a, b, live) { for (var i = 0; i < E.length; i++) if (E[i][0] === a && E[i][1] === b) { E[i][2] = E[i][2] || live; return; } E.push([a, b, live]); };
+    var go2 = function (u) { return u ? ' data-href="' + esc(u) + '" role="link" tabindex="0"' : ''; };   // 1.9.5 🔗 붙인 곳 · 이어지는 곳 → 그 화면
+    var INV = d.config.inventory, prOf = {}; (d.printers || []).forEach(function (p) { prOf[p.id] = p; });
+    var eqCo = {}; (d.equipment || []).forEach(function (e) { eqCo[e.id] = e.company_id; });
     var lbl = function (ic, t, sub) { return '<i aria-hidden="true">' + ic + '</i><span><b>' + esc(t) + '</b>' + (sub ? '<small>' + sub + '</small>' : '') + '</span>'; };
-    var boxOf = {}; (d.boxes || []).forEach(function (b) { if (!boxOf[bkey(b.name)]) boxOf[bkey(b.name)] = b; });
+    var boxOf = {}, boxOfC = {}; (d.boxes || []).forEach(function (b) { if (!boxOf[bkey(b.name)]) boxOf[bkey(b.name)] = b; boxOfC[(+(b.company_id || 0)) + '|' + bkey(b.name)] = b; });   // 1.9.5 주인(개인 · 업체)마다
     var inst = (d.smartthings && d.smartthings.installs) || [], stOf = {};
     inst.forEach(function (s) { (s.site_devices || []).forEach(function (id) { stOf[id] = s; }); if (s.device_id) stOf[s.device_id] = stOf[s.device_id] || s; });
     // 1.7.1 🖨️ 내 프린터 모두 — 프린터 라운지가 직접 받는 연결(💻 PC 연결 프로그램)도 · 출력 상태 · 마지막으로 받은 때
@@ -620,9 +623,9 @@
       var tn = 't:p:' + p.id, sub = ['프린터'];
       if (PST[p.state]) sub.push(PST[p.state]); if (p.seen) sub.push(agoText(p.seen));
       var on = !!p.live || d.devices.some(function (x) { return x.target === 'printer' && x.printer_id === p.id && !x.stale && !x.never; });   // 연결이 꺼졌으면 회색으로 흐릿하게
-      node(2, tn, lbl(prIcon(p), p.name, esc(sub.join(' · ') + (on ? '' : ' · 연결 꺼짐'))), 'k-printer' + (on ? '' : ' gone'));
-      node(3, 'x:mpr', lbl('🖨️', '프린터 라운지', '출력 상태 · 주변 온습도'), 'k-ext'); edge(tn, 'x:mpr', !!p.live);
-      if (p.equipment_id && d.config.inventory) { node(3, 'x:eq', lbl('🏭', '업체 장비', '장비 상태 · 온습도'), 'k-ext'); edge(tn, 'x:eq', !!p.live); }   // 1.7.9 이어진 업체 장비
+      node(2, tn, lbl(prIcon(p), p.name, esc(sub.join(' · ') + (on ? '' : ' · 연결 꺼짐'))), 'k-printer' + (on ? '' : ' gone'), go2(p.company_id ? '/my-printer/company' : '/my-printer'));
+      node(3, 'x:mpr', lbl('🖨️', '프린터 라운지', '출력 상태 · 주변 온습도'), 'k-ext', go2('/my-printer')); edge(tn, 'x:mpr', !!p.live);
+      if (p.equipment_id && d.config.inventory) { node(3, 'x:eq', lbl('🏭', '업체 장비', '장비 상태 · 온습도'), 'k-ext', go2('/inventory?tab=equipment')); edge(tn, 'x:eq', !!p.live); }   // 1.7.9 이어진 업체 장비
       // 1.7.4 사이트 ⇄ 💻 PC(라즈베리파이)의 연결 프로그램 ⇄ 프린터 — 프린터 라운지와 같은 이름 · SimplyPrint 는 따로
       if (p.via === 'simply') { node(0, 'src:simply', lbl('🔗', 'SimplyPrint', '클라우드로 프린터 상태를 받음'), 'k-hook'); edge('src:simply', tn, !!p.live); }
       else if (p.via === 'script' || (p.seen && !p.via)) { node(0, 'src:pc', lbl('💻', 'PC 연결 프로그램', 'PC · 라즈베리파이에서 프린터 ⇄ 사이트 (상태를 받고 · 원격 출력을 보냄)'), 'k-hook'); edge('src:pc', tn, !!p.live); }
@@ -645,21 +648,21 @@
         var wl = d.devices.filter(function (o) { return !(o.target !== 'other' && !!o.where); });
         node(2, tn, lbl('📡', '대기 칸 ' + wl.length, '아직 붙이지 않음') + '<ul class="hal-mn-list">' + wl.map(function (o) { var oc = capsOf(o); return '<li class="' + (!o.stale && !o.never ? 'on' : 'off') + '"><i aria-hidden="true">' + (oc.state ? '⚙️' : oc.temp && oc.hum ? '🌡️' : oc.hum ? '💧' : '🌡️') + '</i>' + esc(o.name) + '</li>'; }).join('') + '</ul>', 'k-wait');
       }
-      else if (x.target === 'location') { var b = boxOf[bkey(x.location)] || { name: x.location }; tn = 't:l:' + bkey(x.location); node(2, tn, lbl('📦', b.name, b.rolls != null ? '보관함 · 롤 ' + b.rolls + '개' : '보관함'), 'k-box', ' style="--bx:' + boxCol(b) + '"'); }
-      else if (x.target === 'printer') { tn = 't:p:' + x.printer_id; node(2, tn, lbl('🖨️', x.where, '프린터'), 'k-printer'); }
+      else if (x.target === 'location') { var b = boxOfC[(+(x.company_id || 0)) + '|' + bkey(x.location)] || boxOf[bkey(x.location)] || { name: x.location, company_id: x.company_id }; tn = 't:l:' + bkey(x.location); node(2, tn, lbl('📦', b.name, b.rolls != null ? '보관함 · 롤 ' + b.rolls + '개' : '보관함'), 'k-box', ' style="--bx:' + boxCol(b) + '"' + (INV ? go2(b.company_id ? '/inventory?tab=stock&company=' + b.company_id + '&box=' + encodeURIComponent(bkey(b.name)) : '/inventory?tab=drawer&box=' + encodeURIComponent(b.name)) : '')); }
+      else if (x.target === 'printer') { tn = 't:p:' + x.printer_id; node(2, tn, lbl('🖨️', x.where, '프린터'), 'k-printer', go2(prOf[x.printer_id] && prOf[x.printer_id].company_id ? '/my-printer/company' : '/my-printer')); }
       else if (lnk[x.equipment_id]) { tn = 't:p:' + lnk[x.equipment_id]; }   // 1.7.9 프린터와 이어진 장비 — 프린터 하나로
-      else { tn = 't:e:' + x.equipment_id; node(2, tn, lbl('🏭', x.where, '장비'), 'k-equip'); }
+      else { tn = 't:e:' + x.equipment_id; node(2, tn, lbl('🏭', x.where, '장비'), 'k-equip', INV ? go2('/inventory?tab=equipment' + (eqCo[x.equipment_id] ? '&company=' + eqCo[x.equipment_id] : '')) : ''); }
       edge(dn, tn, live);
       // ④ 이어지는 확장
       if (!placed) return;
-      if (x.target === 'location' && d.config.inventory) { node(3, 'x:inv', lbl('🧵', '재고 관리', '보관함 습도 · 건조일 · 알림'), 'k-ext'); edge(tn, 'x:inv', live); }
-      if (x.target === 'printer') { node(3, 'x:mpr', lbl('🖨️', '프린터 라운지', '출력 상태 · 주변 온습도'), 'k-ext'); edge(tn, 'x:mpr', live); }
-      if (x.target === 'equipment' && d.config.inventory) { node(3, 'x:eq', lbl('🏭', '업체 장비', '장비 상태 · 온습도'), 'k-ext'); edge(tn, 'x:eq', live); }
-      if (c.state && x.target !== 'location') { node(3, 'x:mnt', lbl('🛠', '정비 수첩', '가동 시간 → 정비 때'), 'k-ext'); edge(tn, 'x:mnt', live); }
+      if (x.target === 'location' && d.config.inventory) { node(3, 'x:inv', lbl('🧵', '재고 관리', '보관함 습도 · 건조일 · 알림'), 'k-ext', go2('/inventory?tab=drawer')); edge(tn, 'x:inv', live); }
+      if (x.target === 'printer') { node(3, 'x:mpr', lbl('🖨️', '프린터 라운지', '출력 상태 · 주변 온습도'), 'k-ext', go2('/my-printer')); edge(tn, 'x:mpr', live); }
+      if (x.target === 'equipment' && d.config.inventory) { node(3, 'x:eq', lbl('🏭', '업체 장비', '장비 상태 · 온습도'), 'k-ext', go2('/inventory?tab=equipment')); edge(tn, 'x:eq', live); }
+      if (c.state && x.target !== 'location') { node(3, 'x:mnt', lbl('🛠', '정비 수첩', '가동 시간 → 정비 때'), 'k-ext', go2('/maintenance')); edge(tn, 'x:mnt', live); }
     });
     S.mapE = E;
     var T = [['📥', '받는 곳'], ['📡', '기기'], ['📌', '붙인 곳'], ['🔗', '이어지는 곳']];
-    return '<div class="hal-map-wrap"><p class="hal-hint">선이 <b class="hal-map-k on">초록</b>이면 값이 들어오고, <b class="hal-map-k off">회색 점선</b>이면 끊겼거나 아직 값이 없어요. 마디에 마우스를 올리면 그 연결만 진하게 · 기기를 누르면 고치기.</p>' +
+    return '<div class="hal-map-wrap"><p class="hal-hint">선이 <b class="hal-map-k on">초록</b>이면 값이 들어오고, <b class="hal-map-k off">회색 점선</b>이면 끊겼거나 아직 값이 없어요. 마디에 마우스를 올리면 그 연결만 진하게 · 기기를 누르면 고치기 · 붙인 곳 · 이어지는 곳을 누르면 그 화면으로.</p>' +
       '<div class="hal-map" data-map><svg class="hal-map-svg" aria-hidden="true"></svg><div class="hal-map-cols">' + cols.map(function (c, i) { return '<div class="hal-map-col"><h4><i aria-hidden="true">' + T[i][0] + '</i>' + T[i][1] + ' <small>' + c.length + '</small></h4>' + (c.join('') || '<p class="hal-hint">—</p>') + '</div>'; }).join('') + '</div></div></div>';
   }
   /** 선 그리기 — 마디의 실제 자리를 재서 곡선으로 (창 크기가 바뀌면 다시) */
@@ -671,7 +674,9 @@
     svg.innerHTML = (S.mapE || []).map(function (e) {
       var a = pos[e[0]], b = pos[e[1]]; if (!a || !b) return '';
       var x1 = a.r, x2 = b.l, dx = Math.max(24, (x2 - x1) / 2);
-      return '<path data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" d="M' + x1 + ' ' + a.y + ' C' + (x1 + dx) + ' ' + a.y + ' ' + (x2 - dx) + ' ' + b.y + ' ' + x2 + ' ' + b.y + '"/>';
+      return '<path data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" d="M' + x1 + ' ' + a.y + ' C' + (x1 + dx) + ' ' + a.y + ' ' + (x2 - dx) + ' ' + b.y + ' ' + x2 + ' ' + b.y + '"/>' +
+        // 1.9.5 선이 붙는 곳 — 양 끝에 점
+        '<circle data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" cx="' + x1 + '" cy="' + a.y + '" r="4"/><circle data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" cx="' + x2 + '" cy="' + b.y + '" r="4"/>';
     }).join('');
   }
   function mapBind() {
@@ -680,11 +685,14 @@
     if (!S.mapRs) { S.mapRs = true; var t = 0; addEventListener('resize', function () { clearTimeout(t); t = setTimeout(function () { if (S.root && S.root.querySelector('[data-map]')) mapLines(); }, 120); }); }
     var hl = function (id) {
       var keep = {}; if (id) keep[id] = 1;
-      m.querySelectorAll('path').forEach(function (p) { var hit = id && (p.getAttribute('data-a') === id || p.getAttribute('data-b') === id); p.classList.toggle('hl', !!hit); p.classList.toggle('dim', !!id && !hit); if (hit) { keep[p.getAttribute('data-a')] = 1; keep[p.getAttribute('data-b')] = 1; } });
+      m.querySelectorAll('path,circle').forEach(function (p) { var hit = id && (p.getAttribute('data-a') === id || p.getAttribute('data-b') === id); p.classList.toggle('hl', !!hit); p.classList.toggle('dim', !!id && !hit); if (hit) { keep[p.getAttribute('data-a')] = 1; keep[p.getAttribute('data-b')] = 1; } });
       m.querySelectorAll('[data-n]').forEach(function (el) { el.classList.toggle('dim', !!id && !keep[el.getAttribute('data-n')]); });
     };
     m.addEventListener('mouseover', function (e) { var n = e.target.closest('[data-n]'); hl(n ? n.getAttribute('data-n') : ''); });
     m.addEventListener('mouseleave', function () { hl(''); });
+    var open = function (e) { if (e.target.closest('[data-edit]')) return; var h = e.target.closest('[data-href]'); if (!h) return; e.preventDefault(); go(h.getAttribute('data-href')); };   // 1.9.5 🔗 그 화면으로
+    m.addEventListener('click', open);
+    m.addEventListener('keydown', function (e) { if (e.key === 'Enter') open(e); });
   }
   function redraw() { var y = window.scrollY; draw(); window.scrollTo(0, y); }
   function selBind() {
