@@ -18,7 +18,7 @@ use Plugins\Custom\IotLink\Support\Settings;
  */
 final class Ha
 {
-    public const VERSION = '1.8.5';
+    public const VERSION = '1.8.6';
 
     public static function active(): bool
     {

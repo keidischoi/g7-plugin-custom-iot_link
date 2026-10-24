@@ -68,8 +68,21 @@ class SlotService
                 $targets[] = ['key' => 'c'.$c['id'], 'label' => '🏢 '.$c['name']];
             }
         }
+        // 1.8.6 📊 칸 쓰임 — 전체 = 기본 + 구매 · 사용 = 붙인 기기 · 남은 = 전체 - 사용 (관리자 = 무제한)
+        $boughtMe = Limits::bought($uid, null);
+        $usedMe = (int) DB::table(Schema::DEVICES)->where('user_id', $uid)->count();
+        $usage = [$exempt ? ['key' => 'me', 'label' => '나 (개인 · 장비)', 'unlimited' => true, 'bought' => $boughtMe, 'used' => $usedMe]
+            : ['key' => 'me', 'label' => '나 (개인 · 장비)', 'base' => max(0, Limits::member($uid) - $boughtMe), 'bought' => $boughtMe, 'used' => $usedMe]];
+        foreach ($companies as $c) {
+            $cid = (int) $c['id'];
+            $tot = Limits::company($cid);
+            if ($tot > 0) {
+                $b = Limits::bought(0, $cid);
+                $usage[] = ['key' => 'c'.$cid, 'label' => '🏢 '.$c['name'], 'base' => max(0, $tot - $b), 'bought' => $b, 'used' => Limits::companyUsed($cid)];
+            }
+        }
 
-        return ['enabled' => true, 'selling' => $selling, 'exempt' => $exempt, 'mode' => (string) Settings::get('slot_mode'), 'currencies' => $cur, 'targets' => $targets, 'max_qty' => self::MAX_QTY, 'cancel_days' => (int) Settings::get('slot_cancel_days'),
+        return ['enabled' => true, 'selling' => $selling, 'exempt' => $exempt, 'usage' => $usage, 'mode' => (string) Settings::get('slot_mode'), 'currencies' => $cur, 'targets' => $targets, 'max_qty' => self::MAX_QTY, 'cancel_days' => (int) Settings::get('slot_cancel_days'),
             'slots' => $rows->map(fn ($s) => ['id' => (int) $s->id, 'size' => (int) $s->size, 'cancel' => $this->cancelable($uid, $s), 'for' => $s->company_id ? '🏢 '.($cn[(int) $s->company_id] ?? '업체') : '나', 'mine' => (int) $s->user_id === $uid,
                 'amount_text' => Points::format((int) $s->amount, (string) $s->currency), 'mode' => (string) $s->mode, 'status' => (string) $s->status,
                 'expires_at' => $s->expires_at ? Carbon::parse((string) $s->expires_at)->toIso8601String() : null, 'auto_renew' => (bool) $s->auto_renew])->all()];
