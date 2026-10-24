@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.9.2 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.9.3 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.9.2';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.9.3';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -170,7 +170,7 @@
       }).join('') : '<p class="hal-warn">지금 쓸 수 있는 결제 수단이 없어요 (코인 · 마일리지 확장이 꺼져 있거나 값이 정해지지 않았어요).</p>')) +
       ((T.slots || []).length ? '<h4 class="hal-slot-t">구매한 칸</h4><ul class="hal-slotl">' + T.slots.map(function (x) {
         var st = x.status === 'active' ? (x.expires_at ? '🟢 ' + x.expires_at.slice(0, 10) + '까지' : '🟢 계속') : x.status === 'cancelled' ? '↩️ 취소함' : '⚪ 끝남', cx = x.cancel || {};
-        return '<li' + (x.status === 'cancelled' ? ' class="off"' : '') + '><b>' + esc(x.for) + ' · 센서' + (x.size ? ' ' + x.size + '개' : '') + '</b><span>' + (x.status === 'cancelled' && /^0D*$/.test(x.amount_text || '') ? '' : esc(x.amount_text) + ' · ') + st + '</span>' +   // 1.9.0 취소한 칸은 흐리게 (예전에 0개 · 0원으로 남은 것은 숫자 빼고)
+        return '<li' + (x.status === 'cancelled' ? ' class="off"' : '') + '><b>' + esc(x.for) + ' · 센서' + (x.size ? ' ' + x.size + '개' : '') + '</b><span>' + (x.status === 'cancelled' && /^0[^0-9]*$/.test(x.amount_text || '') ? '' : esc(x.amount_text) + ' · ') + st + '</span>' +   // 1.9.0 취소한 칸은 흐리게 (예전에 0개 · 0원으로 남은 것은 숫자 빼고)
           (x.mine && x.status === 'active' ? (cx.n > 0 ? '<button type="button" class="hal-btn sm" data-slot-cancel="' + x.id + '" data-max="' + cx.n + '" data-size="' + x.size + '" title="안 쓴 칸 ' + cx.n + '개까지 취소 · 낸 값의 몫을 돌려받아요 (산 뒤 ' + (T.cancel_days || 0) + '일 안)">↩️ 취소</button>' : (cx.why ? '<small class="hal-mute">취소 못 함 — ' + esc(cx.why) + '</small>' : '')) : '') + (x.mode === 'monthly' && x.status === 'active' && x.mine ? '<label class="hal-chk"><input type="checkbox" data-slot-auto="' + x.id + '"' + (x.auto_renew ? ' checked' : '') + '> 자동 연장</label>' : '') + '</li>';
       }).join('') + '</ul>' : '');
     var ov = modal(T.selling === false ? '💳 구매한 센서 칸' : '💳 센서 칸 늘리기', html);
