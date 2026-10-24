@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.7.17 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.7.18 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.17';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.18';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -279,9 +279,8 @@
   function board() {
     var d = S.d, sc = scope(), cos = {}, owners = [];
     (d.companies || []).forEach(function (c) { cos[c.id] = c.name; });
-    var devs = d.devices.filter(inScope);
     var placed = function (x) { return x.target !== 'other' && !!x.where; };
-    var free = devs.filter(function (x) { return !placed(x); });
+    var free = d.devices.filter(function (x) { return !placed(x); });   // 1.7.18 대기 칸은 탭과 상관없이 모두 (어느 쪽으로든 끌어 붙이게)
     var at = function (fn) { return d.devices.filter(function (x) { return placed(x) && fn(x); }); };
     var cidOf = function (v) { return +(v || 0); };
     if (sc !== 'company') owners.push(0);
