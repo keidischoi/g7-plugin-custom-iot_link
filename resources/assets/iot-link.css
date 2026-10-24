@@ -1,4 +1,4 @@
-/* custom-iot_link 1.9.0 — 📡 IoT 연결 */
+/* custom-iot_link 1.9.1 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -230,7 +230,7 @@ html.dark .hal-note-pay, .dark .hal-note-pay { background:#451a03; border-color:
 .hal-selbar label { display:flex; align-items:center; gap:6px; font-weight:600; cursor:pointer; } .hal-selbar label input { width:18px; height:18px; margin:0; accent-color:#dc2626; }
 .hal-selbar span { flex:1; min-width:90px; color:var(--mute); font-size:13px; } .hal-selbar .hal-btn[disabled] { opacity:.45; cursor:default; }
 .hal-stl { display:inline-block; flex:none; width:1.15em; height:1.15em; vertical-align:-.2em; }
-.hal-badge.ha { background:#ffedd5; color:#c2410c; } html.dark .hal-badge.ha, .dark .hal-badge.ha { background:#431407; color:#fed7aa; } .hal-start h2 .hal-hal { width:1em; height:1em; vertical-align:-.12em; }
+.hal-badge.ha { background:#e0f7fe; color:#0369a1; } html.dark .hal-badge.ha, .dark .hal-badge.ha { background:#0c3a4f; color:#bae6fd; } .hal-start h2 .hal-hal { width:1em; height:1em; vertical-align:-.12em; }
 .hal-stc-logo { background:none; border-radius:0; } .hal-stc-logo .hal-stl { width:44px; height:44px; filter:drop-shadow(0 2px 5px rgba(21,191,255,.35)); }
 .hal-fake-logo.st { background:none; } .hal-fake-logo.st .hal-stl { width:38px; height:38px; }
 .hal-st-ah h2 .hal-stl { width:22px; height:22px; vertical-align:-4px; }
@@ -421,7 +421,7 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
 .hal-mn span { display:flex; flex-direction:column; min-width:0; } .hal-mn b { font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .hal-mn small { color:var(--mute); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .hal-mn em { font-style:normal; } .hal-mn em.on { color:#22c55e; } .hal-mn em.off { color:#94a3b8; }
 .hal-mn.dim { opacity:.35; }
-.hal-mn.k-ha { border-left:4px solid #f97316; } .hal-mn.k-st { border-left:4px solid #15bfff; }
+.hal-mn.k-ha { border-left:4px solid #18bcf2; } .hal-mn.k-st { border-left:4px solid #15bfff; }
 .hal-mn.k-dev[data-edit] { cursor:pointer; } .hal-mn.k-dev[data-edit]:hover { border-color:var(--a); } .hal-mn.k-dev.off { background:var(--soft); } .hal-mn.k-dev.hot { border-color:#f87171; }
 .hal-mn.k-box { border:2px solid color-mix(in srgb, var(--bx) 55%, var(--line)); border-top:5px solid var(--bx); background:color-mix(in srgb, var(--bx) 7%, var(--card)); }
 .hal-mn.k-printer { border-left:4px solid #2563eb; } .hal-mn.k-equip { border-left:4px solid #7c3aed; }
@@ -555,7 +555,7 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
 .hal-srctabs button { display:inline-flex; align-items:center; gap:6px; margin-bottom:-1px; padding:8px 14px; border:1px solid var(--line); border-bottom:0; border-radius:12px 12px 0 0; background:var(--soft); color:var(--mute); font:inherit; font-size:13.5px; font-weight:800; white-space:nowrap; cursor:pointer; }
 .hal-srctabs button .hal-stl { width:18px; height:18px; } .hal-srctabs button small { font-weight:700; font-size:11.5px; opacity:.8; }
 .hal-srctabs button.on { position:relative; z-index:1; background:var(--card); color:var(--ink); }
-.hal-stc-logo.ha { background:linear-gradient(135deg,#fb923c,#f97316); } .hal-stc-logo.ha .hal-stl { width:26px; height:26px; }
+.hal-stc-logo.ha { background:none; } .hal-stc-logo.ha .hal-stl { width:44px; height:44px; filter:drop-shadow(0 2px 5px rgba(24,188,242,.35)); }   /* 1.9.1 공식 파랑 · 바탕 없음 (주황 바탕 위 주황이라 안 보였음) */
 .hal-stc-devs.ha { gap:6px; }
 .hal-hachip { display:inline-flex; align-items:center; gap:5px; max-width:100%; padding:4px 11px; border:0; border-radius:99px; background:var(--soft); color:inherit; font:inherit; font-size:12.5px; font-weight:600; cursor:pointer; }
 .hal-hachip:hover { box-shadow:inset 0 0 0 1.5px var(--a); } .hal-hachip small { color:var(--mute); font-weight:500; } .hal-hachip.off { opacity:.6; }
@@ -602,3 +602,7 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
 /* 1.9.0 ⚙️ 관리자 설정 탭 */
 .hal-atabs{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 12px}
 .hal-form [hidden],[data-tg][hidden]{display:none!important}
+.hal-gauge .c.inf{display:inline-flex;align-items:center;justify-content:center;width:auto;min-width:18px;padding:0 5px;border-style:dashed;font-size:13px;font-weight:800;line-height:1;opacity:.8}
+/* 1.9.1 아직 없는 칸 — 흐리게 */
+.hal-gauge .c.ghost{opacity:.22;border-style:dotted}
+.hal-gauge .c.add{width:18px;min-width:18px;padding:0;font-size:12px}

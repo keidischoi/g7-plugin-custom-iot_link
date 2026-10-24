@@ -87,7 +87,8 @@ final class Limits
     {
         try {
             return DB::table(Schema::DEVICES)->where(function ($q) use ($cid) {
-                $q->where('grp', 'c'.$cid)->orWhere(fn ($w) => $w->where(fn ($g) => $g->whereNull('grp')->orWhere('grp', ''))->where('target', 'equipment')->where('company_id', $cid));
+                // 1.9.1 그 업체로 분류한 것 + 업체 장비 · 프린터 · 보관함에 붙어 그 업체 것(company_id)인 것 (다른 업체로 분류한 것은 빼고) — 화면 「🏢 업체 기기」와 같은 수
+                $q->where('grp', 'c'.$cid)->orWhere(fn ($w) => $w->where('company_id', $cid)->where(fn ($g) => $g->whereNull('grp')->orWhere('grp', 'not like', 'c%')));
             })->when($except !== [], fn ($q) => $q->whereNotIn('id', $except))->count();
         } catch (\Throwable) {
             return 0;

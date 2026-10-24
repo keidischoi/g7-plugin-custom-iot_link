@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.9.0 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.9.1 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.9.0';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.9.1';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -124,7 +124,10 @@
   /* 1.8.6 📊 칸 그림 — 기본 칸 · 💳 구매한 칸 · 채움 = 쓰는 칸 · 빈 칸 = 남은 칸 · 넘은 만큼은 빨강 · 끝에 ＋ 칸 추가(판매 중) */
   function slotGauge(u, selling) {
     var used = +u.used || 0, b = +u.bought || 0;
-    if (u.unlimited) return '<div class="hal-gauge"><div class="hal-gauge-h"><b>' + esc(u.label) + '</b><small>무제한 (관리자) · 사용 ' + used + '칸' + (b ? ' · 💳 구매 ' + b + '칸' : '') + '</small></div></div>';
+    if (u.unlimited) {   // 1.9.1 무제한도 쓰는 칸은 그림으로 (끝에 ∞)
+      var uc = ''; for (var k = 0; k < Math.min(used, 60); k++) uc += '<i class="c on" title="쓰는 칸"></i>';
+      return '<div class="hal-gauge"><div class="hal-gauge-h"><b>' + esc(u.label) + '</b><small>무제한 (관리자) · 사용 <b>' + used + '</b>칸' + (b ? ' · 💳 구매 ' + b + '칸' : '') + '</small></div><div class="hal-gauge-c">' + uc + (used > 60 ? '<small>+' + (used - 60) + '</small>' : '') + '<span class="c inf" title="관리자는 한도가 없어요">∞</span></div></div>';
+    }
     var base = +u.base || 0, tot = base + b, left = Math.max(0, tot - used), over = Math.max(0, used - tot), MAX = 60, cells = '';
     if (tot + over <= MAX) {
       for (var i = 0; i < tot; i++) cells += '<i class="c' + (i >= base ? ' buy' : '') + (i < used ? ' on' : '') + '" title="' + (i >= base ? '💳 구매한 칸' : '기본 칸') + ' · ' + (i < used ? '쓰는 중' : '남음') + '"></i>';
@@ -132,6 +135,23 @@
     } else cells = '<span class="hal-gauge-bar"><i style="width:' + Math.min(100, Math.round(used * 100 / Math.max(1, tot))) + '%"></i></span>';
     if (selling) cells += '<button type="button" class="c add" data-slot-add title="칸 더 사기">＋</button>';
     return '<div class="hal-gauge"><div class="hal-gauge-h"><b>' + esc(u.label) + '</b><small>전체 <b>' + tot + '</b>칸 (기본 ' + base + (b ? ' + 💳 구매 ' + b : '') + ') · 사용 <b>' + used + '</b> · 남은 <b>' + left + '</b>' + (over ? ' · <span class="hal-over">⚠️ ' + over + '칸 넘음</span>' : '') + '</small></div><div class="hal-gauge-c">' + cells + '</div></div>';
+  }
+  /* 1.9.1 칸 줄을 줄 끝까지 — 가진 칸 · ＋ 뒤로 흐린 칸(아직 없는 칸)을 채워 한 줄이 꽉 차게 (너비가 바뀌면 다시) */
+  function slotFill(ov) {
+    var fill = function () {
+      Array.prototype.forEach.call(ov.querySelectorAll('.hal-gauge-c'), function (c) {
+        Array.prototype.forEach.call(c.querySelectorAll('.c.ghost'), function (g) { g.remove(); });
+        var items = c.querySelectorAll('.c'); if (!items.length) return;
+        var w = c.clientWidth, cell = 22, per = Math.max(1, Math.floor((w + 4) / cell)), n = 0;
+        Array.prototype.forEach.call(items, function (i) { n += Math.max(1, Math.round((i.offsetWidth + 4) / cell)); });
+        var need = (per - (n % per)) % per; if (n < per) need = per - n;
+        for (var k = 0; k < need; k++) { var g = document.createElement('i'); g.className = 'c ghost'; g.title = '아직 없는 칸'; c.appendChild(g); }
+        var add = c.querySelector('.c.add'); if (add) c.appendChild(add);   // 줄 맨 끝 칸 = ＋ 추가 구매
+      });
+    };
+    setTimeout(fill, 0);
+    var t = 0; var onR = function () { clearTimeout(t); t = setTimeout(fill, 120); }; window.addEventListener('resize', onR);
+    var mo = new MutationObserver(function () { if (!document.contains(ov)) { window.removeEventListener('resize', onR); mo.disconnect(); } }); mo.observe(document.body, { childList: true });
   }
   function slotBox() {
     var T = S.d.slots || {};
@@ -153,6 +173,7 @@
           (x.mine && x.status === 'active' ? (cx.n > 0 ? '<button type="button" class="hal-btn sm" data-slot-cancel="' + x.id + '" data-max="' + cx.n + '" data-size="' + x.size + '" title="안 쓴 칸 ' + cx.n + '개까지 취소 · 낸 값의 몫을 돌려받아요 (산 뒤 ' + (T.cancel_days || 0) + '일 안)">↩️ 취소</button>' : (cx.why ? '<small class="hal-mute">취소 못 함 — ' + esc(cx.why) + '</small>' : '')) : '') + (x.mode === 'monthly' && x.status === 'active' && x.mine ? '<label class="hal-chk"><input type="checkbox" data-slot-auto="' + x.id + '"' + (x.auto_renew ? ' checked' : '') + '> 자동 연장</label>' : '') + '</li>';
       }).join('') + '</ul>' : '');
     var ov = modal(T.selling === false ? '💳 구매한 센서 칸' : '💳 센서 칸 늘리기', html);
+    slotFill(ov);
     var curOf = function (k) { return cur.filter(function (c) { return c.key === k; })[0] || {}; };
     var qtyOf = function (k) { var i = ov.querySelector('[data-slot-qty="' + k + '"]'); var v = Math.round(+(i && i.value) || 1); return Math.max(1, Math.min(T.max_qty || 100, v)); };
     var redrawBtn = function (k) { var bb = ov.querySelector('[data-slot-buy="' + k + '"]'); if (bb) { bb.textContent = slotBtnText(curOf(k), qtyOf(k)); bb.disabled = slotTotal(curOf(k), qtyOf(k)) <= 0; } };
@@ -721,7 +742,7 @@
   /* 1.4.3 Home Assistant 로고 (공식 심볼 — 집 · 회로 · SmartThings 하늘색과 구분되게 주황). 그림 파일 없이 SVG 한 줄. 상표는 Home Assistant(Open Home Foundation)의 것 — 연결 대상 표시로만 씀
    *   심볼 모양 출처: Simple Icons (CC0) — home-assistant/assets */
   var HA_PATH = 'M22.939 10.627 13.061.749a1.505 1.505 0 0 0-2.121 0l-9.879 9.878C.478 11.21 0 12.363 0 13.187v9c0 .826.675 1.5 1.5 1.5h9.227l-4.063-4.062a2.034 2.034 0 0 1-.664.113c-1.13 0-2.05-.92-2.05-2.05s.92-2.05 2.05-2.05 2.05.92 2.05 2.05c0 .233-.041.456-.113.665l3.163 3.163V9.928a2.05 2.05 0 0 1-1.15-1.84c0-1.13.92-2.05 2.05-2.05s2.05.92 2.05 2.05a2.05 2.05 0 0 1-1.15 1.84v8.127l3.146-3.146A2.051 2.051 0 0 1 18 12.239c1.13 0 2.05.92 2.05 2.05s-.92 2.05-2.05 2.05c-.25 0-.488-.047-.709-.13L12.9 20.602v3.088h9.6c.825 0 1.5-.675 1.5-1.5v-9c0-.825-.477-1.977-1.061-2.561z';
-  function haLogo(cls) { return '<svg class="hal-stl hal-hal' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="#F97316" d="' + HA_PATH + '"/></svg>'; }
+  function haLogo(cls) { return '<svg class="hal-stl hal-hal' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="#18BCF2" d="' + HA_PATH + '"/></svg>'; }
   function stLogo(cls) { return '<svg class="hal-stl' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="2" y="2" width="20" height="20" rx="5" fill="#fff"/><path fill="#15BFFF" d="' + ST_PATH + '"/></svg>'; }
 
   /* ── 📡 SmartThings 카드 ──
@@ -1213,7 +1234,7 @@
     ['alert', '🔔 알림', ['alert_gap_hours', 'notify_site', 'notify_mail']],
     ['cam', '📷 카메라', ['snapshot', 'snap_gap_min']],
     ['link', '🔗 다른 확장', ['printer_link', 'company_link']],
-    ['st', '📡 SmartThings', []]
+    ['st', 'SmartThings', []]
   ];
   function agroupOf(k) { for (var i = 0; i < AGROUPS.length; i++) if (AGROUPS[i][2].indexOf(k) >= 0) return AGROUPS[i][0]; return 'base'; }
   function aTab() { var t = pref('atab', 'base'); return AGROUPS.some(function (g) { return g[0] === t; }) ? t : 'base'; }
@@ -1222,7 +1243,7 @@
     api('GET', '/admin/settings').then(function (r) {
       var s = r.data.settings, st = r.data.stats;
       wrap('<section class="hal-hero"><div><h1>📡 IoT 연결 — 관리자</h1><p>회원 화면: <a href="' + BASE + '" target="_blank">' + BASE + '</a> · 회원 기기의 값 · 받는 주소는 관리자에게도 보이지 않아요</p></div><div class="hal-stats"><span>쓰는 회원 <b>' + n(st.users) + '</b></span><span>기기 <b>' + n(st.devices) + '</b></span><span>🟢 연결됨 <b>' + n(st.live) + '</b></span><span>기록 <b>' + n(st.readings) + '</b>줄</span><span>' + stLogo() + ' SmartThings <b>' + n(st.st_installs) + '</b></span></div></section>' +
-        '<div class="hal-seg hal-atabs" role="tablist" aria-label="설정 묶음">' + AGROUPS.map(function (g) { return '<button type="button" role="tab" data-atab="' + g[0] + '">' + g[1] + '</button>'; }).join('') + '</div>' +   // 1.9.0 탭
+        '<div class="hal-seg hal-atabs" role="tablist" aria-label="설정 묶음">' + AGROUPS.map(function (g) { return '<button type="button" role="tab" data-atab="' + g[0] + '">' + (g[0] === 'st' ? stLogo() + ' ' : '') + g[1] + '</button>'; }).join('') + '</div>' +   // 1.9.0 탭
         '<div class="hal-form">' + FIELDS.map(function (f) {
           if (f[2] === 'sel') return '<label data-tg="' + agroupOf(f[0]) + '">' + esc(f[1]) + '<select data-k="' + f[0] + '">' + f[3].map(function (o) { return '<option value="' + o[0] + '"' + (s[f[0]] === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></label>';
           if (f[2] === 'area') return '<label data-tg="' + agroupOf(f[0]) + '" class="full">' + esc(f[1]) + '<textarea data-k="' + f[0] + '" rows="2" spellcheck="false" placeholder="비우면 모두 기본값">' + esc(s[f[0]] || '') + '</textarea></label>';   // 1.4.7
