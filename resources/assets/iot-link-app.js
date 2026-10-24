@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.11.1 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.12.0 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.11.1';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.12.0';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -227,24 +227,33 @@
   var MT_REPO = 'https://github.com/keidischoi/matter-3ds-link';   // 1.10.0 🧩 3ds Matter 연결 (라즈베리파이 · 리눅스 · 윈도우 python)
   /* 1.11.0 🪟 윈도우 한 줄 — PowerShell 만 (MprLink 와 같은 방식) · Matter 서버 주소는 이 브라우저에 기억 · 센서마다 사이트 기기는 연결 코드로 저절로 */
   function mtAddr() { return String(pref('mtaddr', '')).trim(); }
-  function mtLine(addr) {
-    var L = S.d.link || {}, a = String(addr == null ? mtAddr() : addr).trim().replace(/[^A-Za-z0-9.:\[\]\/-]/g, '');
-    return 'irm "' + (L.site || location.origin) + API + '/mt/' + (L.code || '') + '.ps1' + (a ? '?matter=' + encodeURIComponent(a) : '') + '" | iex';
+  function mtOs() { var v = pref('mtos', ''); if (v === 'win' || v === 'sh') return v; return /Win/i.test(navigator.platform || navigator.userAgent) ? 'win' : 'sh'; }   // 1.12.0 이 PC 에 맞게 먼저
+  function mtLine(addr, os) {
+    var L = S.d.link || {}, a = String(addr == null ? mtAddr() : addr).trim().replace(/[^A-Za-z0-9.:\[\]\/-]/g, ''), sh = (os || mtOs()) === 'sh';
+    var u = (L.site || location.origin) + API + '/mt/' + (L.code || '') + (sh ? '.sh' : '.ps1') + (a ? '?matter=' + encodeURIComponent(a) : '');
+    return sh ? 'curl -fsSL "' + u + '" | bash' : 'irm "' + u + '" | iex';
   }
-  function mtWin() {
-    return '<section class="hal-sec hal-mtwin"><h4>🪟 윈도우 PC 에 설치 <small>한 줄 · 따로 깔 것 없음 (PowerShell)</small></h4>' +
+  function mtWin(os) {
+    os = os || mtOs();
+    var sh = os === 'sh';
+    return '<section class="hal-sec hal-mtwin" data-mtos="' + os + '"><h4>' + mtLogo() + ' 중계 설치 <small>한 줄 · 따로 깔 것 없음</small></h4>' +
+      '<div class="hal-seg hal-mtos" role="tablist"><button type="button" role="tab" data-mt-os="win" class="' + (sh ? '' : 'on') + '" aria-selected="' + !sh + '">🪟 윈도우</button><button type="button" role="tab" data-mt-os="sh" class="' + (sh ? 'on' : '') + '" aria-selected="' + sh + '">🐧 리눅스 · 🍎 맥 · 🍓 라즈베리파이</button></div>' +
       '<label>Matter 서버 주소 <small>HA 의 Matter Server 애드온이면 HA 의 IP · 비우면 설치 때 물어봐요</small><input data-mt-addr value="' + esc(mtAddr()) + '" placeholder="예: 192.168.0.10" autocapitalize="off" autocomplete="off" spellcheck="false"></label>' +
-      '<div class="hal-copy"><span>PowerShell</span><code data-mt-line>' + esc(mtLine()) + '</code><button type="button" class="hal-btn sm pri" data-mt-cp>📋 복사</button></div>' +
-      '<ol class="hal-stc-steps"><li><em>1</em>시작 › <b>PowerShell</b> 열기</li><li><em>2</em>붙여 넣고 Enter</li><li><em>3</em>공유 코드 적기 (건너뛰어도 돼요)</li></ol>' +
-      '<p class="hal-hint">늘 켜 두는 PC 에 · 켤 때마다 저절로 시작해요. 🔒 한 줄에 내 연결 코드가 들어 있어요 (남에게 보이지 마세요).</p></section>';
+      '<div class="hal-copy"><span>' + (sh ? '터미널' : 'PowerShell') + '</span><code data-mt-line>' + esc(mtLine(null, os)) + '</code><button type="button" class="hal-btn sm pri" data-mt-cp>📋 복사</button></div>' +
+      '<ol class="hal-stc-steps"><li><em>1</em>' + (sh ? '<b>터미널</b> 열기 (라즈베리파이는 SSH 도 돼요)' : '시작 › <b>PowerShell</b> 열기') + '</li><li><em>2</em>붙여 넣고 Enter</li><li><em>3</em>공유 코드 적기 (건너뛰어도 돼요)</li></ol>' +
+      '<p class="hal-hint">늘 켜 두는 기기에 · 켤 때마다 저절로 시작해요' + (sh ? ' (python3 기본 기능만 · systemd · crontab · 맥은 launchd)' : '') + '. 🔒 한 줄에 내 연결 코드가 들어 있어요 (남에게 보이지 마세요).</p></section>';
   }
   function mtWinBind(root) {
     Array.prototype.forEach.call(root.querySelectorAll('[data-mt-addr]'), function (inp) {
-      inp.oninput = function () { setPref('mtaddr', inp.value.trim()); var box = inp.closest('.hal-mtwin'), c = box && box.querySelector('[data-mt-line]'); if (c) c.textContent = mtLine(inp.value); };
+      inp.oninput = function () { setPref('mtaddr', inp.value.trim()); var box = inp.closest('.hal-mtwin'), c = box && box.querySelector('[data-mt-line]'); if (c) c.textContent = mtLine(inp.value, box.getAttribute('data-mtos')); };
     });
-    Array.prototype.forEach.call(root.querySelectorAll('[data-mt-cp]'), function (b) { b.onclick = function () { var box = b.closest('.hal-mtwin'), inp = box && box.querySelector('[data-mt-addr]'); copy(mtLine(inp ? inp.value : null), b); }; });
+    Array.prototype.forEach.call(root.querySelectorAll('[data-mt-cp]'), function (b) { b.onclick = function () { var box = b.closest('.hal-mtwin'), inp = box && box.querySelector('[data-mt-addr]'); copy(mtLine(inp ? inp.value : null, box && box.getAttribute('data-mtos')), b); }; });
+    Array.prototype.forEach.call(root.querySelectorAll('[data-mt-os]'), function (b) { b.onclick = function () { var os = b.getAttribute('data-mt-os'), box = b.closest('.hal-mtwin'); setPref('mtos', os); if (!box) return; var t = document.createElement('div'); t.innerHTML = mtWin(os); var nb = t.firstChild; box.parentNode.replaceChild(nb, box); mtWinBind(nb.parentNode); }; });   // 1.12.0 운영체제 고르기 (이 브라우저에 기억)
   }
-  function mtLogo(cls) { return '<i class="hal-stl hal-mtl' + (cls ? ' ' + cls : '') + '" aria-hidden="true">🧩</i>'; }
+  /* 1.12.0 Matter 로고 (공식 심볼 — 세 갈래). 그림 파일 없이 SVG 한 줄 · 색은 글자색을 따름(어두운 테마에서도 보이게). 상표는 Connectivity Standards Alliance 의 것 — 연결 대상 표시로만 씀
+   *   심볼 모양 출처: Wikimedia Commons 「Logo of Matter connectivity standard.svg」 (퍼블릭 도메인 · 상표) — 글자 부분을 빼고 심볼만 */
+  var MT_PATH = 'M65.715 32.905c-7.996 2.19-15.164 7.406-19.636 15.152s-5.407 16.568-3.306 24.587l7.835-4.526a23.9 23.9 0 0 1 1.105-11.836l18.309 10.569 4.303-2.487v-4.967L56.016 48.829a23.92 23.92 0 0 1 9.699-6.879zM8.607 32.905v9.045a23.91 23.91 0 0 1 9.699 6.879L0 59.398v4.967l4.303 2.487 18.306-10.569c1.39 3.868 1.726 7.938 1.108 11.836l7.832 4.526c2.101-8.02 1.167-16.841-3.306-24.587A32.52 32.52 0 0 0 8.607 32.905zM37.161 0l-4.303 2.484v21.138c-4.046-.731-7.736-2.476-10.804-4.961l-7.838 4.522c5.895 5.83 14 9.429 22.946 9.429s17.051-3.599 22.946-9.429l-7.835-4.522a23.92 23.92 0 0 1-10.807 4.961V2.484z';
+  function mtLogo(cls) { return '<svg class="hal-stl hal-mtl' + (cls ? ' ' + cls : '') + '" viewBox="0 0 74.322 72.644" aria-hidden="true" focusable="false"><path fill="currentColor" d="' + MT_PATH + '"/></svg>'; }
   /* 1.5.0 🏢 내 기기 · 업체 기기 따로 — 업체 장비 · 업체 프린터에 붙인 기기는 업체 대표 · 관리자가 함께 고치고, 직원은 보기만 */
   function hasCo() { return !!((S.d.member_companies || []).length || (S.d.companies || []).length || S.d.devices.some(function (x) { return x.company_id; })); }
   function scope() { if (pref('scope', '') === 'map') return 'map'; if (!hasCo()) return 'all'; var v = pref('scope', ''); if (!v) { v = new URLSearchParams(location.search).get('scope') === 'company' ? 'company' : 'mine'; } return v === 'company' ? 'company' : v === 'all' ? 'all' : 'mine'; }   // 1.7.6 📡 전체
@@ -832,8 +841,8 @@
       return '<button type="button" class="hal-hachip' + (live ? '' : ' off') + '"' + (x.perm === 'view' ? '' : ' data-edit="' + x.id + '"') + ' title="' + esc(x.name + ' · ' + (x.where || '📡 대기 칸') + ' · ' + (x.never ? '값을 기다리는 중' : agoText(x.seen))) + '"><span class="hal-dot ' + (x.never ? 'wait' : live ? 'on' : 'off') + '"></span>' + ICON[x.target] + ' ' + esc(x.name) + (v.length ? '<small>' + esc(v.join(' · ')) + '</small>' : '') + '</button>';
     }).join('');
     return '<section class="hal-stc mt"><header class="hal-stc-h"><span class="hal-stc-logo mt" aria-hidden="true">' + mtLogo() + '</span><div><h2>Matter <small>3ds 연결</small></h2><p>애플 홈 · 구글 홈 · SmartThings 에 넣어 둔 Matter 온습도 센서를, 집 안의 「3ds Matter 연결」 프로그램이 사이트로 보내요 (Home Assistant 없이 · 사이트가 집에 접속하지 않아요).</p></div>' + pill + '</header>' +
-      (xs.length ? '<div class="hal-stc-devs ha">' + chips + '</div><details class="hal-mtmore"><summary>🪟 다른 PC 에 설치 · 센서 더 넣기</summary>' + mtWin() + '</details>' : '<p class="hal-hint">아직 Matter 로 이은 센서가 없어요 — 늘 켜 두는 PC 에 아래 한 줄로 중계를 설치하면, 센서마다 기기가 저절로 생겨요.</p>' + mtWin()) +
-      '<div class="hal-row hal-stc-more"><button type="button" class="hal-btn sm" data-new-mt title="리눅스판에 키를 직접 넣을 때">🔑 직접 만들기</button><button type="button" class="hal-btn sm" data-guide-mt>❓ 연결 방법</button><a class="hal-btn sm" href="' + MT_REPO + '#readme" target="_blank" rel="noopener">📖 설치 안내</a></div></section>';
+      (xs.length ? '<div class="hal-stc-devs ha">' + chips + '</div><details class="hal-mtmore"><summary>💻 다른 기기에 설치 (윈도우 · 리눅스 · 맥)</summary>' + mtWin() + '</details>' : '<p class="hal-hint">아직 Matter 로 이은 센서가 없어요 — 늘 켜 두는 PC 에 아래 한 줄로 중계를 설치하면, 센서마다 기기가 저절로 생겨요.</p>' + mtWin()) +
+      '<div class="hal-row hal-stc-more"><button type="button" class="hal-btn sm" data-new-mt title="Docker 판에 키를 직접 넣을 때">🔑 직접 만들기</button><button type="button" class="hal-btn sm" data-guide-mt>❓ 연결 방법</button><a class="hal-btn sm" href="' + MT_REPO + '#readme" target="_blank" rel="noopener">📖 설치 안내</a></div></section>';
   }
   function stCard() {
     var T = S.d.smartthings; if (!T) return '';
@@ -1035,18 +1044,18 @@
   /** 1.10.0 🧩 연결 방법 › Matter — 3ds Matter 연결 프로그램 (Matter 서버가 있으면 붙기만 · 없으면 같이 띄움) */
   function guideMt() {   // 1.11.1 스크롤 없이 — 그림 단추를 누르면 그것 하나만 (◀ 처음으로)
     var site = (S.d.link && S.d.link.site) || location.origin;
-    var T = [['win', '🪟', '윈도우 PC', '한 줄로 설치'], ['pi', '🍓', '라즈베리파이 · 리눅스 · NAS', 'Docker'], ['pair', '📲', '센서 넣기', '공유 코드'], ['dev', '📦', '사이트 기기', '대기 칸 → 붙이기'], ['thread', '📶', 'Thread 센서', '경계 라우터']];
+    var T = [['win', '💻', '한 줄 설치', '윈도우 · 리눅스 · 맥 · 라즈베리파이'], ['pi', '🐳', 'Matter 서버도 같이', 'Docker (라즈베리파이 · NAS)'], ['pair', '📲', '센서 넣기', '공유 코드'], ['dev', '📦', '사이트 기기', '대기 칸 → 붙이기'], ['thread', '📶', 'Thread 센서', '경계 라우터']];
     var P = {
       win: mtWin(),
-      pi: '<section class="hal-sec"><h4>🍓 라즈베리파이 · 리눅스 · NAS <small>Docker</small></h4><ol class="hal-mtg-ol">' +
-        '<li>설치 안내대로 받고 <code>config/config.yaml</code> 을 만들어요</li><li>Matter 서버가 있으면 <code>matter:</code> 에 그 IP · 없으면 <code>docker compose --profile server up -d</code></li>' +
-        '<li>있으면 <code>docker compose up -d</code></li><li>아래 <b>🔑 키를 직접 넣을 기기 만들기</b> → 받는 키를 <code>devices:</code> 에 (사이트 <code>' + esc(site) + '</code>)</li></ol>' +
+      pi: '<section class="hal-sec"><h4>🐳 Matter 서버가 없는 집 <small>Docker — 라즈베리파이 · 리눅스 · NAS</small></h4><ol class="hal-mtg-ol">' +
+        '<li>설치 안내대로 받고 <code>config/config.yaml</code> 을 만들어요 (<code>matter:</code> 줄은 지우기)</li><li><code>docker compose --profile server up -d</code> — 공식 Matter 서버와 중계를 같이 켜요</li>' +
+        '<li>아래 <b>🔑 키를 직접 넣을 기기 만들기</b> → 받는 키를 <code>devices:</code> 에 (사이트 <code>' + esc(site) + '</code>)</li><li>Matter 서버가 이미 있으면 Docker 대신 💻 한 줄 설치가 쉬워요</li></ol>' +
         '<div class="hal-row"><a class="hal-btn pri" href="' + MT_REPO + '#readme" target="_blank" rel="noopener">📖 설치 안내 열기</a></div></section>',
       pair: '<section class="hal-sec"><h4>📲 센서 넣기 <small>코드는 직접 적어요 · 몇 분 뒤 만료</small></h4><div class="hal-mtg-apps">' +
         '<div><b>🍎 애플 홈</b><span>센서 › ⚙️ › 페어링 모드 켜기</span></div><div><b>🟢 구글 홈</b><span>기기 › ⚙️ › 연결된 Matter 앱 및 서비스</span></div><div><b>🔷 SmartThings</b><span>기기 › ⋮ › 다른 서비스와 공유</span></div></div>' +
-        '<p class="hal-hint">🪟 윈도우: 설치 때 묻거나 <code>powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\\3dsMatter\\link.ps1" -Pair</code><br>🍓 리눅스: <code>docker compose run --rm -it link pair</code></p></section>',
-      dev: '<section class="hal-sec"><h4>📦 사이트 기기</h4><div class="hal-mtg-apps"><div><b>🪟 윈도우판</b><span>센서마다 기기를 저절로 만들어 📡 대기 칸에 — 끌어서 보관함 · 프린터에 붙여요</span></div>' +
-        '<div><b>🍓 리눅스판</b><span>🔑 키를 직접 넣을 기기 만들기 → 받는 키를 설정에</span></div><div><b>🗑 지우면</b><span>사이트에서 지운 기기는 다시 만들지 않아요</span></div></div></section>',
+        '<p class="hal-hint">설치 때 묻거나 — 🪟 <code>powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\\3dsMatter\\link.ps1" -Pair</code> · 🐧🍎 <code>python3 ~/.3ds-matter/link.py --pair</code> · 🐳 <code>docker compose run --rm -it link pair</code></p></section>',
+      dev: '<section class="hal-sec"><h4>📦 사이트 기기</h4><div class="hal-mtg-apps"><div><b>💻 한 줄 설치</b><span>센서마다 기기를 저절로 만들어 📡 대기 칸에 — 끌어서 보관함 · 프린터에 붙여요</span></div>' +
+        '<div><b>🐳 Docker 판</b><span>🔑 키를 직접 넣을 기기 만들기 → 받는 키를 설정에</span></div><div><b>🗑 지우면</b><span>사이트에서 지운 기기는 다시 만들지 않아요</span></div></div></section>',
       thread: '<section class="hal-sec"><h4>📶 Thread 센서</h4><div class="hal-mtg-apps"><div><b>경계 라우터</b><span>홈팟 미니 · Apple TV · Nest 허브 같은 것이 집에 있어야 해요</span></div>' +
         '<div><b>Matter 서버 쪽</b><span>리눅스면 IPv6 경로를 받도록 한 번 설정 (설치 안내 「Thread 센서」)</span></div><div><b>Wi-Fi 센서</b><span>할 일이 없어요</span></div></div></section>'
     };
@@ -1126,7 +1135,7 @@
         '<div class="hal-row"><a class="hal-btn" target="_blank" rel="noopener" href="' + my + 'config_flow_start/?domain=g7_link">⚙️ 「3ds」 통합 추가 열기</a></div>' + row('사이트 주소', L.site, 'site') + row('연결 코드', L.code, 'code') +
         '<p class="hal-hint">🔒 연결 코드는 비밀번호와 같아요. 새어 나갔으면 아래 「코드 새로 만들기」.</p></section>' +
       '<section class="hal-sec"><h4><em>3</em> 「⚡ 알아서 찾아 연결」 → 확인</h4><p class="hal-hint">사이트의 <b>내 프린터</b> · 필라멘트 <b>보관 위치</b>와 이름이 맞는 Home Assistant 기기 · 습도 센서를 찾아 체크해 둬요. 맞으면 <b>확인</b>만 누르면 끝 — 프린터는 상태 · 진행률 · 카메라, 보관함은 습도 · 온도가 한 번에 붙어요. 이름이 달라 못 찾은 것은 같은 목록에서 직접 체크하거나 「하나씩」으로 붙이면 돼요. 조금 뒤 이 화면에 🟢 로 나타나요.</p></section></div>' + (hasSt ? '<div data-cpn="st">' + stConnect(T, oa) + '</div>' : '') +
-      '<div data-cpn="mt">' + guideMt() + '<div class="hal-row"><button type="button" class="hal-btn sm" data-ct-mt>🔑 키를 직접 넣을 기기 만들기 (리눅스판)</button></div></div>',
+      '<div data-cpn="mt">' + guideMt() + '<div class="hal-row"><button type="button" class="hal-btn sm" data-ct-mt>🔑 키를 직접 넣을 기기 만들기 (Docker 판)</button></div></div>',
       { left: '<button type="button" class="hal-btn" data-guide2>❓ 그림으로 보기</button><span data-ha-only><button type="button" class="hal-btn" data-rl>🔑 코드 새로 만들기</button><button type="button" class="hal-btn" data-manual>📝 HACS 없이 설정 글로</button></span>' });
     mtWinBind(ov); mtGuideBind(ov);   // 1.11.0 🪟 · 1.11.1 그림 단추
     // 1.3.1 Home Assistant · SmartThings 바꿔 보기

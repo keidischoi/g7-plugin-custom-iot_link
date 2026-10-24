@@ -1,0 +1,517 @@
+#!/usr/bin/env python3
+# 3D SUEÑO IoT 연결 — 🧩 Matter 중계 (리눅스 · 맥 · 라즈베리파이 · 파이썬 기본 기능만 — 따로 깔 것 없음)
+#  집 안 Matter 서버(python-matter-server · HA Matter Server 애드온)의 온습도 센서 값을 사이트 IoT 연결로 보냄
+#  config.json 의 연결 코드로 센서마다 사이트 기기를 저절로 만들고(허브 API), 받는 주소 /in/{키} 로 보냄 — 보내는 규칙은 HA 통합 · 윈도우판(link.ps1)과 같음
+#  돌기: python3 link.py        센서 넣기: python3 link.py --pair        넣은 센서 보기: python3 link.py --nodes
+#  설치(사이트의 한 줄이 대신 함): python3 link.py --setup <사이트> <연결 코드> [Matter 서버]
+import base64, json, os, random, re, socket, ssl, struct, sys, time, urllib.error, urllib.parse, urllib.request, uuid
+
+VER = '1.12.0'
+DIR = os.path.dirname(os.path.abspath(__file__))
+CFG = os.path.join(DIR, 'config.json')
+LAST = os.path.join(DIR, 'last.txt')
+TEMP, HUM = '1026/0', '1029/0'   # Temperature · Relative Humidity Measurement › MeasuredValue (0.01 단위)
+for _s in (sys.stdout, sys.stderr):   # 한글 · 이모지를 못 쓰는 터미널(POSIX · ASCII 로캘)에서도 멈추지 않게 — 못 쓰는 글자는 ? 로
+    try:
+        _s.reconfigure(errors='replace')
+    except (AttributeError, ValueError):
+        pass
+
+
+def log(m):
+    try:
+        with open(LAST, 'w', encoding='utf-8') as f:
+            f.write(time.strftime('%Y-%m-%dT%H:%M:%S ') + str(m) + '\n')
+    except OSError:
+        pass
+
+
+def say(m):
+    print('\033[1;36m[IoT 연결]\033[0m ' + m, flush=True)
+
+
+def warn(m):
+    print('\033[1;33m[IoT 연결]\033[0m ' + m, flush=True)
+
+
+# ── 설정
+def load_cfg():
+    c = {}
+    try:
+        with open(CFG, encoding='utf-8-sig') as f:
+            c = json.load(f) or {}
+    except (OSError, ValueError):
+        pass
+    o = {'site': str(c.get('site') or ''), 'code': str(c.get('code') or ''), 'matter': str(c.get('matter') or ''),
+         'server_id': str(c.get('server_id') or ''), 'server_name': str(c.get('server_name') or ''),
+         'devices': {str(k): {'id': int(v.get('id') or 0), 'token': str(v.get('token') or '')} for k, v in (c.get('devices') or {}).items() if isinstance(v, dict)},
+         'skip': [str(x) for x in (c.get('skip') or [])]}
+    if not o['server_id']:
+        o['server_id'] = 'matter' + uuid.uuid4().hex[:24]
+    if not o['server_name']:
+        o['server_name'] = '%s (%s)' % (socket.gethostname().split('.')[0][:40] or 'PC', 'Mac' if sys.platform == 'darwin' else 'Linux')
+    return o
+
+
+def save_cfg(o):
+    tmp = CFG + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(o, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, CFG)
+    try:
+        os.chmod(CFG, 0o600)   # 연결 코드가 들어 있음
+    except OSError:
+        pass
+
+
+def matter_url(a):
+    a = (a or '').strip() or 'localhost'
+    if not re.match(r'^wss?://', a):
+        a = 'ws://' + a
+    host = a.split('://', 1)[1]
+    if '/' not in host:
+        a += ('' if ':' in host.rsplit(']', 1)[-1] else ':5580') + '/ws'
+    return a
+
+
+# ── 사이트
+def site_req(o, method, path, body=None):
+    url = o['site'].rstrip('/') + '/api/plugins/custom-iot_link/' + path
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(url, data=data, method=method, headers={
+        'Content-Type': 'application/json', 'Accept': 'application/json', 'User-Agent': '3ds-matter-py/' + VER,
+        'X-G7-Via': 'matter', 'X-G7-Server': o['server_id'], 'X-G7-Server-Name': urllib.parse.quote(o['server_name'], safe='')})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            status, txt = r.status, r.read().decode('utf-8', 'replace')
+    except urllib.error.HTTPError as e:
+        status, txt = e.code, e.read().decode('utf-8', 'replace')
+    try:
+        j = json.loads(txt)
+    except ValueError:
+        j = None
+    return status, j
+
+
+# ── Matter 서버 WebSocket (RFC 6455 — 보내는 틀은 가림 · 받는 틀은 이어 붙임 · ping 에는 pong)
+class WS:
+    def __init__(self, url, timeout=10):
+        u = urllib.parse.urlsplit(url)
+        port = u.port or (443 if u.scheme == 'wss' else 80)
+        s = socket.create_connection((u.hostname, port), timeout=timeout)
+        if u.scheme == 'wss':
+            s = ssl.create_default_context().wrap_socket(s, server_hostname=u.hostname)
+        key = base64.b64encode(os.urandom(16)).decode()
+        host = u.hostname if ':' not in (u.hostname or '') else '[%s]' % u.hostname
+        s.sendall(('GET %s HTTP/1.1\r\nHost: %s:%d\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n\r\n'
+                   % (u.path or '/', host, port, key)).encode())
+        head = b''
+        while b'\r\n\r\n' not in head:
+            ch = s.recv(1024)
+            if not ch:
+                raise ConnectionError('Matter 서버가 연결을 받지 않았어요')
+            head += ch
+        line = head.split(b'\r\n', 1)[0]
+        if b' 101 ' not in line + b' ':
+            raise ConnectionError('Matter 서버가 아닌 것 같아요 (%s)' % line.decode('latin-1', 'replace'))
+        self.s, self.buf, self.parts, self.last_ping = s, head.split(b'\r\n\r\n', 1)[1], b'', time.monotonic()
+
+    def _read(self, n):
+        while len(self.buf) < n:
+            ch = self.s.recv(65536)
+            if not ch:
+                raise ConnectionError('Matter 서버 연결이 끊겼어요')
+            self.buf += ch
+        out, self.buf = self.buf[:n], self.buf[n:]
+        return out
+
+    def _frame(self, op, data):
+        hdr = bytes([0x80 | op])
+        n = len(data)
+        hdr += bytes([0x80 | n]) if n < 126 else (bytes([0x80 | 126]) + struct.pack('>H', n) if n < 65536 else bytes([0x80 | 127]) + struct.pack('>Q', n))
+        mask = os.urandom(4)
+        self.s.sendall(hdr + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(data)))
+
+    def send(self, obj):
+        self._frame(1, json.dumps(obj).encode())
+
+    def recv(self, wait):
+        """메시지 하나 (wait 초 안에 안 오면 None) — 끊기면 ConnectionError"""
+        if time.monotonic() - self.last_ping > 30:   # 오래 조용하면 ping (공유기 · 서버가 끊지 않게)
+            self._frame(9, b'3ds')
+            self.last_ping = time.monotonic()
+        until = time.monotonic() + wait
+        while True:
+            if not self.buf:
+                self.s.settimeout(max(0.05, until - time.monotonic()))
+                try:
+                    ch = self.s.recv(65536)
+                except socket.timeout:
+                    return None
+                if not ch:
+                    raise ConnectionError('Matter 서버 연결이 끊겼어요')
+                self.buf += ch
+            self.s.settimeout(30)
+            b0, b1 = self._read(2)
+            n = b1 & 0x7F
+            if n == 126:
+                n = struct.unpack('>H', self._read(2))[0]
+            elif n == 127:
+                n = struct.unpack('>Q', self._read(8))[0]
+            mask = self._read(4) if b1 & 0x80 else None
+            data = self._read(n)
+            if mask:
+                data = bytes(b ^ mask[i % 4] for i, b in enumerate(data))
+            op = b0 & 0x0F
+            if op == 8:
+                raise ConnectionError('Matter 서버가 연결을 닫았어요')
+            if op == 9:
+                self._frame(10, data)
+                continue
+            if op in (0, 1, 2):
+                self.parts += data
+                if b0 & 0x80:
+                    txt, self.parts = self.parts, b''
+                    try:
+                        return json.loads(txt.decode('utf-8'))
+                    except ValueError:
+                        pass
+            if time.monotonic() >= until and not self.buf:
+                return None
+
+    def close(self):
+        try:
+            self._frame(8, struct.pack('>H', 1000))
+        except OSError:
+            pass
+        try:
+            self.s.close()
+        except OSError:
+            pass
+
+
+class Matter:
+    def __init__(self, url):
+        self.ws = WS(url)
+        self.n = 0
+        self.info = self.ws.recv(15) or {}
+        if 'schema_version' not in self.info:
+            self.ws.close()
+            raise ConnectionError('Matter 서버가 아닌 것 같아요 (%s)' % url)
+
+    def cmd(self, command, args=None, timeout=30, on_event=None):
+        self.n += 1
+        mid = 'py%d' % self.n
+        msg = {'message_id': mid, 'command': command}
+        if args is not None:
+            msg['args'] = args
+        self.ws.send(msg)
+        until = time.monotonic() + timeout
+        while time.monotonic() < until:
+            x = self.ws.recv(max(0.2, until - time.monotonic()))
+            if not isinstance(x, dict):
+                continue
+            if x.get('message_id') == mid:
+                if 'error_code' in x:
+                    raise RuntimeError('Matter 서버: %s %s' % (x.get('error_code'), x.get('details') or ''))
+                return x.get('result')
+            if on_event and 'event' in x:
+                on_event(x)
+        raise TimeoutError('Matter 서버가 %d초 안에 답하지 않았어요 (%s)' % (timeout, command))
+
+    def close(self):
+        self.ws.close()
+
+
+# ── 노드 값
+def read_values(attrs, ep=None):
+    out = {}
+    for name, suf in (('temperature', TEMP), ('humidity', HUM)):
+        keys = sorted((k for k in attrs if k.endswith('/' + suf) and k.count('/') == 2), key=lambda k: int(k.split('/')[0]))
+        if ep is not None:
+            keys = [k for k in keys if k.split('/')[0] == str(ep)]
+        for k in keys:
+            v = attrs[k]
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                out[name] = round(v / 100, 1)
+                break
+    return out
+
+
+def node_label(attrs):
+    l = str(attrs.get('0/40/5') or '').strip()
+    return l or ('%s %s' % (attrs.get('0/40/1') or '', attrs.get('0/40/3') or '')).strip()
+
+
+def clean_code(c):
+    c = (c or '').strip()
+    if c.upper().startswith('MT:'):
+        return c
+    d = re.sub(r'[\s-]', '', c)
+    return d if re.fullmatch(r'\d{11}|\d{21}', d) else None
+
+
+# ── 사이트로 보내기 (변하면 보내기 + 최소 간격 + 정해진 주기, 사이트의 답을 따름)
+class Pusher:
+    def __init__(self, nid, dev, first):
+        self.nid, self.dev = nid, dev
+        self.values, self.avail, self.sent = {}, True, {}
+        self.last, self.next, self.pending = 0.0, time.monotonic() + first, None
+        self.mode, self.delta, self.gap, self.interval = 'change', {'humidity': 1.0, 'temperature': 0.5}, 60, 10
+
+    def update(self, vals, avail):
+        self.values, self.avail = vals, avail
+        if self.mode != 'change' or self.pending is not None:
+            return
+        if any(k in vals and (k not in self.sent or abs(vals[k] - self.sent[k]) >= d) for k, d in self.delta.items()):
+            self.pending = time.monotonic() + max(2.0, self.gap - (time.monotonic() - self.last))
+
+    def due(self):
+        now = time.monotonic()
+        return (self.pending is not None and now >= self.pending) or now >= self.next
+
+    def apply(self, a):
+        if not isinstance(a, dict):
+            return
+        if a.get('mode') in ('change', 'interval'):
+            self.mode = a['mode']
+        for k, src in (('humidity', 'change_hum'), ('temperature', 'change_temp')):
+            try:
+                v = float(a.get(src))
+                if v > 0:
+                    self.delta[k] = v
+            except (TypeError, ValueError):
+                pass
+        try:
+            self.gap = max(10, int(a.get('gap_sec', self.gap)))
+        except (TypeError, ValueError):
+            pass
+        try:
+            nm = int(a.get('next_min') or 0)
+        except (TypeError, ValueError):
+            nm = 0
+        if nm >= 1 and nm != self.interval:
+            self.interval = nm
+            self.next = min(self.next, time.monotonic() + nm * 60)
+
+    def push(self, o):
+        """'ok' · 'unknown'(사이트에서 지운 기기) · 'fail'"""
+        self.pending = None
+        if not self.values or not self.avail:
+            return 'fail'
+        self.last = time.monotonic()
+        self.next = self.last + self.interval * 60
+        self.sent.update(self.values)
+        try:
+            st, j = site_req(o, 'POST', 'in/' + self.dev['token'], dict(self.values))
+        except (OSError, ValueError) as e:
+            log('노드 %s: 보내지 못했어요 — %s' % (self.nid, e))
+            return 'fail'
+        if st == 404 and isinstance(j, dict) and j.get('message') == 'unknown':
+            return 'unknown'
+        if st >= 400:
+            log('노드 %s: 사이트가 값을 받지 않았어요 (%s %s)' % (self.nid, st, (j or {}).get('message', '') if isinstance(j, dict) else ''))
+            return 'fail'
+        self.apply(j)
+        log('노드 %s: 보냄 온도 %s · 습도 %s' % (self.nid, self.values.get('temperature', '-'), self.values.get('humidity', '-')))
+        return 'ok'
+
+
+def ensure_device(o, nid, attrs):
+    if nid in o['devices']:
+        return o['devices'][nid]
+    if nid in o['skip'] or not o['code']:
+        return None
+    name = (node_label(attrs) or 'Matter 센서 %s' % nid)[:60]
+    st, j = site_req(o, 'POST', 'hub/%s/devices' % o['code'], {'name': name, 'target': 'other'})
+    d = (j or {}).get('device') if isinstance(j, dict) else None
+    if st >= 400 or not d:
+        log('노드 %s (%s): 사이트 기기를 만들지 못했어요 — %s' % (nid, name, (j or {}).get('message', st) if isinstance(j, dict) else st))
+        return None
+    o['devices'][nid] = {'id': int(d.get('id') or 0), 'token': str(d.get('token') or '')}
+    save_cfg(o)
+    log('노드 %s (%s): 사이트 기기를 만들었어요 (📡 대기 칸)' % (nid, name))
+    return o['devices'][nid]
+
+
+def run_once(o):
+    m = Matter(matter_url(o['matter']))
+    nodes, pushers = {}, {}
+
+    def feed(nid):
+        n = nodes.get(nid)
+        if not n:
+            return
+        vals = read_values(n['attrs'])
+        if not vals:
+            return
+        if nid not in pushers:
+            try:
+                dev = ensure_device(o, nid, n['attrs'])
+            except (OSError, ValueError) as e:
+                log('노드 %s: 사이트에 닿지 않아요 — %s' % (nid, e))
+                return
+            if not dev:
+                return
+            pushers[nid] = Pusher(nid, dev, 5 + 3 * len(pushers))
+        pushers[nid].update(vals, n['avail'])
+
+    def set_node(nd):
+        nid = str(nd.get('node_id'))
+        nodes[nid] = {'attrs': dict(nd.get('attributes') or {}), 'avail': bool(nd.get('available', True))}
+        feed(nid)
+
+    def on_event(x):
+        ev, data = x.get('event'), x.get('data')
+        if ev in ('node_added', 'node_updated') and isinstance(data, dict):
+            set_node(data)
+        elif ev == 'node_removed':
+            nodes.pop(str(data), None)
+            pushers.pop(str(data), None)
+        elif ev == 'attribute_updated' and isinstance(data, list) and len(data) == 3:
+            nid = str(data[0])
+            if nid in nodes:
+                nodes[nid]['attrs'][str(data[1])] = data[2]
+                if str(data[1]).endswith(('/' + TEMP, '/' + HUM)):
+                    feed(nid)
+
+    try:
+        for nd in m.cmd('start_listening', None, 60, on_event) or []:
+            set_node(nd)
+        log('Matter 서버에 붙음 (SDK %s) · 노드 %d · 보내는 센서 %d' % (m.info.get('sdk_version', '?'), len(nodes), len(pushers)))
+        while True:
+            x = m.ws.recv(1)
+            if isinstance(x, dict) and 'event' in x:
+                on_event(x)
+            for p in list(pushers.values()):
+                if p.due() and p.push(o) == 'unknown':   # 사이트에서 지운 기기 — 다시 만들지 않음 (다시 보내려면 config.json 의 skip 에서 빼기)
+                    log('노드 %s: 사이트에서 지운 기기예요 — 이제 안 보내요' % p.nid)
+                    o['devices'].pop(p.nid, None)
+                    o['skip'].append(p.nid)
+                    save_cfg(o)
+                    pushers.pop(p.nid, None)
+    finally:
+        m.close()
+
+
+def run():
+    wait = 5
+    while True:
+        o = load_cfg()
+        try:
+            run_once(o)
+            wait = 5
+        except Exception as e:   # noqa: BLE001 — 무엇이 잘못돼도 서비스는 멈추지 않고 다시
+            log('⚠️ %s — %d초 뒤 다시' % (e, wait))
+        time.sleep(wait)
+        wait = min(wait * 2, 120)
+
+
+# ── 명령
+def show_nodes(o):
+    m = Matter(matter_url(o['matter']))
+    try:
+        lst = m.cmd('get_nodes') or []
+        say('Matter 서버: %s (SDK %s) · 노드 %d' % (matter_url(o['matter']), m.info.get('sdk_version', '?'), len(lst)))
+        for nd in sorted(lst, key=lambda x: x.get('node_id', 0)):
+            a = nd.get('attributes') or {}
+            v, nid = read_values(a), str(nd.get('node_id'))
+            st = ('→ 사이트 기기 #%s' % o['devices'][nid]['id']) if nid in o['devices'] else '(안 보냄)' if nid in o['skip'] else '(켜면 사이트 기기를 만듦)' if v else '(온습도 없음)'
+            print('   노드 %-3s %s 온도 %-7s 습도 %-6s %s %s' % (nid, '🟢' if nd.get('available') else '⚪', ('%s°C' % v['temperature']) if 'temperature' in v else '-',
+                                                          ('%s%%' % v['humidity']) if 'humidity' in v else '-', node_label(a), st))
+        return len(lst)
+    finally:
+        m.close()
+
+
+def ask(prompt):
+    try:
+        with open('/dev/tty') as tty:   # curl … | bash 에서도 키보드로 받게
+            sys.stdout.write(prompt)
+            sys.stdout.flush()
+            return tty.readline().strip()
+    except OSError:
+        try:
+            return input(prompt).strip()
+        except EOFError:
+            return ''
+
+
+def do_pair(o, code=''):
+    if not code:
+        say('애플 홈(센서 › ⚙️ › 페어링 모드 켜기) · 구글 홈(연결된 Matter 앱 및 서비스) · SmartThings(다른 서비스와 공유)에서 받은 코드를 넣어 주세요.')
+        code = ask('공유 코드 (Enter = 그만): ')
+        if not code:
+            return False
+    c = clean_code(code)
+    if not c:
+        warn('코드 모양이 아니에요 (11 · 21자리 숫자 또는 MT: 로 시작).')
+        return False
+    say('센서를 넣는 중… (1~2분)')
+    m = Matter(matter_url(o['matter']))
+    try:
+        nd = m.cmd('commission_with_code', {'code': c, 'network_only': True}, 300) or {}
+        a = nd.get('attributes') or {}
+        v = read_values(a)
+        say('✅ 넣었어요: 노드 %s · %s · 온도 %s · 습도 %s' % (nd.get('node_id'), node_label(a), v.get('temperature', '-'), v.get('humidity', '-')))
+        if not v:
+            warn('⚠️ 이 기기에서 온도 · 습도를 찾지 못했어요 (온습도 센서가 맞는지).')
+        return True
+    except (RuntimeError, TimeoutError, OSError, ConnectionError) as e:
+        warn('넣지 못했어요: %s — 코드가 만료되지 않았는지 · Thread 센서면 경계 라우터를 확인해 주세요.' % e)
+        return False
+    finally:
+        m.close()
+
+
+def setup(site, code, matter):
+    """설치 한 줄이 부름 — Matter 서버에 붙는지 보고 · 센서 넣기 (코드는 회원이 직접)"""
+    o = load_cfg()
+    o['site'], o['code'] = site.rstrip('/'), code
+    if matter:
+        o['matter'] = matter
+    say('🧩 Matter 중계를 설치해요 — 집 안 Matter 서버의 온습도 센서를 사이트 IoT 연결로 보내요.')
+    while True:
+        if not o['matter']:
+            o['matter'] = ask('Matter 서버 주소 (예: 192.168.0.10 — HA 의 Matter Server 애드온이면 HA 의 IP): ')
+            if not o['matter']:
+                warn('그만둘게요 — 같은 줄을 다시 실행하면 처음부터예요.')
+                return 1
+        try:
+            show_nodes(o)
+            break
+        except (OSError, ConnectionError, RuntimeError, TimeoutError) as e:
+            warn('⚠️ %s' % e)
+            warn('   주소 · 포트(5580)가 맞는지, 그 기기가 켜져 있는지 봐 주세요. HA 의 Matter Server 애드온이면 애드온 › 구성 › 네트워크에서 5580 을 열어야 해요.')
+            o['matter'] = ask('다시 적기 (Enter = 그만): ')
+            if not o['matter']:
+                return 1
+    save_cfg(o)
+    say('센서를 더 넣으려면 애플 홈 · 구글 홈 · SmartThings 에서 공유 코드를 받아 적어 주세요.')
+    while True:
+        c = ask('공유 코드 (Enter = 넘어가기): ')
+        if not c:
+            break
+        do_pair(o, c)
+    return 0
+
+
+def main(argv):
+    if len(argv) > 1 and argv[1] == '--setup':
+        return setup(argv[2] if len(argv) > 2 else '', argv[3] if len(argv) > 3 else '', argv[4] if len(argv) > 4 else '')
+    if len(argv) > 1 and argv[1] in ('--pair', '--nodes'):
+        o = load_cfg()
+        try:
+            do_pair(o) if argv[1] == '--pair' else show_nodes(o)
+        except (OSError, ConnectionError, RuntimeError, TimeoutError) as e:
+            warn('⚠️ %s' % e)
+        return 0
+    try:
+        run()
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))
