@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.13.0 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.13.1 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.13.0';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.13.1';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -668,6 +668,7 @@
       // ① 출처
       var s = srcOf(x) === 'st' ? stOf[x.id] : null, sn;
       if (srcOf(x) === 'ha') { sn = 'src:ha'; node(0, sn, haLogo() + '<span><b>Home Assistant</b><small>값을 보내는 집</small></span>', 'k-ha'); }
+      else if (srcOf(x) === 'mt') { sn = 'src:mt:' + (x.ha_server || ''); node(0, sn, mtLogo() + '<span><b>' + esc(x.ha_server_name || 'Matter') + '</b><small>Matter · 3ds 연결</small></span>', 'k-mt'); }   // 1.13.1 중계마다 (SmartThings 로 나오던 것)
       else if (s) { sn = 'src:st' + s.id; node(0, sn, stLogo() + '<span><b>' + esc(s.location || 'SmartThings') + '</b><small>SmartThings' + (s.status === 'active' ? '' : ' · ⚠️ ' + esc(s.status)) + '</small></span>', 'k-st'); }
       else { sn = 'src:st'; node(0, sn, stLogo() + '<span><b>SmartThings</b><small>클라우드 센서</small></span>', 'k-st'); }
       // ② 기기
@@ -748,7 +749,7 @@
   function draw() {
     if (S.sel) { var have = {}; S.d.devices.forEach(function (x) { have[x.id] = 1; }); Object.keys(S.sel).forEach(function (k) { if (!have[k]) delete S.sel[k]; }); if (!S.d.devices.length) S.sel = null; }
     var d = S.d, live = d.devices.filter(function (x) { return !x.stale; }).length, over = d.devices.filter(function (x) { return x.over; }).length;
-    wrap('<section class="hal-hero"><div><h1>📡 IoT 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 재고 관리 · 정비 수첩 · 내 프린터에 이어요.</p></div>' +
+    wrap('<section class="hal-hero"><div><h1>📡 IoT 연결</h1><p>Home Assistant · SmartThings · Matter 의 온습도 센서 · 프린터 · 장비 상태를 받아 재고 관리 · 정비 수첩 · 내 프린터에 이어요.</p></div>' +
       '<div class="hal-stats"><span title="연결할 수 있는 기기 (관리자가 정함)">기기 <b>' + d.devices.length + '</b>' + (d.limits ? (d.limits.admin ? ' <small title="관리자는 기기 수 한도가 없어요">· 관리자 무제한</small>' : ' / ' + d.limits.member) : '') + '</span><span>🟢 연결됨 <b>' + live + '</b></span>' + (over ? '<span class="hot">⚠️ 기준 넘음 <b>' + over + '</b></span>' : '') + '<button class="hal-btn ghost" data-guide title="연결 방법 보기" aria-label="연결 방법 보기">❓ 연결 방법</button>' + (d.devices.length > 1 && !S.sel ? '<button class="hal-btn ghost" data-sel-on title="체크 박스로 골라 한 번에 분류 옮기기 · 지우기">☑️ 여러 개 고르기</button>' : '') + (d.slots && d.slots.enabled ? ' <button class="hal-btn ghost" data-slot title="' + (d.slots.selling ? '코인 · 마일리지로 센서 칸 사기 · 구매한 칸 보기' : '구매한 센서 칸 보기 · 취소') + '">💳 ' + (d.slots.selling ? '칸 늘리기' : '구매한 칸') + '</button>' : '') + ' <button class="hal-btn light" data-new>➕ 기기 연결</button></div></section>' +
       srcCard() +
       (d.devices.length ? scopeBar() + (scope() === 'map' ? mapView() : (S.sel ? selBar() : '') + tools() + (pref('view', 'card') === 'board' ? board() : grouped())) +
@@ -1398,7 +1399,7 @@
     if (ret && ret.error) toast(ret.error === 'access_denied' ? 'SmartThings 연결을 취소했어요.' : 'SmartThings 가 연결을 받아 주지 않았어요 (' + ret.error + ').', true);
     wrap('<div class="hal-empty">불러오는 중…</div>');
     api('GET', '/me').then(function (r) { S.d = r.data; draw(); if (S.deep) { S.deep = false; stDeepOpen(); } }).catch(function (e) {
-      wrap(e.status === 401 ? '<section class="hal-hero"><div><h1>📡 IoT 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 재고 관리 · 정비 수첩 · 내 프린터에 이어요.</p></div></section><div class="hal-empty">로그인하면 내 기기를 연결할 수 있어요. <a href="/login" data-go>로그인</a></div>' : '<div class="hal-empty">' + esc(e.message) + '</div>');
+      wrap(e.status === 401 ? '<section class="hal-hero"><div><h1>📡 IoT 연결</h1><p>Home Assistant · SmartThings · Matter 의 온습도 센서 · 프린터 · 장비 상태를 받아 재고 관리 · 정비 수첩 · 내 프린터에 이어요.</p></div></section><div class="hal-empty">로그인하면 내 기기를 연결할 수 있어요. <a href="/login" data-go>로그인</a></div>' : '<div class="hal-empty">' + esc(e.message) + '</div>');
     });
   }
   /* 1.0.0 예전 주소(/ha-link · /admin/ha-link — HA 연결 때)로 왔으면 주소 줄만 새 주소로 바꿔 보임 (같은 화면 · 다시 불러오지 않음) */

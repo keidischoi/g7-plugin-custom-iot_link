@@ -249,6 +249,7 @@ check(preg_match("/var MT_PATH = 'M[0-9a-zA-Z .\\-]+z';/", $app) === 1 && str_co
 check(str_contains($app, "['off', '🔌', '연결 끊기'") && str_contains($app, "off: '<section") && str_contains($mlink, "'remove_node'") && str_contains($mlink, 'function Do-Remove') && str_contains($mlink, '[string]$AlsoSite') && ! preg_match('/\[string\]\$Site\b/', $mlink)
     && str_contains($mpy, "def do_remove(") && str_contains($mpy, "m.cmd('remove_node'") && str_contains($mpy, "'DELETE', 'hub/%s/devices/%d'") && str_contains($msh, '--remove') && str_contains($mps, '-Remove'),
     '1.13.0 🔌 연결 끊기 · 센서 빼기 (설치 스크립트를 덮는 $Site 이름 안 씀)');
+check(str_contains($app, "else if (srcOf(x) === 'mt') { sn = 'src:mt:'") && str_contains($app, "'k-mt'") && ! str_contains($app, 'Home Assistant · SmartThings 의 온습도'), '1.13.1 🗺️ 연결 지도 — Matter 받는 곳은 SmartThings 가 아니라 Matter · 중계 이름');
 
 echo "\n".($fail === 0 ? "OK ({$pass} checks)" : "{$fail} FAILED / ".($pass + $fail))."\n";
 exit($fail === 0 ? 0 : 1);
