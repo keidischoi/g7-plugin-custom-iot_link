@@ -2,14 +2,15 @@
 #  집 안 Matter 서버(python-matter-server · HA Matter Server 애드온)의 온습도 센서 값을 사이트 IoT 연결로 보냄
 #  config.json 의 연결 코드로 센서마다 사이트 기기를 저절로 만들고(허브 API), 받는 주소 /in/{키} 로 보냄 — 보내는 규칙은 HA 통합과 같음
 #  돌기: powershell -File link.ps1        센서 넣기: … link.ps1 -Pair        넣은 센서 보기: … link.ps1 -Nodes
+#  센서 빼기(1.13.0): … link.ps1 -Remove [노드 번호]  — Matter 서버에서 빼고, 원하면 사이트 기기도 지움
 #  -Lib 로 불러오면 함수만 (설치 스크립트가 씀) · 마지막 결과는 last.txt
-param([switch]$Lib, [switch]$Pair, [switch]$Nodes)
+param([switch]$Lib, [switch]$Pair, [switch]$Nodes, [switch]$Remove, [Parameter(Position = 0)][string]$Node, [string]$AlsoSite = '')
 $ErrorActionPreference = 'Stop'
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072 } catch {}
 $script:Dir = if ($PSScriptRoot) { $PSScriptRoot } else { Join-Path $env:LOCALAPPDATA '3dsMatter' }
 $script:Cfg = Join-Path $script:Dir 'config.json'
 $script:Inv = [Globalization.CultureInfo]::InvariantCulture
-$script:Ver = '1.12.0'
+$script:Ver = '1.13.0'
 
 function Log($m) { try { Set-Content -Encoding UTF8 (Join-Path $script:Dir 'last.txt') "$(Get-Date -Format s) $m" } catch {} }
 function Mono { return [Diagnostics.Stopwatch]::GetTimestamp() / [Diagnostics.Stopwatch]::Frequency }
@@ -290,11 +291,38 @@ function Do-Pair($o, [string]$code) {
   finally { Mt-Close $m }
 }
 
+# 1.13.0 센서 빼기 — Matter 서버에서 노드를 빼고 (애플 홈 · 구글 홈에는 그대로), 사이트 기기는 물어보고 지움 (-AlsoSite y · n 이면 묻지 않음)
+function Do-Remove($o, [string]$nid, [string]$site = '') {
+  if (-not $nid) {
+    if ((Show-Nodes $o) -eq 0) { return $false }
+    $nid = Read-Host '뺄 노드 번호 (Enter = 그만)'
+    if (-not $nid) { return $false }
+  }
+  if ($nid -notmatch '^\d+$') { Write-Host '[IoT 연결] 노드 번호는 숫자예요 (-Nodes 로 보기).' -ForegroundColor Yellow; return $false }
+  $m = Mt-Open (Matter-Url $o.matter)
+  try { [void](Mt-Cmd $m 'remove_node' @{ node_id = [int]$nid } 60) }
+  catch { Write-Host "[IoT 연결] 빼지 못했어요: $($_.Exception.Message)" -ForegroundColor Yellow; return $false }
+  finally { Mt-Close $m }
+  Write-Host "[IoT 연결] ✅ 노드 $nid 을(를) Matter 서버에서 뺐어요 (애플 홈 · 구글 홈에는 그대로)." -ForegroundColor Green
+  $dev = $o.devices[$nid]
+  if ($dev -and $o.code) {
+    if (-not $site) { $site = Read-Host "사이트 기기 #$($dev.id) 도 지울까요? 기록도 같이 지워져요 (y = 지우기 · Enter = 남기기)" }
+    if ($site -match '^(y|yes|ㅛ|예|네)$') {
+      try {
+        $r = Site-Req $o 'DELETE' "hub/$($o.code)/devices/$($dev.id)" $null
+        if ($r.status -lt 400) { Write-Host "[IoT 연결] 사이트 기기 #$($dev.id) 를 지웠어요." -ForegroundColor Green } else { Write-Host "[IoT 연결] 사이트 기기를 못 지웠어요 ($(Get-K $r.json 'message')) — 사이트 IoT 연결에서 지워 주세요." -ForegroundColor Yellow }
+      } catch { Write-Host "[IoT 연결] 사이트에 닿지 않아요 — 사이트 IoT 연결에서 지워 주세요." -ForegroundColor Yellow }
+    } else { Write-Host "[IoT 연결] 사이트 기기 #$($dev.id) 와 기록은 남겨 둬요 (「끊김」으로 보여요)." -ForegroundColor Cyan }
+  }
+  $o.devices.Remove($nid); $o.skip = @($o.skip | Where-Object { $_ -ne $nid }); Save-Cfg $o
+  return $true
+}
+
 if ($Lib) { return }
-if ($Pair -or $Nodes) {
+if ($Pair -or $Nodes -or $Remove) {
   $ErrorActionPreference = 'Stop'
   $o = Load-Cfg
-  try { if ($Pair) { [void](Do-Pair $o '') } else { [void](Show-Nodes $o) } } catch { Write-Host "[IoT 연결] ⚠️ $($_.Exception.Message)" -ForegroundColor Yellow }
+  try { if ($Pair) { [void](Do-Pair $o '') } elseif ($Remove) { [void](Do-Remove $o $Node $AlsoSite) } else { [void](Show-Nodes $o) } } catch { Write-Host "[IoT 연결] ⚠️ $($_.Exception.Message)" -ForegroundColor Yellow }
   return
 }
 Run-Link

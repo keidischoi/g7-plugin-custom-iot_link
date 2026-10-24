@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.12.0 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.13.0 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.12.0';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.13.0';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -1044,7 +1044,7 @@
   /** 1.10.0 🧩 연결 방법 › Matter — 3ds Matter 연결 프로그램 (Matter 서버가 있으면 붙기만 · 없으면 같이 띄움) */
   function guideMt() {   // 1.11.1 스크롤 없이 — 그림 단추를 누르면 그것 하나만 (◀ 처음으로)
     var site = (S.d.link && S.d.link.site) || location.origin;
-    var T = [['win', '💻', '한 줄 설치', '윈도우 · 리눅스 · 맥 · 라즈베리파이'], ['pi', '🐳', 'Matter 서버도 같이', 'Docker (라즈베리파이 · NAS)'], ['pair', '📲', '센서 넣기', '공유 코드'], ['dev', '📦', '사이트 기기', '대기 칸 → 붙이기'], ['thread', '📶', 'Thread 센서', '경계 라우터']];
+    var T = [['win', '💻', '한 줄 설치', '윈도우 · 리눅스 · 맥 · 라즈베리파이'], ['pi', '🐳', 'Matter 서버도 같이', 'Docker (라즈베리파이 · NAS)'], ['pair', '📲', '센서 넣기', '공유 코드'], ['dev', '📦', '사이트 기기', '대기 칸 → 붙이기'], ['thread', '📶', 'Thread 센서', '경계 라우터'], ['off', '🔌', '연결 끊기', '끄기 · 센서 빼기']];   // 1.13.0 🔌
     var P = {
       win: mtWin(),
       pi: '<section class="hal-sec"><h4>🐳 Matter 서버가 없는 집 <small>Docker — 라즈베리파이 · 리눅스 · NAS</small></h4><ol class="hal-mtg-ol">' +
@@ -1057,7 +1057,12 @@
       dev: '<section class="hal-sec"><h4>📦 사이트 기기</h4><div class="hal-mtg-apps"><div><b>💻 한 줄 설치</b><span>센서마다 기기를 저절로 만들어 📡 대기 칸에 — 끌어서 보관함 · 프린터에 붙여요</span></div>' +
         '<div><b>🐳 Docker 판</b><span>🔑 키를 직접 넣을 기기 만들기 → 받는 키를 설정에</span></div><div><b>🗑 지우면</b><span>사이트에서 지운 기기는 다시 만들지 않아요</span></div></div></section>',
       thread: '<section class="hal-sec"><h4>📶 Thread 센서</h4><div class="hal-mtg-apps"><div><b>경계 라우터</b><span>홈팟 미니 · Apple TV · Nest 허브 같은 것이 집에 있어야 해요</span></div>' +
-        '<div><b>Matter 서버 쪽</b><span>리눅스면 IPv6 경로를 받도록 한 번 설정 (설치 안내 「Thread 센서」)</span></div><div><b>Wi-Fi 센서</b><span>할 일이 없어요</span></div></div></section>'
+        '<div><b>Matter 서버 쪽</b><span>리눅스면 IPv6 경로를 받도록 한 번 설정 (설치 안내 「Thread 센서」)</span></div><div><b>Wi-Fi 센서</b><span>할 일이 없어요</span></div></div></section>',
+      // 1.13.0 🔌 연결 끊기 — 중계 끄기 · 센서 빼기 · 사이트 기기 지우기 (필요한 것만)
+      off: '<section class="hal-sec"><h4>🔌 연결 끊기 <small>필요한 것만 — 셋은 따로예요</small></h4><div class="hal-mtg-apps">' +
+        '<div><b>① 중계 끄기</b><span>그 기기에서 보내기를 멈추고 지워요 · 사이트 기기는 「끊김」으로 남아요</span><code>🪟 powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\\3dsMatter\\uninstall.ps1"</code><code>🐧🍎 bash ~/.3ds-matter/uninstall.sh</code><code>🐳 docker compose down</code></div>' +
+        '<div><b>② 센서 하나 빼기</b><span>Matter 서버에서 빼고, 사이트 기기도 지울지 물어봐요 (애플 홈 · 구글 홈에는 그대로)</span><code>🪟 … \\3dsMatter\\link.ps1 -Remove</code><code>🐧🍎 python3 ~/.3ds-matter/link.py --remove</code><code>🐳 docker compose run --rm link remove &lt;노드&gt;</code></div>' +
+        '<div><b>③ 사이트 기기만 지우기</b><span>기기 ✏️ 고치기 › 🗑 지우기 — 중계는 그 센서를 다시 만들지 않아요</span></div></div></section>'
     };
     return '<div class="hal-mtg"><p class="hal-mtg-flow">🌡️ 센서 → Matter 서버 → 중계 → 이 사이트 <small>HA 없이 · 센서는 원래 앱에 그대로</small></p>' +
       '<div class="hal-mtg-tiles">' + T.map(function (t) { return '<button type="button" class="hal-mtg-tile' + (t[0] === 'win' ? ' main' : '') + '" data-mtg="' + t[0] + '"><i aria-hidden="true">' + t[1] + '</i><b>' + t[2] + '</b><small>' + t[3] + '</small></button>'; }).join('') + '</div>' +

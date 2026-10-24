@@ -115,6 +115,7 @@ Apple Home / Google Home have no public cloud API, and Matter only works inside 
 - `hal_devices.source = 'matter'` — a Matter badge (official Matter symbol, CSA trademark — used only to name the connection) on the card, its own receivers tab, source filter, a group in the 📡 waiting area and a teal colour marker.
 - The link sends `X-G7-Via: matter` and a server ID starting with `matter` (`X-G7-Server`, name in `X-G7-Server-Name`). A device created as a Home Assistant device switches to Matter when the link sends to it. Devices created through the hub API (`POST hub/{code}/devices`) by the link are Matter devices; the HA integration's device list does not include Matter devices (and vice versa).
 - Thread sensors need a Thread border router (HomePod mini, Apple TV, Nest Hub …) and IPv6 route settings on the Linux host — see the link's README.
+- **Disconnecting (1.13.0)** — three separate things, do only what you need (🔌 tile in How to connect › Matter): ① stop the relay — `%LOCALAPPDATA%\3dsMatter\uninstall.ps1` / `~/.3ds-matter/uninstall.sh` / `docker compose down` (site devices stay, shown as disconnected); ② remove one sensor — `link.ps1 -Remove [node]` / `link.py --remove [node]` removes the node from the Matter server (it stays in Apple / Google Home) and asks whether to delete the site device too (`-AlsoSite y|n` / `--site y|n`, via the hub API); ③ delete only the site device on `/iot-link` — the relay won't re-create it.
 
 ## Tests
 
