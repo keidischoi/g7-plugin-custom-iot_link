@@ -98,11 +98,23 @@ class HaController extends Controller
         return response()->json(['ok' => $ok, 'message' => $msg] + $data, $ok ? 200 : $bad);
     }
 
-    public function hub(string $code): JsonResponse
+    /** 1.8.0 🏠 어느 HA 서버에서 왔는지 — 통합 0.4.0+ 가 머리글로 (예전 통합은 없음 → null) @return array{id: string, name: string}|null */
+    private function server(Request $r): ?array
+    {
+        $id = (string) $r->header('X-G7-Server', '');
+        if (! preg_match('/^[A-Za-z0-9_-]{6,64}$/', $id)) {
+            return null;
+        }
+        $name = trim((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', rawurldecode((string) $r->header('X-G7-Server-Name', ''))));
+
+        return ['id' => $id, 'name' => mb_substr($name !== '' ? $name : 'Home Assistant', 0, 60)];
+    }
+
+    public function hub(Request $r, string $code): JsonResponse
     {
         $uid = $this->svc->linkUser($code);
 
-        return $uid ? $this->hubJson(true, 'ok', $this->svc->hub($uid)) : $this->hubJson(false, '연결 코드가 맞지 않아요.', [], 404);
+        return $uid ? $this->hubJson(true, 'ok', $this->svc->hub($uid, $this->server($r))) : $this->hubJson(false, '연결 코드가 맞지 않아요.', [], 404);
     }
 
     public function hubSave(Request $r, string $code, ?int $id = null): JsonResponse
@@ -113,6 +125,9 @@ class HaController extends Controller
         }
         $body = $r->json()->all();
         $res = $this->svc->hubSave($uid, $id, is_array($body) ? $body : []);
+        if ($res[0]) {
+            $this->svc->tagServer((int) $res[2]['id'], null, $this->server($r));   // 1.8.0
+        }
 
         return $this->hubJson($res[0], $res[1], $res[0] ? ['device' => $res[2]] : []);
     }
@@ -165,6 +180,9 @@ class HaController extends Controller
             $body = $request->except(['token']);
         }
         $res = $this->svc->ingest($token, is_array($body) ? array_slice($body, 0, 12, true) : []);
+        if ($res[0]) {
+            $this->svc->tagServer(null, $token, $this->server($request));   // 1.8.0 예전에 만든 기기도 값을 보내면 서버가 적힘
+        }
 
         // 0.1.5 next_min · snap — 통합이 이 값을 보고 다음 주기를 맞춤 (회원이 사이트를 안 보는 동안에는 느리게)
         return response()->json(['ok' => $res[0], 'message' => $res[1]] + ($res[2] ?? []), $res[0] ? 200 : 404);

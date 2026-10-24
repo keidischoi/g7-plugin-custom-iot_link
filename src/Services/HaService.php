@@ -153,7 +153,7 @@ class HaService
             default => '',
         };
 
-        return ['id' => (int) $d->id, 'token' => (string) $d->token, 'name' => (string) $d->name, 'target' => (string) $d->target, 'grp' => (string) ($d->grp ?? ''), 'where' => $where, 'source' => (string) ($d->source ?? 'ha'), 'location' => (string) ($d->location ?? ''),
+        return ['id' => (int) $d->id, 'token' => (string) $d->token, 'name' => (string) $d->name, 'target' => (string) $d->target, 'grp' => (string) ($d->grp ?? ''), 'where' => $where, 'source' => (string) ($d->source ?? 'ha'), 'ha_server' => (string) ($d->ha_server ?? ''), 'ha_server_name' => (string) ($d->ha_server_name ?? ''), 'location' => (string) ($d->location ?? ''),
             'printer_id' => $d->printer_id ? (int) $d->printer_id : null, 'company_id' => $d->company_id ? (int) $d->company_id : null, 'equipment_id' => $d->equipment_id ? (int) $d->equipment_id : null,
             'entities' => array_merge(array_fill_keys(Rules::ENTITIES, ''), array_intersect_key((array) json_decode((string) ($d->entities ?? ''), true), array_flip(Rules::ENTITIES))),
             'temp' => $temp, 'humidity' => $hum, 'state' => (string) ($d->state ?? ''), 'is_on' => (bool) $d->is_on && ! $stale,
@@ -536,9 +536,15 @@ class HaService
      *
      * @return array<string, mixed>
      */
-    public function hub(int $uid): array
+    /**
+     * @param  array{id: string, name: string}|null  $srv  1.8.0 요청한 HA 서버 — 있으면 그 서버 기기 · 아직 서버가 안 적힌 기기만 (다른 서버 기기를 잘못 가져가지 않게)
+     */
+    public function hub(int $uid, ?array $srv = null): array
     {
         $o = $this->overview($uid);
+        if ($srv) {
+            $o['devices'] = array_values(array_filter($o['devices'], fn ($d) => $d['ha_server'] === '' || $d['ha_server'] === $srv['id']));
+        }
 
         return ['site' => (string) (config('app.name') ?: 'G7'), 'targets' => $o['targets'], 'locations' => $o['locations'], 'printers' => $o['printers'],
             'equipment' => array_map(fn ($e) => ['id' => $e['id'], 'name' => trim((string) (collect($o['companies'])->firstWhere('id', $e['company_id'])['name'] ?? '').' — '.$e['name'], ' —')], $o['equipment']),
@@ -602,6 +608,20 @@ class HaService
         }
 
         return count($hits) === 1 ? array_values($hits)[0] : [];
+    }
+
+    /** 1.8.0 🏠 그 기기를 보낸 HA 서버를 적어 둠 — 바뀌었을 때만 (값을 받을 때마다 부르므로 같으면 쓰지 않음) @param array{id: string, name: string}|null $srv */
+    public function tagServer(?int $id, ?string $token, ?array $srv): void
+    {
+        if (! $srv || ($id === null && $token === null) || ! Schema::ensure()) {
+            return;
+        }
+        try {
+            DB::table(Schema::DEVICES)->when($id !== null, fn ($q) => $q->where('id', $id), fn ($q) => $q->where('token', $token))
+                ->where(fn ($q) => $q->whereNull('ha_server')->orWhere('ha_server', '!=', $srv['id'])->orWhereNull('ha_server_name')->orWhere('ha_server_name', '!=', $srv['name']))
+                ->update(['ha_server' => $srv['id'], 'ha_server_name' => $srv['name']]);
+        } catch (\Throwable) {
+        }
     }
 
     public function hubSave(int $uid, ?int $id, array $in): array
