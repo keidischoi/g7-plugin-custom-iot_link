@@ -252,6 +252,7 @@ check(str_contains($app, "['off', '🔌', '연결 끊기'") && str_contains($app
 check(str_contains($app, "else if (srcOf(x) === 'mt') { sn = 'src:mt:'") && str_contains($app, "'k-mt'") && ! str_contains($app, 'Home Assistant · SmartThings 의 온습도'), '1.13.1 🗺️ 연결 지도 — Matter 받는 곳은 SmartThings 가 아니라 Matter · 중계 이름');
 check(str_contains($app, "var pn = 'src:pc:' + p.host") && str_contains($app, 'K0.push(sortKey') && str_contains($app, 'cols[0] = cols[0].map(') && str_contains($svcSrc, '\'host\' => (string) ($p->link_host ?? \'\')'), '1.14.0 🗺️ 같은 PC — 프린터 연결 · Matter 중계 같은 이름 (아이콘만 다르게) · 나란히');
 check(str_contains($app, 'function mapKeep(cid)') && str_contains($app, 'if (!mapKeep(p.company_id)) return;') && str_contains($app, 'if (!mapKeep(x.company_id)) return;') && str_contains($app, "qa('[data-mapco]')") && str_contains($app, "</svg>' + mapBar() + '<div class=\"hal-map-cols\">"), '1.14.0 🗺️ 연결 지도 필터 — 전체 · 개인 · 업체마다');
+check(str_contains($app, "sc !== 'mine' && sc !== 'map' && coList().length > 1"), '1.14.2 🗺️ 연결 지도 탭에서는 위쪽 업체 줄 숨김 (지도 안 필터로)');
 
 echo "\n".($fail === 0 ? "OK ({$pass} checks)" : "{$fail} FAILED / ".($pass + $fail))."\n";
 exit($fail === 0 ? 0 : 1);
