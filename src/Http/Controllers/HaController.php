@@ -114,6 +114,10 @@ class HaController extends Controller
     {
         $uid = $this->svc->linkUser($code);
 
+        if ($uid && ($dev = (int) $r->query('device', 0)) > 0) {
+            $this->svc->tagServer($dev, null, $this->server($r), $uid);   // 1.8.2 통합 0.4.1+ 가 켤 때 이 기기 번호도 — 값을 아직 안 보낸 기기도 서버가 적힘
+        }
+
         return $uid ? $this->hubJson(true, 'ok', $this->svc->hub($uid, $this->server($r))) : $this->hubJson(false, '연결 코드가 맞지 않아요.', [], 404);
     }
 
