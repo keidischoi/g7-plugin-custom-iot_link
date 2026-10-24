@@ -70,7 +70,7 @@ class HaController extends Controller
     /** 1.8.3 💳 칸 취소 (환불) */
     public function slotCancel(Request $r, int $id): JsonResponse
     {
-        return $this->off() ?? $this->result((new SlotService())->cancel($this->uid($r), $id, (int) $r->input('n', 0)), $r);
+        return $this->off() ?? $this->result((new SlotService())->cancel($this->uid($r), $id, (int) $r->input('n', 0)), $r);   // 1.8.4 판매를 꺼도 산 사람은 취소 (규칙대로)
     }
 
     /** 1.4.8 💳 자동 연장 켜고 끄기 */

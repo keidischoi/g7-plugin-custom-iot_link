@@ -5,7 +5,7 @@
         "ko": "IoT 연결",
         "en": "IoT Link"
     },
-    "version": "1.8.3",
+    "version": "1.8.4",
     "license": "MIT",
     "description": {
         "ko": "📡 IoT 연결 — 회원의 Home Assistant(HACS 통합 포함) · SmartThings(삼성 계정으로 로그인해 연결)가 보내는 온습도 · 프린터 · 장비 상태를 받아, 필라멘트 · 레진 보관함 습도 경고 · 가동 시간(정비 수첩) · 출력 상태(내 프린터)에 이음. 기기 여러 대, 설정 글 자동 만들기. 사이트가 회원 집으로 접속하지 않음.",

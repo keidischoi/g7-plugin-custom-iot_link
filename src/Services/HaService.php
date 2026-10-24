@@ -127,7 +127,7 @@ class HaService
             'boxes' => Links::boxes($uid),   // 1.6.0 📦 보관함 보드 (재고 관리의 보관함 · 색 · 롤 수)
             'targets' => Rules::TARGETS,
             'link' => ['code' => $this->linkCode($uid), 'site' => rtrim((string) config('app.url'), '/'), 'repo' => (string) Settings::get('hacs_repo')],
-            'slots' => Limits::exempt($uid) ? ['enabled' => false] : (new SlotService())->info($uid, $companies),   // 1.4.8 💳 · 1.4.9 관리자는 살 필요 없음
+            'slots' => (new SlotService())->info($uid, $companies, Limits::exempt($uid)),   // 1.4.8 💳 · 1.4.9 관리자는 살 필요 없음 · 1.8.4 그래도 산 칸은 목록 · 취소
             'limits' => ['admin' => Limits::exempt($uid), 'member' => Limits::member($uid), 'companies' => array_map(fn ($c) => ['id' => $c['id'], 'max' => Limits::company($c['id']), 'used' => Limits::companyUsed($c['id'])], $companies)],   // 1.4.7
             'config' => ['max_devices' => Limits::member($uid), 'interval_min' => (int) Settings::get('interval_min'), 'refresh_sec' => (int) Settings::get('refresh_sec'), 'send_mode' => (string) Settings::get('send_mode'), 'change_hum' => (int) Settings::get('change_hum'), 'idle_min' => (int) Settings::get('idle_min'), 'stale_hours' => (int) Settings::get('stale_hours'), 'base' => rtrim((string) config('app.url'), '/').'/api/plugins/custom-iot_link/in/',
                 'printer_link' => $printers !== [] || ((bool) Settings::get('printer_link') && $this->hasTable('mpr_printers')), 'inventory' => Links::inventoryOn()],
