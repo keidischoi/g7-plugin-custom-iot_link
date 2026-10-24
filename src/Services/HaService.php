@@ -548,8 +548,75 @@ class HaService
     }
 
     /** 통합이 기기를 만들거나 고침 — 화면에서 하는 것과 같은 규칙 @return array{0: bool, 1: string, 2?: array<string, mixed>} */
+    /**
+     * 1.7.15 새 기기 이름이 내 보관함 · 프린터 · 업체 장비 이름과 거의 같으면 거기에 저절로 — 아니면 📡 대기 칸 (📦 보드에서 직접)
+     *  거의 같음 = 빈칸 · 기호 · 대소문자 빼고 같거나, 한쪽이 다른 쪽을 품고 짧은 쪽이 긴 쪽의 70% 이상(3글자 이상). 딱 하나만 맞을 때만.
+     *  프린터 라운지 프린터와 이어진 업체 장비는 그 프린터로 (하나로 셈)
+     *
+     * @return array{target?: string, location?: string, printer_id?: int, equipment_id?: int}
+     */
+    public function autoAttach(int $uid, string $name): array
+    {
+        $norm = static fn (string $v) => mb_strtolower((string) preg_replace('/[^\p{L}\p{N}]+/u', '', $v));
+        $n = $norm($name);
+        if (mb_strlen($n) < 3) {
+            return [];
+        }
+        $near = static function (string $c) use ($n, $norm): bool {
+            $c = $norm($c);
+            if ($c === '' || mb_strlen($c) < 3) {
+                return false;
+            }
+            if ($c === $n) {
+                return true;
+            }
+            [$s, $l] = mb_strlen($c) < mb_strlen($n) ? [$c, $n] : [$n, $c];
+
+            return str_contains($l, $s) && mb_strlen($s) / mb_strlen($l) >= 0.7;
+        };
+        $hits = [];
+        $linked = [];
+        foreach ($this->locations($uid) as $l) {   // 📦 보관함 (재고 관리 보관함 · 롤에 적힌 위치 · 다른 센서의 위치)
+            if ($near((string) $l)) {
+                $hits['l'.$norm((string) $l)] = ['target' => 'location', 'location' => (string) $l];
+            }
+        }
+        foreach ($this->printers($uid) as $p) {
+            if (! empty($p['equipment_id'])) {
+                $linked[(int) $p['equipment_id']] = (int) $p['id'];
+            }
+            foreach ([$p['nickname'] ?? '', $p['model'] ?? '', trim(($p['brand'] ?? '').' '.($p['model'] ?? '')), trim(($p['nickname'] ?? '').' '.($p['brand'] ?? '').' '.($p['model'] ?? ''))] as $c) {
+                if ($near((string) $c)) {
+                    $hits['p'.$p['id']] = ['target' => 'printer', 'printer_id' => (int) $p['id']];
+                }
+            }
+        }
+        foreach ($this->equipment(array_column($this->companies($uid), 'id')) as $e) {
+            $parts = array_merge([(string) $e['name']], array_slice(preg_split('/\s+[—-]\s+/u', (string) $e['name']) ?: [], 1));   // 「업체 — 제조사 모델」이면 뒤쪽만으로도
+            foreach ($parts as $c) {
+                if ($near($c)) {
+                    $pid = $linked[(int) $e['id']] ?? 0;
+                    $hits[$pid ? 'p'.$pid : 'e'.$e['id']] = $pid ? ['target' => 'printer', 'printer_id' => $pid] : ['target' => 'equipment', 'equipment_id' => (int) $e['id']];
+                }
+            }
+        }
+
+        return count($hits) === 1 ? array_values($hits)[0] : [];
+    }
+
     public function hubSave(int $uid, ?int $id, array $in): array
     {
+        // 1.7.15 HA 통합이 보관함(보관 위치)으로 붙이라고 해도 그대로 믿지 않음 — 새 기기는 이름이 보관함 · 프린터 · 장비와 거의 같을 때만 거기에, 아니면 📡 대기 칸 / 고칠 때는 사이트에서 붙인 곳 그대로
+        if (($in['target'] ?? '') === 'location') {
+            $old = $id ? $this->manageable($uid)->where('id', $id)->first() : null;
+            if (! $old && trim((string) ($in['name'] ?? '')) === '' && trim((string) ($in['location'] ?? '')) !== '') {
+                $in['name'] = (string) $in['location'];   // 이름은 HA 가 고른 보관 위치 이름으로 (붙이지만 않음)
+            }
+            $in = ['target' => $old ? (string) $old->target : 'other', 'location' => $old->location ?? null, 'printer_id' => $old->printer_id ?? null, 'equipment_id' => $old->equipment_id ?? null] + $in;
+            if (! $old) {
+                $in = $this->autoAttach($uid, (string) ($in['name'] ?? '')) + $in;   // 이름이 거의 같은 곳이 딱 하나면 거기에
+            }
+        }
         $r = $this->save($uid, $id, $in);
         if (! $r[0]) {
             return $r;
