@@ -387,9 +387,11 @@ namespace {
     $after1 = DB::table('hal_devices')->find($th)->company_id;
     $mv2 = $H::moveLocation(1, '업체 선반', 0, 10);
     $mv3 = $H::moveLocation(2, '업체 선반', 0, 10);   // 남의 개인 센서는 안 움직임
+    $lsC = array_values(array_filter($H::locationSensors([1]), static fn ($x) => str_replace(' ', '', $x['location']) === '업체선반'));
     Settings::save(['enabled' => $was]);
     t($mv1 === 1 && $after1 === null && $mv2 === 2 && (int) DB::table('hal_devices')->find($th)->company_id === 10 && $mv3 === 0,
         '1.7.12 📦 보관함 통째로 옮기면 붙은 센서도 따라감 (업체 → 개인 → 업체 · 같은 보관함의 내 센서 모두 · 남의 것 X)');
+    t(count($lsC) === 1 && $lsC[0]['company_id'] === 10, '1.7.19 재고 관리에 넘기는 보관함 센서에 업체 번호 — 업체 보관함 센서가 내 서랍에 내 보관함으로 겹쳐 나오지 않게');
     DB::table('hal_devices')->whereIn('id', [$th, $hOnly, $tOnly, $plug, $eqDev])->delete();
 
     echo "■ 0.2.0 SmartThings (WebHook SmartApp)\n";

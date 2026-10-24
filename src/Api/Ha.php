@@ -18,7 +18,7 @@ use Plugins\Custom\IotLink\Support\Settings;
  */
 final class Ha
 {
-    public const VERSION = '1.7.18';
+    public const VERSION = '1.7.19';
 
     public static function active(): bool
     {
@@ -50,8 +50,8 @@ final class Ha
             $out = [];
             foreach (DB::table(Schema::DEVICES)->whereIn('user_id', $ids)->where('target', 'location')->whereNotNull('location')->where('location', '!=', '')
                 ->orderByRaw('CASE WHEN user_id = ? THEN 0 ELSE 1 END', [$ids[0]])->orderBy('id')->get() as $d) {
-                $k = (int) $d->user_id.'|'.Rules::loc((string) $d->location);
-                $row = ['user_id' => (int) $d->user_id, 'location' => (string) $d->location, 'name' => (string) $d->name,
+                $k = (int) $d->user_id.'|'.(int) ($d->company_id ?? 0).'|'.Rules::loc((string) $d->location);   // 1.7.19 개인 보관함 · 업체 보관함은 따로
+                $row = ['user_id' => (int) $d->user_id, 'company_id' => (int) ($d->company_id ?? 0), 'location' => (string) $d->location, 'name' => (string) $d->name,
                     'temp' => $d->temp !== null ? (float) $d->temp : null, 'humidity' => $d->humidity !== null ? (float) $d->humidity : null,
                     'humidity_max' => $d->humidity_max !== null ? (int) $d->humidity_max : null, 'last_seen_at' => $d->last_seen_at !== null ? (string) $d->last_seen_at : null];
                 if (! isset($out[$k])) {
