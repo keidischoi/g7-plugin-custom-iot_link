@@ -286,6 +286,11 @@ namespace {
     $ovS = collect($svc->overview(1)['devices'])->keyBy('id');
     t(in_array((int) $sa['id'], $hA, true) && ! in_array((int) $sb['id'], $hA, true) && in_array((int) $nd['id'], $hA, true) && count($svc->hub(1)['devices']) >= 3
         && $ovS[(int) $sb['id']]['ha_server_name'] === '작업실 HA' && $ovS[(int) $sa['id']]['ha_server'] === 'aaaaaaaa1' && $ovS[(int) $nd['id']]['ha_server'] === '', '1.8.0 🏠 HA 서버마다 — 기기에 서버 · 통합 목록은 그 서버 것 + 서버 없는 것');
+    $svc->tagServer((int) $nd['id'], null, ['id' => 'cccccccc3', 'name' => '남의 HA'], 2);   // 1.8.2 다른 회원 번호로는 안 적힘
+    $tagOther = (string) DB::table('hal_devices')->where('id', $nd['id'])->value('ha_server');
+    $svc->tagServer((int) $nd['id'], null, ['id' => 'aaaaaaaa1', 'name' => '본가 HA'], 1);
+    t($tagOther === '' && DB::table('hal_devices')->where('id', $nd['id'])->value('ha_server_name') === '본가 HA', '1.8.2 통합이 켤 때 알려 준 기기 — 그 회원 것만 서버가 적힘');
+    DB::table('hal_devices')->where('id', $nd['id'])->update(['ha_server' => null, 'ha_server_name' => null]);
     DB::table('hal_devices')->whereIn('id', [(int) $sa['id'], (int) $sb['id']])->delete();
     [$okW, , $wd] = $svc->hubSave(1, null, ['target' => 'location', 'location' => 'Awair 거실 공기', 'ent_hum' => 'sensor.awair_h']);
     [$okP, , $pd] = $svc->hubSave(1, null, ['target' => 'location', 'location' => 'Bambu Lab P1S', 'ent_hum' => 'sensor.p1s_h']);

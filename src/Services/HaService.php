@@ -611,13 +611,13 @@ class HaService
     }
 
     /** 1.8.0 🏠 그 기기를 보낸 HA 서버를 적어 둠 — 바뀌었을 때만 (값을 받을 때마다 부르므로 같으면 쓰지 않음) @param array{id: string, name: string}|null $srv */
-    public function tagServer(?int $id, ?string $token, ?array $srv): void
+    public function tagServer(?int $id, ?string $token, ?array $srv, ?int $uid = null): void
     {
         if (! $srv || ($id === null && $token === null) || ! Schema::ensure()) {
             return;
         }
         try {
-            DB::table(Schema::DEVICES)->when($id !== null, fn ($q) => $q->where('id', $id), fn ($q) => $q->where('token', $token))
+            DB::table(Schema::DEVICES)->when($id !== null, fn ($q) => $q->where('id', $id), fn ($q) => $q->where('token', $token))->when($uid !== null, fn ($q) => $q->where('user_id', $uid))   // 1.8.2 통합이 켤 때 알려 준 기기는 그 회원 것만
                 ->where(fn ($q) => $q->whereNull('ha_server')->orWhere('ha_server', '!=', $srv['id'])->orWhereNull('ha_server_name')->orWhere('ha_server_name', '!=', $srv['name']))
                 ->update(['ha_server' => $srv['id'], 'ha_server_name' => $srv['name']]);
         } catch (\Throwable) {
