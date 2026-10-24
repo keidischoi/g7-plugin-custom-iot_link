@@ -8,6 +8,7 @@ require __DIR__.'/../src/Support/Rules.php';
 require __DIR__.'/../src/Support/Settings.php';
 require __DIR__.'/../src/Support/SmartThings.php';
 require __DIR__.'/../src/Support/StSignature.php';
+require __DIR__.'/../src/Support/MatterInstaller.php';
 
 use Plugins\Custom\IotLink\Support\Rules as R;
 use Plugins\Custom\IotLink\Support\Settings as S;
@@ -226,6 +227,14 @@ foreach (['active', 'locationSensors', 'humidityHistory', 'touch', 'runHours'] a
 check(str_contains($apiSrc, "VERSION = '".$ver."'"), 'Api 버전');
 // 1.10.0 🧩 Matter — 센서 이름 없이 만들기 · 받는 키 · 받는 곳 표시 (탭 · 배지 · 대기 칸 · 출처 줄) · 연결 방법
 check(str_contains($app, "x.source === 'matter' ? 'mt' : 'ha'") && str_contains($app, 'function mtCard(xs)') && str_contains($app, 'function mtKeyBox(d)') && str_contains($app, 'function guideMt()') && str_contains($app, 'data-srctab="mt"') && str_contains($app, 'data-ct="mt"') && str_contains($app, 'data-gt="mt"') && str_contains($app, "v.source = 'matter'") && str_contains($app, "key: 'mt', col:") && str_contains($app, 'function recvKey(x)') && str_contains((string) file_get_contents($root.'/resources/assets/iot-link.css'), '.hal-badge.mt'), '1.10.0 🧩 Matter 화면 — 받는 곳 탭 · 배지 · 색 · 기기 만들기 · 받는 키 · 연결 방법');
+// 1.11.0 🪟 Matter 윈도우 한 줄 — PowerShell 설치 본문 (link.ps1 그대로 · 코드 · Matter 주소만 · 따옴표 막음 · MprLink 와 다른 폴더)
+$mi = \Plugins\Custom\IotLink\Support\MatterInstaller::class;
+$mps = $mi::ps1('https://3ds.test/', str_repeat('a', 32), '192.168.0.192');
+$mlink = (string) file_get_contents($root.'/resources/matter/link.ps1');
+check(str_contains($mps, " = 'https://3ds.test'") && str_contains($mps, " = '".str_repeat('a', 32)."'") && str_contains($mps, " = '192.168.0.192'") && ! str_contains($mps, '__') && str_contains($mps, 'function Ensure-Device') && str_contains($mps, '3dsMatter.vbs') && ! str_contains($mps, 'MprLink')
+    && $mi::matter("1.2.3.4'; rm") === '' && $mi::matter('ws://h:5580/ws') === 'ws://h:5580/ws' && $mi::matter('[fd00::1]:5580') === '[fd00::1]:5580' && str_contains($mi::ps1('https://x', 'nope'), " = ''")
+    && str_contains($mlink, "'X-G7-Via', 'matter'") && str_contains($mlink, "'commission_with_code'") && str_contains($mlink, 'network_only = ') && str_contains($mlink, 'MaxJsonLength') && ! preg_match("/^'@/m", $mlink)
+    && str_contains($app, 'function mtWin()') && str_contains($app, "'/mt/' + (L.code || '') + '.ps1'") && str_contains($app, 'mtWinBind(ov)'), '1.11.0 🪟 Matter 윈도우 한 줄 — 설치 본문 · 중계 · 화면');
 
 echo "\n".($fail === 0 ? "OK ({$pass} checks)" : "{$fail} FAILED / ".($pass + $fail))."\n";
 exit($fail === 0 ? 0 : 1);

@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Plugins\Custom\IotLink\Services\HaService;
 use Plugins\Custom\IotLink\Services\SlotService;
+use Plugins\Custom\IotLink\Support\MatterInstaller;
 use Plugins\Custom\IotLink\Support\Settings;
 
 /** 회원 화면 API (로그인, 내 기기만) + 받는 주소 (로그인 없음 — 주소의 비밀 키로) */
@@ -154,6 +155,17 @@ class HaController extends Controller
         }
 
         return $this->hubJson($res[0], $res[1], $res[0] ? ['device' => $res[2]] : []);
+    }
+
+    /** 1.11.0 🧩 GET mt/{code}.ps1?matter=<Matter 서버 주소> — 윈도우 한 줄 설치 본문 (PowerShell). 코드가 틀리면 Write-Host 한 줄만 */
+    public function matterPs1(Request $r, string $code): \Illuminate\Http\Response
+    {
+        $h = ['Content-Type' => 'text/plain; charset=utf-8', 'Cache-Control' => 'no-store', 'X-Content-Type-Options' => 'nosniff'];
+        if (! $this->svc->linkUser($code)) {
+            return response("Write-Host '[IoT 연결] 연결 코드가 맞지 않아요 — 사이트 IoT 연결 › 🧩 Matter 에서 한 줄을 새로 복사해 주세요.' -ForegroundColor Yellow\n", 404, $h);
+        }
+
+        return response(MatterInstaller::ps1((string) config('app.url'), $code, (string) $r->query('matter', '')), 200, $h);
     }
 
     public function hubDelete(string $code, int $id): JsonResponse
