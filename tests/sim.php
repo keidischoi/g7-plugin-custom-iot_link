@@ -1221,6 +1221,11 @@ namespace {
     $v4 = $sl->info(1, $cos1); $v4a = $sl->info(1, $cos1, true);
     t($v4['enabled'] === true && $v4['selling'] === false && $v4['currencies'] === [] && count($v4['slots']) === 1 && $v4a['exempt'] === true && $v4a['selling'] === false && $sl->info(2, []) === ['enabled' => false], '1.8.4 판매를 꺼도 · 관리자라도 산 칸이 있으면 목록 (사기 칸은 없음) · 산 칸 없으면 창 없음');
     t($v4['usage'][0]['base'] === 20 && $v4['usage'][0]['bought'] === 0 && $v4['usage'][0]['used'] === DB::table('hal_devices')->where('user_id', 1)->count() && $v4a['usage'][0]['unlimited'] === true, '1.8.6 📊 칸 쓰임 — 기본 · 구매 · 사용 (관리자는 무제한)');
+    $cu0 = \Plugins\Custom\IotLink\Support\Limits::companyUsed(10);
+    $dv = fn (string $g) => DB::table('hal_devices')->insertGetId(['user_id' => 2, 'token' => bin2hex(random_bytes(16)), 'name' => 'cu '.$g, 'target' => 'location', 'location' => 'x', 'company_id' => 10, 'grp' => $g, 'created_at' => now(), 'updated_at' => now()]);
+    $cuIds = [$dv('none'), $dv('c11')];
+    t(\Plugins\Custom\IotLink\Support\Limits::companyUsed(10) === $cu0 + 1, '1.9.1 업체 것(company_id)이면 「미분류」여도 업체 기기로 셈 · 다른 업체로 분류한 것은 빼고');
+    DB::table('hal_devices')->whereIn('id', $cuIds)->delete();
     Settings::save(['slot_enabled' => true]);
     DB::table('hal_slots')->delete();
     $js8 = (string) file_get_contents(dirname(__DIR__).'/resources/assets/iot-link-app.js');
