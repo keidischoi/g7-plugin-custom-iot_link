@@ -1295,6 +1295,27 @@ namespace {
     ($ai[0]['call'])(1, ['scope' => 'mine', 'alerts_only' => true]);
     t($wq === 0, '1.5.2 🤖 AI 도구 iot_devices — DB 를 하나도 안 씀 (AI 연결 읽기 상자에 안 막힘)');
 
+    echo "■ 1.10.0 🧩 Matter (3ds 연결)\n";
+    Settings::save(['max_devices' => 1000]);
+    t(! $svc->save(1, null, ['target' => 'other', 'name' => '센서 이름 없는 HA'])[0], 'HA 기기는 여전히 센서 이름이 하나는 있어야 함');
+    [$ok, $msg, $x] = $svc->save(1, null, ['target' => 'other', 'name' => '거실 Matter 온습도', 'source' => 'matter']);
+    $mt = DB::table('hal_devices')->where('id', $x['id'] ?? 0)->first();
+    t($ok && $mt && $mt->source === 'matter' && str_contains($msg, 'Matter') && json_decode($mt->entities, true)['temp'] === '', 'Matter 기기는 센서 이름 없이 만들어짐 (안내도 Matter)');
+    t($svc->save(1, (int) $mt->id, ['target' => 'other', 'name' => '거실 Matter 2'])[0] && DB::table('hal_devices')->where('id', $mt->id)->value('source') === 'matter', '고칠 때도 센서 이름 없이 · 출처 그대로');
+    [$ok, , $x] = $svc->save(1, null, ['target' => 'other', 'name' => 'HA 로 만든 것', 'ent_temp' => 'sensor.matter_1_temperature', 'source' => 'smartthings']);
+    $hm = DB::table('hal_devices')->where('id', $x['id'] ?? 0)->first();
+    t($ok && $hm->source === 'ha', '회원이 고를 수 있는 출처는 ha · matter 뿐 (smartthings 는 못 만듦)');
+    $r1 = $svc->ingest($mt->token, ['temperature' => 23.4, 'humidity' => 45], 'matter');
+    $r2 = $svc->ingest($hm->token, ['temperature' => 22.1], 'matter');
+    $hm2 = DB::table('hal_devices')->where('id', $hm->id)->first();
+    t($r1[0] && $r2[0] && (float) DB::table('hal_devices')->where('id', $mt->id)->value('humidity') === 45.0 && $hm2->source === 'matter' && (float) $hm2->temp === 22.1, '3ds Matter 연결이 보내면 값이 들어오고, HA 로 만든 기기도 Matter 기기로 바뀜');
+    $ha2 = DB::table('hal_devices')->where('id', $svc->save(1, null, ['target' => 'other', 'name' => 'HA 그대로', 'ent_hum' => 'sensor.h'])[2]['id'] ?? 0)->first();
+    t($svc->ingest($ha2->token, ['humidity' => 33])[0] && DB::table('hal_devices')->where('id', $ha2->id)->value('source') === 'ha', 'HA 가 보낸 값은 출처를 안 바꿈');
+    $hHa = array_column($svc->hub(1, ['id' => 'aaaaaaaa1', 'name' => '본가 HA'])['devices'], 'id');
+    $hMt = array_column($svc->hub(1, ['id' => 'matter0123456789abcdef01', 'name' => '라즈베리파이'])['devices'], 'id');
+    t(! in_array((int) $mt->id, $hHa, true) && in_array((int) $mt->id, $hMt, true) && ! in_array((int) $ha2->id, $hMt, true) && in_array((int) $ha2->id, $hHa, true), '허브 기기 목록: HA 통합엔 Matter 기기가 안 보이고 · 3ds Matter 연결엔 Matter 기기만');
+    Settings::save(['max_devices' => 20]);
+
     echo "\n통과 {$pass} · 실패 {$fail}\n";
     exit($fail ? 1 : 0);
 }

@@ -354,7 +354,8 @@ class HaService
         foreach (Rules::ENTITIES as $k) {
             $ent[$k] = Rules::entity(is_array($in['entities'] ?? null) ? ($in['entities'][$k] ?? '') : ($in['ent_'.$k] ?? ''));
         }
-        if ($ent['temp'] === '' && $ent['hum'] === '' && $ent['state'] === '' && ($old->source ?? 'ha') !== 'smartthings') {   // 0.2.0 SmartThings 기기는 센서 이름이 없음
+        $src = $old ? (string) ($old->source ?? 'ha') : (($in['source'] ?? '') === 'matter' ? 'matter' : 'ha');   // 1.10.0 🧩 Matter(3ds 연결) — 새로 만들 때만 고름
+        if ($ent['temp'] === '' && $ent['hum'] === '' && $ent['state'] === '' && ! in_array($src, ['smartthings', 'matter'], true)) {   // 0.2.0 SmartThings · 1.10.0 Matter 기기는 센서 이름이 없음
             return [false, 'Home Assistant 의 센서 이름을 하나는 적어 주세요 (예: sensor.drybox_humidity).'];
         }
         $lim = static fn ($v, int $min, int $max) => $v === null || $v === '' || ! is_numeric($v) ? null : max($min, min($max, (int) $v));
@@ -377,10 +378,10 @@ class HaService
                 Links::sensorMoved($uid, (string) $old->location, (string) $row['location']);
             }
         } else {
-            $id = (int) DB::table(Schema::DEVICES)->insertGetId($row + ['user_id' => $uid, 'token' => Rules::token(), 'created_at' => now()]);
+            $id = (int) DB::table(Schema::DEVICES)->insertGetId($row + ['user_id' => $uid, 'source' => $src, 'token' => Rules::token(), 'created_at' => now()]);
         }
 
-        return [true, $old ? '고쳤어요.' : '기기를 만들었어요. 이제 설정 글을 Home Assistant 에 붙여 넣어 주세요.', ['id' => $id]];
+        return [true, $old ? '고쳤어요.' : ($src === 'matter' ? '기기를 만들었어요. 이제 받는 키를 3ds Matter 연결 설정에 넣어 주세요.' : '기기를 만들었어요. 이제 설정 글을 Home Assistant 에 붙여 넣어 주세요.'), ['id' => $id]];
     }
 
     /**
@@ -628,7 +629,7 @@ class HaService
 
         return ['site' => (string) (config('app.name') ?: 'G7'), 'targets' => $o['targets'], 'locations' => $o['locations'], 'printers' => $o['printers'],
             'equipment' => array_map(fn ($e) => ['id' => $e['id'], 'name' => trim((string) (collect($o['companies'])->firstWhere('id', $e['company_id'])['name'] ?? '').' — '.$e['name'], ' —')], $o['equipment']),
-            'devices' => array_map(fn ($d) => ['id' => $d['id'], 'name' => $d['name'], 'target' => $d['target'], 'token' => $d['token'], 'printer_id' => $d['printer_id'], 'equipment_id' => $d['equipment_id'], 'location' => $d['location'], 'entities' => $d['entities'], 'humidity_max' => $d['humidity_max'], 'temp_max' => $d['temp_max'], 'snap_public' => $d['snap_public']], array_values(array_filter($o['devices'], fn ($d) => $d['source'] !== 'smartthings'))),   // 0.2.0 SmartThings 기기는 HA 통합에 안 보임
+            'devices' => array_map(fn ($d) => ['id' => $d['id'], 'name' => $d['name'], 'target' => $d['target'], 'token' => $d['token'], 'printer_id' => $d['printer_id'], 'equipment_id' => $d['equipment_id'], 'location' => $d['location'], 'entities' => $d['entities'], 'humidity_max' => $d['humidity_max'], 'temp_max' => $d['temp_max'], 'snap_public' => $d['snap_public']], array_values(array_filter($o['devices'], fn ($d) => $d['source'] === ($srv && str_starts_with($srv['id'], 'matter') ? 'matter' : 'ha')))),   // 0.2.0 SmartThings 기기는 HA 통합에 안 보임 · 1.10.0 Matter 기기는 3ds Matter 연결에만
             'push_url' => $o['config']['base'], 'interval_min' => (int) Settings::get('interval_min'), 'send_mode' => (string) Settings::get('send_mode'),
             'next_min' => (int) Settings::get(Settings::get('send_mode') === 'change' ? 'idle_min' : 'interval_min'), 'change_hum' => (int) Settings::get('change_hum'), 'change_temp' => 0.5, 'gap_sec' => 60, 'snapshot' => (bool) Settings::get('snapshot'), 'snap_gap_min' => (int) Settings::get('snap_gap_min'), 'snap_max' => self::SNAP_MAX];
     }
@@ -732,7 +733,7 @@ class HaService
      * 받는 주소로 들어온 값 반영 — 요청 하나에 조회 1 · 저장 1~3.
      *
      * @param  array<string, mixed>  $payload  temperature · humidity · state(on) · progress · remaining_min · job
-     * @param  string  $via  1.2.0 값을 보낸 곳 — 'ha'(받는 주소) · 'smartthings'(SmartThings 이벤트). 기기 카드 하나에 둘이 같이 붙을 수 있어 카드의 source 가 아니라 이번 값으로 가림
+     * @param  string  $via  1.2.0 값을 보낸 곳 — 'ha'(받는 주소) · 'matter'(1.10.0 3ds Matter 연결이 보낸 받는 주소) · 'smartthings'(SmartThings 이벤트). 기기 카드 하나에 둘이 같이 붙을 수 있어 카드의 source 가 아니라 이번 값으로 가림
      * @return array{0: bool, 1: string, 2?: array{next_min: int, snap: bool, away: bool}}
      */
     public function ingest(string $token, array $payload, string $via = 'ha'): array
@@ -747,6 +748,9 @@ class HaService
         $v = Rules::payload($payload);
         $now = self::now();
         $set = ['last_seen_at' => $now];
+        if ($via === 'matter' && ($d->source ?? 'ha') === 'ha') {
+            $set['source'] = 'matter';   // 1.10.0 🧩 HA 기기로 만들었어도 3ds Matter 연결이 보내면 Matter 기기로 (받는 곳 표시)
+        }
         if ($v['temp'] !== null) {
             $set['temp'] = $v['temp'];
         }
