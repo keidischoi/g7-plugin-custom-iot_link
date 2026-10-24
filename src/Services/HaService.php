@@ -1051,7 +1051,7 @@ class HaService
                     'brand' => (string) $p->brand, 'model' => (string) $p->model, 'nickname' => (string) ($p->nickname ?? ''), 'company_id' => isset($p->company_id) && $p->company_id ? (int) $p->company_id : null,
                     // 1.7.1 🗺️ 연결 지도 — 프린터 라운지가 직접 받는 연결 (PC 연결 프로그램 · HA · SmartThings) · 출력 상태 · 마지막으로 받은 때 (읽기만)
                     'image' => (string) ($p->image_url ?? ''), 'equipment_id' => isset($p->equipment_id) && $p->equipment_id ? (int) $p->equipment_id : null,   // 1.7.9 이어진 업체 장비 (하나로 보임)
-                     'state' => (string) ($p->state ?? ''), 'via' => (string) ($p->last_via ?? ''), 'seen' => isset($p->last_seen_at) && $p->last_seen_at ? (string) $p->last_seen_at : null,
+                     'state' => (string) ($p->state ?? ''), 'via' => (string) ($p->last_via ?? ''), 'host' => (string) ($p->link_host ?? ''), 'seen' => isset($p->last_seen_at) && $p->last_seen_at ? (string) $p->last_seen_at : null,
                     'live' => isset($p->last_seen_at) && $p->last_seen_at && (string) $p->last_seen_at >= $stale])->all();   // 0.1.10 통합이 HA 기기와 이름을 맞춤
         } catch (\Throwable) {
             return [];

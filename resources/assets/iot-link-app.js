@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.13.2 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.14.0 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.13.2';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.14.0';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -631,14 +631,24 @@
      선: 초록 = 값이 들어옴 · 회색 점선 = 끊김 · 아직 값 없음. 마디에 마우스를 올리면 그 마디의 선만 진하게, 기기를 누르면 고치기 */
   /** 1.7.2 프린터 사진(프린터 라운지 · 3D 카탈로그) — 없거나 못 불러오면 🖨️ */
   function prIcon(p) { var u = String((p && p.image) || ''); return /^(https?:\/\/|\/)[^"'<>\s]+$/.test(u) ? '<img class="hal-pimg" src="' + esc(u) + '" alt="" loading="lazy" onerror="this.replaceWith(\'🖨️\')">' : '🖨️'; }
+  /* 1.14.0 🗺️ 연결 지도 필터 — 전체 · 👤 개인 · 🏢 업체마다 (이 브라우저에 기억) */
+  function mapPick() { var v = pref('mapco', 'all'); return v === 'all' || v === 'mine' || coList().some(function (c) { return String(c.id) === v; }) ? v : 'all'; }
+  function mapKeep(cid) { var f = mapPick(); return f === 'all' || (f === 'mine' ? !cid : +cid === +f); }
+  function mapBar() {
+    if (!hasCo()) return '';
+    var f = mapPick(), n = function (fn) { return S.d.devices.filter(fn).length + (S.d.printers || []).filter(fn).length; };
+    var opts = [['all', '📡', '전체', n(function () { return true; })], ['mine', '👤', '개인', n(function (x) { return !x.company_id; })]].concat(coList().map(function (c) { return [String(c.id), '🏢', c.name, n(function (x) { return +x.company_id === c.id; })]; }));
+    return '<div class="hal-gf hal-mapf" role="tablist" aria-label="지도 범위">' + opts.map(function (o) { return '<button type="button" role="tab" data-mapco="' + esc(o[0]) + '" class="' + (f === o[0] ? 'on' : '') + '" aria-selected="' + (f === o[0]) + '"><i aria-hidden="true">' + o[1] + '</i>' + esc(o[2]) + '<em>' + o[3] + '</em></button>'; }).join('') + '</div>';
+  }
   function mapView() {
-    var d = S.d, N = {}, cols = [[], [], [], []], E = [];
+    var d = S.d, N = {}, cols = [[], [], [], []], E = [], K0 = [];   // 1.14.0 K0 = 받는 곳 칸의 차례 (같은 PC 이름끼리 나란히)
     // 1.7.3 많아도 보이게 — 마디는 아이콘 · 이름만, 값 · 상태 같은 설명은 마우스를 올리면 (title)
-    var node = function (c, id, html, cls, attrs) {
+    var node = function (c, id, html, cls, attrs, sortKey) {
       if (N[id]) return; N[id] = 1;
       var tip = esc(html.replace(/<small>/g, ' · ').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim());
       attrs = attrs || ''; attrs = attrs.indexOf('title="') >= 0 ? attrs.replace('title="', 'title="' + tip + ' — ') : attrs + ' title="' + tip + '"';
       cols[c].push('<div class="hal-mn ' + (cls || '') + '" data-n="' + esc(id) + '"' + attrs + '>' + html + '</div>');
+      if (c === 0) K0.push(sortKey || '\uffff' + id);
     };
     var edge = function (a, b, live) { for (var i = 0; i < E.length; i++) if (E[i][0] === a && E[i][1] === b) { E[i][2] = E[i][2] || live; return; } E.push([a, b, live]); };
     var go2 = function (u) { return u ? ' data-href="' + esc(u) + '" role="link" tabindex="0"' : ''; };   // 1.9.5 🔗 붙인 곳 · 이어지는 곳 → 그 화면
@@ -652,6 +662,7 @@
     var lnk = {}; (d.printers || []).forEach(function (p) { if (p.equipment_id) lnk[p.equipment_id] = p.id; });
     var PST = { printing: '🟢 출력 중', paused: '⏸ 일시정지', done: '✅ 끝남', failed: '⚠️ 실패', idle: '쉬는 중' };
     (d.printers || []).forEach(function (p) {
+      if (!mapKeep(p.company_id)) return;   // 1.14.0 🗺️ 필터
       var tn = 't:p:' + p.id, sub = ['프린터'];
       if (PST[p.state]) sub.push(PST[p.state]); if (p.seen) sub.push(agoText(p.seen));
       var on = !!p.live || d.devices.some(function (x) { return x.target === 'printer' && x.printer_id === p.id && !x.stale && !x.never; });   // 연결이 꺼졌으면 회색으로 흐릿하게
@@ -660,15 +671,17 @@
       if (p.equipment_id && d.config.inventory) { node(3, 'x:eq', lbl('🏭', '업체 장비', '장비 상태 · 온습도'), 'k-ext', go2('/inventory?tab=equipment')); edge(tn, 'x:eq', !!p.live); }   // 1.7.9 이어진 업체 장비
       // 1.7.4 사이트 ⇄ 💻 PC(라즈베리파이)의 연결 프로그램 ⇄ 프린터 — 프린터 라운지와 같은 이름 · SimplyPrint 는 따로
       if (p.via === 'simply') { node(0, 'src:simply', lbl('🔗', 'SimplyPrint', '클라우드로 프린터 상태를 받음'), 'k-hook'); edge('src:simply', tn, !!p.live); }
+      else if ((p.via === 'script' || (p.seen && !p.via)) && p.host) { var pn = 'src:pc:' + p.host; node(0, pn, lbl('🖨️', p.host, '프린터 연결 프로그램 — 이 PC 에서 프린터 ⇄ 사이트'), 'k-hook', '', p.host.toLowerCase() + ' 1'); edge(pn, tn, !!p.live); }   // 1.14.0 💻 PC 이름 (내 프린터 0.1.95+) — 같은 PC 의 Matter 중계와 같은 이름 · 아이콘만 다르게
       else if (p.via === 'script' || (p.seen && !p.via)) { node(0, 'src:pc', lbl('💻', 'PC 연결 프로그램', 'PC · 라즈베리파이에서 프린터 ⇄ 사이트 (상태를 받고 · 원격 출력을 보냄)'), 'k-hook'); edge('src:pc', tn, !!p.live); }
     });
     d.devices.forEach(function (x) {
+      if (!mapKeep(x.company_id)) return;   // 1.14.0 🗺️ 필터
       var live = !x.stale && !x.never, c = capsOf(x), dn = 'd:' + x.id, v = [];
       if (c.temp && x.temp != null) v.push('🌡️ ' + x.temp + '°'); if (c.hum && x.humidity != null) v.push('💧 ' + x.humidity + '%'); if (c.state) v.push(x.is_on ? '⚙️ 가동 중' : '⏸ 쉬는 중');
       // ① 출처
       var s = srcOf(x) === 'st' ? stOf[x.id] : null, sn;
       if (srcOf(x) === 'ha') { sn = 'src:ha'; node(0, sn, haLogo() + '<span><b>Home Assistant</b><small>값을 보내는 집</small></span>', 'k-ha'); }
-      else if (srcOf(x) === 'mt') { sn = 'src:mt:' + (x.ha_server || ''); node(0, sn, mtLogo() + '<span><b>' + esc(x.ha_server_name || 'Matter') + '</b><small>Matter · 3ds 연결</small></span>', 'k-mt'); }   // 1.13.1 중계마다 (SmartThings 로 나오던 것)
+      else if (srcOf(x) === 'mt') { sn = 'src:mt:' + (x.ha_server || ''); node(0, sn, mtLogo() + '<span><b>' + esc(x.ha_server_name || 'Matter') + '</b><small>Matter 중계 — 이 PC 에서 Matter 센서 → 사이트</small></span>', 'k-mt', '', String(x.ha_server_name || 'matter').toLowerCase() + ' 2'); }   // 1.13.1 중계마다 (SmartThings 로 나오던 것)
       else if (s) { sn = 'src:st' + s.id; node(0, sn, stLogo() + '<span><b>' + esc(s.location || 'SmartThings') + '</b><small>SmartThings' + (s.status === 'active' ? '' : ' · ⚠️ ' + esc(s.status)) + '</small></span>', 'k-st'); }
       else { sn = 'src:st'; node(0, sn, stLogo() + '<span><b>SmartThings</b><small>클라우드 센서</small></span>', 'k-st'); }
       // ② 기기
@@ -695,7 +708,8 @@
     });
     S.mapE = E;
     var T = [['📥', '받는 곳'], ['📡', '기기'], ['📌', '붙인 곳'], ['🔗', '이어지는 곳']];
-    return '<div class="hal-map-wrap"><p class="hal-hint">선이 <b class="hal-map-k on">초록</b>이면 값이 들어오고, <b class="hal-map-k off">회색 점선</b>이면 끊겼거나 아직 값이 없어요. 마디에 마우스를 올리면 그 연결만 진하게 · 기기를 누르면 고치기 · 붙인 곳 · 이어지는 곳을 누르면 그 화면으로.</p>' +
+    cols[0] = cols[0].map(function (h, j) { return [K0[j], j, h]; }).sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] - b[1]; }).map(function (x) { return x[2]; });   // 1.14.0 같은 PC 이름끼리 나란히
+    return '<div class="hal-map-wrap">' + mapBar() + '<p class="hal-hint">선이 <b class="hal-map-k on">초록</b>이면 값이 들어오고, <b class="hal-map-k off">회색 점선</b>이면 끊겼거나 아직 값이 없어요. 마디에 마우스를 올리면 그 연결만 진하게 · 기기를 누르면 고치기 · 붙인 곳 · 이어지는 곳을 누르면 그 화면으로.</p>' +
       '<div class="hal-map" data-map><svg class="hal-map-svg" aria-hidden="true"></svg><div class="hal-map-cols">' + cols.map(function (c, i) { return '<div class="hal-map-col"><h4><i aria-hidden="true">' + T[i][0] + '</i>' + T[i][1] + ' <small>' + c.length + '</small></h4>' + (c.join('') || '<p class="hal-hint">—</p>') + '</div>'; }).join('') + '</div></div></div>';
   }
   /** 선 그리기 — 마디의 실제 자리를 재서 곡선으로 (창 크기가 바뀌면 다시) */
@@ -761,6 +775,7 @@
     qa('[data-gf]').forEach(function (b) { b.onclick = function () { setPref('gf', b.getAttribute('data-gf')); S.lim = 0; redraw(); }; });   // 1.4.6 분류 고르기 · 보기 모양
     qa('[data-src]').forEach(function (b) { b.onclick = function () { setPref('src', b.getAttribute('data-src')); S.lim = 0; redraw(); }; });   // 1.4.7 출처
     qa('[data-co]').forEach(function (b) { b.onclick = function () { setPref('co', b.getAttribute('data-co')); S.lim = 0; redraw(); }; });   // 1.8.0 🏢 업체
+    qa('[data-mapco]').forEach(function (b) { b.onclick = function () { setPref('mapco', b.getAttribute('data-mapco')); redraw(); }; });   // 1.14.0 🗺️ 지도 필터
     qa('[data-hasrv]').forEach(function (b) { b.onclick = function () { var v = b.getAttribute('data-hasrv'); setPref('hasrv', v); if (v !== 'all') setPref('src', 'ha'); S.lim = 0; redraw(); }; });   // 1.8.0 🏠 HA 서버
     moreBind();
     qa('[data-view]').forEach(function (b) { b.onclick = function () { setPref('view', b.getAttribute('data-view')); redraw(); }; });
