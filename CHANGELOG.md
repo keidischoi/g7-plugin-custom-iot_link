@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.11.0 — 2026-10-25 🪟 Matter 윈도우 한 줄 — Python 없이 · 센서마다 기기 저절로
+
+- 🪟 **윈도우 중계** — 🧩 Matter 탭의 한 줄(`irm "…/mt/{연결 코드}.ps1?matter=<Matter 서버>" | iex`)을 PowerShell 에 붙여 넣으면 끝. 프린터 연결(MprLink)과 같은 방식: `%LOCALAPPDATA%\3dsMatter` · 시작 프로그램 · 따로 깔 것 없음 (MprLink 와 폴더 · 이름이 달라 서로 안 건드림)
+- 설치 때 Matter 서버에 붙는지 확인 · 넣은 센서 보여 줌 · 공유 코드로 센서 넣기(회원이 직접 · 건너뛰어도 됨) · 끄기 `uninstall.ps1` · 센서 더 넣기 `link.ps1 -Pair`
+- 🤖 **센서마다 사이트 기기를 저절로** — 연결 코드로 허브 API 를 불러 Matter 기기를 만들어 📡 대기 칸에 (키 복사 없음). 사이트에서 지운 기기는 다시 안 만듦
+- 보내는 규칙은 HA 통합 · 리눅스판과 같음 (변하면 보내기 · 최소 간격 · 주기, 사이트의 답을 따름) · PowerShell 5.1 의 2MB JSON 한도를 넘는 큰 노드 목록도 읽음
+- 리눅스판(키 직접 넣기)은 「🔑 직접 만들기」로 남김 · 연결 방법 글 고침
+
 ## 1.10.0 — 2026-10-25 🧩 Matter (3ds 연결) — HA 없이 Matter 온습도 센서
 
 - 🧩 **Matter 기기** — 애플 홈 · 구글 홈 · SmartThings 에 넣은 Matter 온습도 센서를, 집 안의 [3ds Matter 연결](https://github.com/keidischoi/matter-3ds-link)(라즈베리파이 · 리눅스 Docker · 윈도우 python)이 사이트로 보냄. 받는 주소는 HA 와 같은 `/in/{키}`

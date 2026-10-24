@@ -106,9 +106,9 @@ Apple Home / Google Home have no public cloud API, and Matter only works inside 
 
 ### Members
 
-1. Install the 3ds Matter link — Raspberry Pi / Linux with Docker (`docker compose up -d`, add `--profile server` if there is no Matter server yet), or plain `python link/link.py` on any PC (Windows too) when a Matter server already exists. Put the server address in `config/config.yaml` → `matter:`.
+1. Install the relay — **Windows (1.11.0)**: the 🧩 Matter tab shows a one-liner (`irm "…/api/plugins/custom-iot_link/mt/{link code}.ps1?matter=<server>" | iex`) to paste into PowerShell. Nothing else to install (PowerShell only, like the printer link MprLink): it saves `resources/matter/link.ps1` to `%LOCALAPPDATA%\3dsMatter`, checks the Matter server, offers to add sensors, and registers itself in the Startup folder. **Raspberry Pi / Linux / NAS**: the [Docker version](https://github.com/keidischoi/matter-3ds-link) (`docker compose up -d`, add `--profile server` if there is no Matter server yet; server address in `config/config.yaml` → `matter:`).
 2. In Apple Home (sensor › ⚙️ › **Turn On Pairing Mode**), Google Home (**Linked Matter apps & services**) or SmartThings (**Share with other services**) get a sharing code and type it into `link.py pair`.
-3. On `/iot-link`: the receivers box › **🧩 Matter** tab › **➕ Create Matter device** (or ➕ Connect device › 🧩 Matter). No Home Assistant entity names are needed. After saving, copy the **🔑 ingest key** (or the ready-made `config.yaml` line) into the link's `devices:` with the node number from `link.py nodes`. It is picked up within 30 seconds.
+3. Site devices — the **Windows relay creates one Matter device per sensor automatically** (hub API with the link code; they appear in the 📡 waiting area, drag them onto a storage box / printer). A device deleted on the site is not re-created. For the Linux version: 🧩 Matter tab › **🔑 Create manually** — no Home Assistant entity names are needed; copy the **🔑 ingest key** (or the ready-made `config.yaml` line) into the link's `devices:` with the node number from `link.py nodes`.
 
 ### How it is shown / stored
 

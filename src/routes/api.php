@@ -28,6 +28,9 @@ Route::post('smartthings', [SmartThingsController::class, 'webhook'])->middlewar
 // 회원이 공개로 둔 카메라 사진 (로그인 없음)
 Route::get('snap/{id}.jpg', [HaController::class, 'snapPublic'])->whereNumber('id')->middleware('throttle:240,1')->name('snap.public');
 
+// 1.11.0 🧩 Matter 중계 윈도우 한 줄 설치 (로그인 없음, 주소의 연결 코드 — irm "주소" | iex)
+Route::get('mt/{code}.ps1', [HaController::class, 'matterPs1'])->where('code', '[a-f0-9]{32}')->middleware('throttle:20,1')->name('matter.ps1');
+
 // HACS 통합 ↔ 사이트 (로그인 없음, 주소의 연결 코드) — 붙일 곳 목록 · 기기 만들기/고치기/지우기
 Route::middleware('throttle:30,1')->where(['code' => '[a-f0-9]{32}'])->group(function () {
     Route::get('hub/{code}', [HaController::class, 'hub'])->name('hub');
