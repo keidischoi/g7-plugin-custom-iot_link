@@ -1181,10 +1181,6 @@ class SmartThingsService
         $cand = array_column(SmartThings::candidates($items, $i->temp_scale ?? null), null, 'id');
         $old = self::config($i);
         $mine = DB::table(Schema::DEVICES)->where('user_id', $uid)->pluck('name', 'id')->all();
-        $locs = [];
-        foreach ($this->ha->locations($uid) as $l) {
-            $locs[Rules::loc($l)] = $l;
-        }
         $printers = array_column($this->ha->printers($uid), null, 'id');
         $triples = [];
         $map = [];
@@ -1217,7 +1213,12 @@ class SmartThingsService
                 $site = isset($old['map'][$sid], $mine[$old['map'][$sid]]) ? $old['map'][$sid] : 0;   // 남의 기기 · 없는 기기로는 못 붙임 → 예전에 붙였던 것 · 없으면 새로
             }
             if ($site <= 0) {
-                $site = (int) $this->newDevice($uid, $c['label'], $locs[Rules::loc($c['label'])] ?? null);
+                $auto = $this->ha->autoAttach($uid, $c['label']);   // 1.7.15 보관함 · 프린터 · 장비 이름과 거의 같으면 거기에 · 아니면 📡 대기 칸 (📦 보드에서 직접)
+                $site = (int) $this->newDevice($uid, $c['label'], ($auto['target'] ?? '') === 'location' ? $auto['location'] : null, ($auto['target'] ?? '') === 'printer' ? $auto['printer_id'] : null);
+                if ($site > 0 && ($auto['target'] ?? '') === 'equipment') {
+                    $eq = $this->ha->equipment(array_column($this->ha->companies($uid), 'id'))[$auto['equipment_id']] ?? null;
+                    DB::table(Schema::DEVICES)->where('id', $site)->update(['target' => 'equipment', 'equipment_id' => $auto['equipment_id'], 'company_id' => $eq['company_id'] ?? null]);
+                }
                 if ($site <= 0) {
                     $skip[] = $c['label'];
 

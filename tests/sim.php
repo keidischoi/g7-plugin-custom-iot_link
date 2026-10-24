@@ -275,7 +275,15 @@ namespace {
     $h = $svc->hub(1);
     t($h['locations'] === ['AMS', '드라이 박스'] && $h['printers'][0]['id'] === 5 && $h['printers'][0]['model'] === 'P1S' && $h['printers'][0]['nickname'] === '거실' && array_key_exists('printer_id', $h['devices'][0]) && $h['equipment'][0]['name'] === '삼디 공방 — Bambu Lab X1C' && count($h['devices']) === 3 && strlen($h['devices'][0]['token']) === 32 && $h['push_url'] === 'https://3ds.test/api/plugins/custom-iot_link/in/', '허브: 붙일 곳 목록 · 내 기기');
     [$ok, , $nd] = $svc->hubSave(1, null, ['target' => 'location', 'location' => 'AMS', 'ent_hum' => 'sensor.ams_humidity', 'humidity_max' => 30]);
-    t($ok && $nd['name'] === 'AMS' && str_ends_with($nd['push_url'], '/in/'.$nd['token']) && $svc->ingest($nd['token'], ['humidity' => 20])[0], '통합이 기기를 만들고 그 주소로 보냄');
+    t($ok && $nd['name'] === 'AMS' && str_ends_with($nd['push_url'], '/in/'.$nd['token']) && $svc->ingest($nd['token'], ['humidity' => 20])[0]
+        && DB::table('hal_devices')->where('id', $nd['id'])->value('target') === 'location', '통합이 기기를 만들고 그 주소로 보냄 (이름이 보관함과 같으면 거기에)');
+    [$okW, , $wd] = $svc->hubSave(1, null, ['target' => 'location', 'location' => 'Awair 거실 공기', 'ent_hum' => 'sensor.awair_h']);
+    [$okP, , $pd] = $svc->hubSave(1, null, ['target' => 'location', 'location' => 'Bambu Lab P1S', 'ent_hum' => 'sensor.p1s_h']);
+    [$okD, , $dd] = $svc->hubSave(1, null, ['target' => 'location', 'location' => '드라이', 'ent_hum' => 'sensor.dry_h']);
+    $tg = static fn ($d) => DB::table('hal_devices')->where('id', $d['id'])->first();
+    t($okW && $tg($wd)->target === 'other' && $tg($wd)->location === null && $okP && $tg($pd)->target === 'printer' && (int) $tg($pd)->printer_id === 5 && $okD && $tg($dd)->target === 'other',
+        '1.7.15 HA 가 보관함으로 붙이라 해도 이름이 거의 같은 곳에만 — 맞는 곳 없음 · 「드라이」(드라이 박스의 70% 미만) → 📡 대기 칸, 프린터 이름과 같으면 그 프린터');
+    DB::table('hal_devices')->whereIn('id', [$wd['id'], $pd['id'], $dd['id']])->delete();
     [$ok, , $ud] = $svc->hubSave(1, $nd['id'], ['target' => 'location', 'location' => 'AMS', 'ent_hum' => 'sensor.ams2_humidity', 'humidity_max' => 35]);
     t($ok && $ud['token'] === $nd['token'] && (int) DB::table('hal_devices')->where('id', $nd['id'])->value('humidity_max') === 35 && ! $svc->hubSave(2, $nd['id'], ['target' => 'other', 'ent_temp' => 'sensor.x'])[0], '통합이 고침 (주소는 그대로) · 남의 기기는 못 고침');
     $svc->rotateLink(1);
@@ -654,7 +662,7 @@ namespace {
     $ams = DB::table('hal_devices')->where('id', $cfg['map']['dev-th-0002'] ?? 0)->first();
     t($ok && str_contains($msg, '센서 3개') && str_contains($msg, '새 기기 2개') && array_keys($cfg['map']) === ['dev-th-0001', 'dev-plug-001', 'dev-th-0002'] && $cfg['map']['dev-th-0001'] === (int) $box->id && $cfg['mode'] === 'oauth' && (float) $cfg['power_on_w'] === 15.0
         && DB::table('hal_devices')->where('user_id', 1)->count() === $before + 2, '고른 것 저장: 기기 하나가 사이트 기기 하나 (고른 내 기기 · 없으면 새로) · 못 받는 기기 · 없는 기기 · 두 번 온 것은 뺌');
-    t($plug->name === '프린터 플러그' && $plug->source === 'smartthings' && $plug->target === 'other' && $ams->name === 'AMS' && $ams->target === 'location' && $ams->location === 'AMS', '새 기기 이름 = SmartThings 이름 · 필라멘트 보관 위치와 이름이 같으면 그 보관함에 붙임');
+    t($plug->name === '프린터 플러그' && $plug->source === 'smartthings' && $plug->target === 'other' && $ams->name === 'AMS' && $ams->target === 'location' && $ams->location === 'AMS', '새 기기 이름 = SmartThings 이름 · 보관 위치와 이름이 (거의) 같으면 그 보관함에 붙임');
     $b = DB::table('hal_devices')->where('id', $box->id)->first();
     t((float) $b->temp === 25.0 && (float) $b->humidity === 33.0 && $plug->state === 'on' && (bool) $plug->is_on && (float) $ams->humidity === 21.0 && $oi->status === 'active'
         && DB::table('hal_st_sensors')->where('install_id', $oi->id)->count() === 7 && DB::table('hal_st_sensors')->where('install_id', $oi->id)->where('st_device_id', 'dev-th-0002')->where('capability', 'battery')->value('component_id') === 'sub',
