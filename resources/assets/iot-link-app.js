@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.8.0 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.8.1 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.8.0';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.8.1';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -90,7 +90,8 @@
     var all = d.sensors || [], one = function (cap) { return all.filter(function (x) { return x.capability === cap; }).length === 1; };
     var sens = all.filter(function (x) { return !((x.capability === 'temperatureMeasurement' && hasTemp && one(x.capability)) || (x.capability === 'relativeHumidityMeasurement' && hasHum && one(x.capability))); });
     var stt = d.never ? '<span class="hal-dot wait"></span>값을 기다리는 중' : d.stale ? '<span class="hal-dot off" title="' + (st || (d.sensors && d.sensors.length) ? 'SmartThings 가 값을 안 보냈어요 — 사이트가 15분마다 저절로 지금 값을 물어 다시 이어요 (바로 하려면 「🔄 다시 잇기」 · 기기가 꺼져 있으면 켜진 뒤 저절로)' : 'Home Assistant 가 값을 안 보내요 — HA 가 켜져 있고 인터넷에 이어져 있는지 봐 주세요 (다시 보내면 저절로 풀려요)') + '"></span>끊김 · ' + agoText(d.seen) : '<span class="hal-dot on"></span>' + agoText(d.seen);
-    return '<article class="hal-card' + (d.over ? ' over' : '') + (d.stale && !d.never ? ' stale' : '') + (S.sel && S.sel[d.id] ? ' picked' : '') + '">' +
+    var rv = recvOf(d);   // 1.8.1 🎨
+    return '<article class="hal-card' + (rv ? ' srv' : '') + (d.over ? ' over' : '') + (d.stale && !d.never ? ' stale' : '') + (S.sel && S.sel[d.id] ? ' picked' : '') + '"' + (rv ? ' style="--srv:' + rv.col + '"' : '') + '>' + recvTag(d) +
       '<header>' + (S.sel ? '<label class="hal-pick" title="고르기"><input type="checkbox" data-sel="' + d.id + '"' + (S.sel[d.id] ? ' checked' : '') + ' aria-label="' + esc(d.name) + ' 고르기"></label>' : '') + '<span class="hal-ico">' + ICON[d.target] + '</span><div><b>' + esc(d.name) + '</b><small>' + (st || (d.sensors && d.sensors.length) ? '<span class="hal-badge">' + stLogo() + ' SmartThings</span>' : '<span class="hal-badge ha">' + haLogo() + ' Home Assistant</span>') + '</small></div><button class="hal-icobtn" data-edit="' + d.id + '" title="고치기" aria-label="고치기">✏️</button></header>' + toRow(d) +
       '<div class="hal-vals">' +
         (hasHum ? '<div class="' + (d.humidity_max != null && d.humidity != null && d.humidity > d.humidity_max ? 'hot' : '') + '"><i>💧</i><b>' + (d.humidity == null ? '–' : d.humidity) + '</b><u>%</u>' + (d.humidity_max != null ? '<small>기준 ' + d.humidity_max + '%</small>' : '') + '</div>' : '') +
@@ -176,6 +177,16 @@
     out.forEach(function (x, i) { x.label = x.id && seen[x.name] > 1 ? x.name + ' #' + (i + 1) : x.name; });
     return out;
   }
+  /* 1.8.1 🎨 받는 곳(HA 서버마다 · SmartThings)마다 색 · 짧은 표식 — 칩 · 카드 · 탭 · 대기 칸이 같은 색 (받는 곳이 둘 이상일 때만) */
+  var SRV_COL = ['#f97316', '#a855f7', '#22c55e', '#e11d48', '#eab308', '#14b8a6', '#6366f1', '#db2777', '#84cc16', '#0891b2'];
+  function recvs() {
+    var out = haServers().map(function (v, i) { var nm = String(v.name || '').replace(/\s*(home\s*assistant|ha)\s*$/i, '').trim(); return { key: 'ha:' + v.id, col: SRV_COL[i % SRV_COL.length], short: v.id ? (nm ? nm.slice(0, 5) + (v.label !== v.name ? v.label.slice(v.name.length) : '') : 'HA' + (i + 1)) : '이름 없음', label: v.label }; });
+    if (S.d.devices.some(function (x) { return srcOf(x) === 'st'; })) out.unshift({ key: 'st', col: '#1d4ed8', short: 'ST', label: 'SmartThings' });
+    return out;
+  }
+  function recvOf(x) { var k = srcOf(x) === 'st' ? 'st' : 'ha:' + (x.ha_server || ''); var r = recvs(); return r.length > 1 ? r.filter(function (v) { return v.key === k; })[0] || null : null; }
+  function recvTag(x) { var r = recvOf(x); return r ? '<em class="hal-srvtag" style="--srv:' + r.col + '" title="' + esc(r.label) + ' 에서 옴">' + esc(r.short) + '</em>' : ''; }
+  function recvDot(key) { var r = recvs(); if (r.length < 2) return ''; var v = r.filter(function (y) { return y.key === key; })[0]; return v ? '<i class="hal-srvdot" style="--srv:' + v.col + '" aria-hidden="true"></i>' : ''; }
   function srvLabel(x) { var k = x.ha_server || ''; var s = haServers().filter(function (v) { return v.id === k; })[0]; return s ? s.label : 'Home Assistant'; }
   function srvPick() { var v = pref('hasrv', 'all'); return v === 'all' || !haServers().some(function (s) { return s.id === v; }) ? 'all' : v; }
   function inScope(x) { var sc = scope(), cp = coPick(); return (sc === 'all' || sc === 'map' || (sc === 'company' ? !!x.company_id : !x.company_id)) && (!cp || sc === 'mine' || !x.company_id || +x.company_id === cp); }
@@ -196,7 +207,7 @@
     shown().forEach(function (x) { cnt[x.group || 'none'] = (cnt[x.group || 'none'] || 0) + 1; });
     var chips = [['all', '📡', '전체', shown().length]].concat(groups().filter(function (g) { return cnt[g[0]]; }).map(function (g) { return [g[0], g[1], g[2], cnt[g[0]]]; }));
     var svs = haServers(), sv = srvPick();   // 1.8.0 🏠 HA 서버가 둘 이상이면 서버마다
-    if (svs.length > 1) srcRow += '<div class="hal-gf hal-srv" role="tablist" aria-label="HA 서버">' + [{ id: 'all', name: '모든 HA 서버', n: sc.ha }].concat(svs).map(function (s) { var on = sv === s.id; return '<button type="button" role="tab" data-hasrv="' + esc(s.id) + '" class="' + (on ? 'on' : '') + '" aria-selected="' + on + '"><i aria-hidden="true">' + (s.id === 'all' ? haLogo() : '🏠') + '</i>' + esc(s.label || s.name) + '<em>' + s.n + '</em></button>'; }).join('') + '</div>';
+    if (svs.length > 1) srcRow += '<div class="hal-gf hal-srv" role="tablist" aria-label="HA 서버">' + [{ id: 'all', name: '모든 HA 서버', n: sc.ha }].concat(svs).map(function (s) { var on = sv === s.id; return '<button type="button" role="tab" data-hasrv="' + esc(s.id) + '" class="' + (on ? 'on' : '') + '" aria-selected="' + on + '"><i aria-hidden="true">' + (s.id === 'all' ? haLogo() : '🏠') + '</i>' + (s.id === 'all' ? '' : recvDot('ha:' + s.id)) + esc(s.label || s.name) + '<em>' + s.n + '</em></button>'; }).join('') + '</div>';
     if (vw === 'board') { srcRow = ''; chips = []; }   // 1.6.0 보드는 붙일 곳 모두를 한 판에
     return '<div class="hal-tools">' + srcRow + '<div class="hal-gf" role="tablist" aria-label="분류">' + chips.map(function (c) { return '<button type="button" role="tab" data-gf="' + c[0] + '" class="' + (gf === c[0] ? 'on' : '') + '" aria-selected="' + (gf === c[0]) + '"><i aria-hidden="true">' + c[1] + '</i>' + esc(c[2]) + '<em>' + c[3] + '</em></button>'; }).join('') + '</div>' +
       '<div class="hal-views" role="group" aria-label="보기 모양">' + VIEWS.map(function (v) { return '<button type="button" data-view="' + v[0] + '" class="' + (vw === v[0] ? 'on' : '') + '" aria-pressed="' + (vw === v[0]) + '" title="' + v[2] + '로 보기"><i aria-hidden="true">' + v[1] + '</i>' + v[2] + '</button>'; }).join('') + '</div></div>';
@@ -251,8 +262,9 @@
   function chip(x, bare) {   // bare — 보관함 안: 온습도는 위 온습도계에 있으니 이름만
     var c = capsOf(x), v = [];
     if (c.temp && x.temp != null) v.push(x.temp + '°'); if (c.hum && x.humidity != null) v.push(x.humidity + '%');
-    return '<button type="button" class="hal-chip' + (S.pick === x.id ? ' on' : '') + (x.stale ? ' off' : '') + (x.perm === 'view' ? ' ro' : '') + '"' + (x.perm === 'view' ? '' : ' draggable="true"') + ' data-chip="' + x.id + '" title="' + (x.perm === 'view' ? '업체 대표 · 관리자만 옮길 수 있어요' : '끌어서 놓거나 · 누르고 놓을 곳을 누르세요') + '">' +
-      (bare ? '' : '<i aria-hidden="true">' + (c.state ? '⚙️' : '') + (c.temp ? '🌡️' : '') + (c.hum ? '💧' : '') + '</i>') + '<b>' + esc(x.name) + '</b>' + (!bare && v.length ? '<small>' + v.join(' · ') + '</small>' : '') + '</button>';
+    var rv = recvOf(x);   // 1.8.1 🎨 받는 곳 색 띠 · 표식
+    return '<button type="button" class="hal-chip' + (rv ? ' srv' : '') + (S.pick === x.id ? ' on' : '') + (x.stale ? ' off' : '') + (x.perm === 'view' ? ' ro' : '') + '"' + (rv ? ' style="--srv:' + rv.col + '"' : '') + (x.perm === 'view' ? '' : ' draggable="true"') + ' data-chip="' + x.id + '" title="' + (x.perm === 'view' ? '업체 대표 · 관리자만 옮길 수 있어요' : '끌어서 놓거나 · 누르고 놓을 곳을 누르세요') + '">' +
+      (bare ? '' : '<i aria-hidden="true">' + (c.state ? '⚙️' : '') + (c.temp ? '🌡️' : '') + (c.hum ? '💧' : '') + '</i>') + '<b>' + esc(x.name) + '</b>' + (!bare && v.length ? '<small>' + v.join(' · ') + '</small>' : '') + recvTag(x) + '</button>';
   }
   /** 칸 — 상태 센서(장비 값)가 먼저, 없으면 일반 센서 */
   function slotRow(devs, kinds) {
@@ -309,7 +321,7 @@
       var g = {}, keys = [];
       xs.forEach(function (x) { var k = srcOf(x) === 'st' ? 'st' : 'ha:' + (x.ha_server || ''); if (!g[k]) { g[k] = []; keys.push(k); } g[k].push(x); });
       if (keys.length < 2) return xs.map(chip).join('');
-      return keys.map(function (k) { return '<div class="hal-freegrp"><small class="hal-freegrp-t">' + (k === 'st' ? stLogo() + ' SmartThings' : '🏠 ' + esc(srvLabel(g[k][0]))) + ' · ' + g[k].length + '</small>' + g[k].map(chip).join('') + '</div>'; }).join('');
+      return keys.map(function (k) { return '<div class="hal-freegrp" style="--srv:' + ((recvs().filter(function (v) { return v.key === k; })[0] || {}).col || 'transparent') + '"><small class="hal-freegrp-t">' + recvDot(k) + (k === 'st' ? stLogo() + ' SmartThings' : '🏠 ' + esc(srvLabel(g[k][0]))) + ' · ' + g[k].length + '</small>' + g[k].map(chip).join('') + '</div>'; }).join('');
     };   // 1.7.18 대기 칸은 탭과 상관없이 모두 (어느 쪽으로든 끌어 붙이게)
     var at = function (fn) { return d.devices.filter(function (x) { return placed(x) && fn(x); }); };
     var cidOf = function (v) { return +(v || 0); };
@@ -652,8 +664,8 @@
     if (!ok) tab = ins.length || !ha.length ? 'st' : many ? 'ha:' + svs[0].id : 'ha';
     if (!st && tab === 'st') tab = many ? 'ha:' + svs[0].id : 'ha';
     var stOn = ins.filter(function (x) { return x.status === 'active'; }).length;
-    var haTab = function (key, label, xs) { var on = xs.filter(function (x) { return !x.stale && !x.never; }).length; return '<button type="button" role="tab" data-srctab="' + esc(key) + '" class="' + (tab === key ? 'on' : '') + '" aria-selected="' + (tab === key) + '">' + haLogo() + ' ' + esc(label) + ' <small>' + (xs.length ? '🟢 ' + on + ' / ' + xs.length : '–') + '</small></button>'; };
-    var bar = '<div class="hal-srctabs" role="tablist" aria-label="받는 곳">' + (st ? '<button type="button" role="tab" data-srctab="st" class="' + (tab === 'st' ? 'on' : '') + '" aria-selected="' + (tab === 'st') + '">' + stLogo() + ' SmartThings <small>' + (ins.length ? '🟢 ' + stOn + ' / ' + ins.length : '–') + '</small></button>' : '') +
+    var haTab = function (key, label, xs) { var on = xs.filter(function (x) { return !x.stale && !x.never; }).length; return '<button type="button" role="tab" data-srctab="' + esc(key) + '" class="' + (tab === key ? 'on' : '') + '" aria-selected="' + (tab === key) + '">' + haLogo() + ' ' + recvDot(key) + esc(label) + ' <small>' + (xs.length ? '🟢 ' + on + ' / ' + xs.length : '–') + '</small></button>'; };
+    var bar = '<div class="hal-srctabs" role="tablist" aria-label="받는 곳">' + (st ? '<button type="button" role="tab" data-srctab="st" class="' + (tab === 'st' ? 'on' : '') + '" aria-selected="' + (tab === 'st') + '">' + stLogo() + ' ' + (many ? recvDot('st') : '') + 'SmartThings <small>' + (ins.length ? '🟢 ' + stOn + ' / ' + ins.length : '–') + '</small></button>' : '') +
       (many ? svs.map(function (v) { return haTab('ha:' + v.id, v.label, ha.filter(function (x) { return (x.ha_server || '') === v.id; })); }).join('') : haTab('ha', 'Home Assistant', ha)) + '</div>';
     var cur = many && tab.indexOf('ha:') === 0 ? svs.filter(function (v) { return 'ha:' + v.id === tab; })[0] : null;
     return '<div class="hal-srcbox">' + bar + (tab === 'st' ? stCard() : haCard(cur ? ha.filter(function (x) { return (x.ha_server || '') === cur.id; }) : ha, cur)) + '</div>';
