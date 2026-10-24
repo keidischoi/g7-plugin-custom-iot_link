@@ -9,7 +9,7 @@ try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::S
 $script:Dir = if ($PSScriptRoot) { $PSScriptRoot } else { Join-Path $env:LOCALAPPDATA '3dsMatter' }
 $script:Cfg = Join-Path $script:Dir 'config.json'
 $script:Inv = [Globalization.CultureInfo]::InvariantCulture
-$script:Ver = '1.11.0'
+$script:Ver = '1.12.0'
 
 function Log($m) { try { Set-Content -Encoding UTF8 (Join-Path $script:Dir 'last.txt') "$(Get-Date -Format s) $m" } catch {} }
 function Mono { return [Diagnostics.Stopwatch]::GetTimestamp() / [Diagnostics.Stopwatch]::Frequency }

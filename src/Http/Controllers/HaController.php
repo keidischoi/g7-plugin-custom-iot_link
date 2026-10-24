@@ -168,6 +168,17 @@ class HaController extends Controller
         return response(MatterInstaller::ps1((string) config('app.url'), $code, (string) $r->query('matter', '')), 200, $h);
     }
 
+    /** 1.12.0 🐧🍎🍓 GET mt/{code}.sh?matter=<Matter 서버 주소> — 리눅스 · 맥 · 라즈베리파이 한 줄 설치 본문 (bash). 코드가 틀리면 안내 한 줄만 */
+    public function matterSh(Request $r, string $code): \Illuminate\Http\Response
+    {
+        $h = ['Content-Type' => 'text/plain; charset=utf-8', 'Cache-Control' => 'no-store', 'X-Content-Type-Options' => 'nosniff'];
+        if (! $this->svc->linkUser($code)) {
+            return response("echo '[IoT 연결] 연결 코드가 맞지 않아요 — 사이트 IoT 연결 › Matter 에서 한 줄을 새로 복사해 주세요.'; exit 1\n", 404, $h);
+        }
+
+        return response(MatterInstaller::sh((string) config('app.url'), $code, (string) $r->query('matter', '')), 200, $h);
+    }
+
     public function hubDelete(string $code, int $id): JsonResponse
     {
         $uid = $this->svc->linkUser($code);

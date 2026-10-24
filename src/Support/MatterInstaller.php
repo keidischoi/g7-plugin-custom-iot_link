@@ -100,11 +100,110 @@ PS;
         return preg_match('#^(wss?://)?[A-Za-z0-9.\-]{1,80}(:\d{1,5})?(/ws)?$#', $v) || preg_match('#^(wss?://)?\[[0-9a-fA-F:]{2,60}\](:\d{1,5})?(/ws)?$#', $v) ? $v : '';
     }
 
-    public static function file(): string
+    public static function file(string $name = 'link.ps1'): string
     {
-        $s = (string) @file_get_contents(dirname(__DIR__, 2).'/resources/matter/link.ps1');
-        $s = preg_replace('/^\xEF\xBB\xBF/', '', $s);
+        $s = (string) @file_get_contents(dirname(__DIR__, 2).'/resources/matter/'.$name);
+        $s = str_replace("\r\n", "\n", (string) preg_replace('/^\xEF\xBB\xBF/', '', $s));
 
-        return str_replace(["\r\n", "\n'@"], ["\n", "\n '@"], $s);   // here-string 이 일찍 닫히지 않게 (줄 맨 앞 '@ 는 없지만 혹시)
+        return $name === 'link.ps1' ? str_replace("\n'@", "\n '@", $s) : $s;   // here-string 이 일찍 닫히지 않게 (줄 맨 앞 '@ 는 없지만 혹시)
+    }
+
+    /** 1.12.0 🐧🍎🍓 리눅스 · 맥 · 라즈베리파이 — curl -fsSL "주소" | bash (python3 기본 기능만 · systemd → 없으면 crontab · 맥은 launchd) */
+    private const SH = <<<'BASH'
+#!/usr/bin/env bash
+# 3D SUEÑO IoT 연결 — 🧩 Matter 중계 설치 (리눅스 · 맥 · 라즈베리파이)
+# 사용: curl -fsSL "이 주소" | bash        다시 설정: 같은 줄을 다시 실행
+# 센서 넣기: python3 ~/.3ds-matter/link.py --pair        끄기: bash ~/.3ds-matter/uninstall.sh
+set -u
+SITE='__SITE__'
+CODE='__CODE__'
+MATTER='__MATTER__'
+DIR="$HOME/.3ds-matter"
+say() { printf '\033[1;36m[IoT 연결]\033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33m[IoT 연결]\033[0m %s\n' "$*"; }
+need() { command -v "$1" >/dev/null 2>&1; }
+if ! need python3; then
+  if [ "$(uname)" = Darwin ]; then warn "python3 가 필요해요: xcode-select --install 뒤 같은 줄을 다시 실행해 주세요."
+  else warn "python3 가 필요해요: sudo apt install -y python3 (라즈베리파이 OS · 우분투) 뒤 같은 줄을 다시 실행해 주세요."; fi
+  exit 1
+fi
+PY="$(command -v python3)"
+mkdir -p "$DIR" && chmod 700 "$DIR"
+cat > "$DIR/link.py" <<'PYEOF'
+__LINKPY__
+PYEOF
+"$PY" "$DIR/link.py" --setup "$SITE" "$CODE" "$MATTER" || exit 1
+RUN="$PY $DIR/link.py"
+
+# 켤 때마다 저절로 — 맥: launchd · 리눅스: systemd(sudo 가 되면) → 아니면 crontab
+if [ "$(uname)" = Darwin ]; then
+  PL="$HOME/Library/LaunchAgents/me.3ds.matter.plist"; mkdir -p "$HOME/Library/LaunchAgents"
+  cat > "$PL" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>me.3ds.matter</string>
+<key>ProgramArguments</key><array><string>$PY</string><string>$DIR/link.py</string></array>
+<key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
+<key>StandardOutPath</key><string>/dev/null</string><key>StandardErrorPath</key><string>/dev/null</string>
+</dict></plist>
+EOF
+  launchctl unload "$PL" 2>/dev/null; launchctl load -w "$PL"
+  MODE=launchd; S=""
+  say "시작했어요 (맥을 켤 때마다 저절로 — launchd)."
+elif need systemctl && { [ "$(id -u)" = 0 ] || sudo -n true 2>/dev/null; }; then
+  S=""; [ "$(id -u)" != 0 ] && S="sudo"
+  $S tee /etc/systemd/system/3ds-matter.service >/dev/null <<EOF
+[Unit]
+Description=3D SUENO IoT Matter relay
+After=network-online.target
+Wants=network-online.target
+[Service]
+ExecStart=$RUN
+Restart=always
+RestartSec=10
+User=$(id -un)
+[Install]
+WantedBy=multi-user.target
+EOF
+  $S systemctl daemon-reload && $S systemctl enable 3ds-matter.service >/dev/null 2>&1 && $S systemctl restart 3ds-matter.service
+  MODE=systemd
+  say "서비스로 등록했어요 (켤 때마다 저절로 — systemd)."
+else
+  ( crontab -l 2>/dev/null | grep -v 3ds-matter; echo "@reboot sleep 30 && nohup $RUN >/dev/null 2>&1 & # 3ds-matter" ) | crontab - 2>/dev/null
+  pkill -f "$DIR/link.py" 2>/dev/null; sleep 1
+  nohup $RUN >/dev/null 2>&1 &
+  MODE=cron; S=""
+  say "시작했어요 (켤 때마다 저절로 — crontab)."
+fi
+printf 'S=%q\nMODE=%q\n' "${S:-}" "$MODE" > "$DIR/svc.env"
+cat > "$DIR/uninstall.sh" <<'UNEOF'
+#!/usr/bin/env bash
+# 3D SUEÑO IoT 연결 — 🧩 Matter 중계 끄기 (사이트의 기기 · 기록과 Matter 서버의 센서는 그대로)
+DIR="$(cd "$(dirname "$0")" && pwd)"
+S=""; MODE=cron
+. "$DIR/svc.env" 2>/dev/null
+case "$MODE" in
+  launchd) PL="$HOME/Library/LaunchAgents/me.3ds.matter.plist"; launchctl unload "$PL" 2>/dev/null; rm -f "$PL" ;;
+  systemd) $S systemctl disable --now 3ds-matter.service; $S rm -f /etc/systemd/system/3ds-matter.service; $S systemctl daemon-reload ;;
+  *) pkill -f "$DIR/link.py"; crontab -l 2>/dev/null | grep -v 3ds-matter | crontab - ;;
+esac
+rm -rf "$DIR"
+printf '\033[1;36m[IoT 연결]\033[0m %s\n' "🧩 Matter 중계를 껐어요. (사이트의 기기 · 기록과 Matter 서버의 센서는 그대로예요)"
+UNEOF
+chmod +x "$DIR/uninstall.sh"
+sleep 3
+if pgrep -f "$DIR/link.py" >/dev/null 2>&1; then
+  say "🟢 지금부터 보내요 — 센서마다 사이트 IoT 연결의 📡 대기 칸에 기기가 생겨요."
+else
+  warn "⚠️ 중계가 시작되지 않았어요 — 마지막 결과: cat $DIR/last.txt · 직접 켜 보기: $RUN"
+fi
+say "   센서 더 넣기: python3 $DIR/link.py --pair · 끄기: bash $DIR/uninstall.sh · 마지막 결과: cat $DIR/last.txt"
+BASH;
+
+    /** 설치 한 줄의 본문 (bash) — $matter 는 회원이 사이트 화면에 적은 Matter 서버 주소 (비우면 설치 때 물어봄) */
+    public static function sh(string $site, string $code, string $matter = ''): string
+    {
+        return strtr(self::SH, ['__SITE__' => rtrim($site, '/'), '__CODE__' => preg_match('/^[a-f0-9]{32}$/', $code) ? $code : '', '__MATTER__' => self::matter($matter), '__LINKPY__' => self::file('link.py')]);
     }
 }

@@ -1,5 +1,6 @@
-"""1.10.x 🧩 윈도우 Matter 중계(resources/matter/link.ps1) 시험 — 가짜 Matter 서버(WebSocket) + 가짜 사이트(허브 · 받는 주소).
-  python tests/matter_ps.py        (Windows · powershell.exe · pip install aiohttp)
+"""🧩 Matter 중계 시험 — 윈도우(resources/matter/link.ps1) · 리눅스/맥(resources/matter/link.py, 파이썬 기본 기능만)을
+같은 가짜 Matter 서버(WebSocket) + 가짜 사이트(허브 · 받는 주소)로.
+  python tests/matter_relay.py [ps|py]     (aiohttp · ps 는 Windows powershell.exe)
 """
 from __future__ import annotations
 
@@ -31,7 +32,8 @@ NODES = [
 ]
 
 
-async def main() -> None:
+async def main(kind: str) -> None:
+    print("■ " + ("🪟 PowerShell link.ps1" if kind == "ps" else "🐧 python link.py (기본 기능만)"), flush=True)
     hub: list[dict] = []
     got: list[tuple[str, dict, dict]] = []
     cmds: list[dict] = []
@@ -76,22 +78,27 @@ async def main() -> None:
     port = site._server.sockets[0].getsockname()[1]
 
     d = Path(tempfile.mkdtemp())
-    src = (ROOT / "resources/matter/link.ps1").read_text(encoding="utf-8")
-    (d / "link.ps1").write_text(src, encoding="utf-8-sig")   # 설치 스크립트처럼 BOM — PowerShell 5.1 이 한글을 읽게
+    fn = "link.ps1" if kind == "ps" else "link.py"
+    src = (ROOT / "resources/matter" / fn).read_text(encoding="utf-8")
+    (d / fn).write_text(src, encoding="utf-8-sig" if kind == "ps" else "utf-8")   # PowerShell 5.1 은 BOM 이 있어야 한글을 읽음
     (d / "config.json").write_text(json.dumps({"site": f"http://127.0.0.1:{port}", "code": CODE, "matter": f"127.0.0.1:{port}", "server_name": "시험 PC"}), encoding="utf-8")
-    ps = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(d / "link.ps1")]
+    ps = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(d / fn)] if kind == "ps" else [sys.executable, "-I", str(d / fn)]
+    opt = (lambda a: ["-" + a.capitalize()]) if kind == "ps" else (lambda a: ["--" + a])
+    env = dict(os.environ, PYTHONIOENCODING="utf-8")
 
     # -Nodes
-    r = await asyncio.to_thread(subprocess.run, ps + ["-Nodes"], capture_output=True, timeout=60)
+    r = await asyncio.to_thread(subprocess.run, ps + opt("nodes"), capture_output=True, timeout=60, env=env)
     out = r.stdout.decode("utf-8", "replace") + r.stdout.decode("cp949", "replace")
+    if kind == "py" and "노드 2" not in out:
+        print(out[-600:], r.stderr.decode("utf-8", "replace")[-600:])
     check("-Nodes 노드 2개 · 온습도", "노드 2" in out and "23.4" in out and "45.1" in out)
 
     # -Pair (코드는 표준 입력으로 — 실제로는 회원이 직접 입력)
-    r = await asyncio.to_thread(subprocess.run, ps + ["-Pair"], input=b"3497-011-2332\r\n", capture_output=True, timeout=120)
+    r = await asyncio.to_thread(subprocess.run, ps + opt("pair"), env=env, input=b"3497-011-2332\r\n", capture_output=True, timeout=120)
     check("-Pair → commission_with_code network_only", any(c["command"] == "commission_with_code" and c["args"]["code"] == "34970112332" for c in cmds))
 
     # 돌기
-    proc = subprocess.Popen(ps, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.Popen(ps, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     try:
         for _ in range(40):
             await asyncio.sleep(0.5)
@@ -140,6 +147,7 @@ async def main() -> None:
     shutil.rmtree(d, ignore_errors=True)
 
 
-asyncio.run(main())
+for k in (sys.argv[1:] or ["ps", "py"]):
+    asyncio.run(main(k))
 print("\n" + ("모두 통과" if fails == 0 else f"{fails}개 실패"))
 sys.exit(1 if fails else 0)
