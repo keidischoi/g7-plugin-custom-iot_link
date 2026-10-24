@@ -1,4 +1,4 @@
-/* custom-iot_link 1.9.4 — 📡 IoT 연결 */
+/* custom-iot_link 1.9.5 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -608,3 +608,9 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
 .hal-gauge .c.add{width:18px;min-width:18px;padding:0;font-size:12px}
 /* 1.9.2 가진 칸 뒤 ＋ 칸 — 흐리게, 올리면 또렷 */
 .hal-gauge .c.ghost.add{opacity:.45;border-style:dashed}.hal-gauge .c.ghost.add:hover{opacity:1}
+/* 1.9.5 🔗 지도 — 누르면 그 화면 */
+.hal-mn[data-href]{cursor:pointer}.hal-mn[data-href]:hover b{text-decoration:underline}.hal-mn[data-href] b::after{content:" ↗";opacity:.55;font-weight:600}
+/* 1.9.5 🗺️ 선이 붙는 곳 점 · 기기 ↔ 붙인 곳 사이 넓게 */
+.hal-map-svg circle{stroke:var(--card,#0f172a);stroke-width:2;transition:opacity .15s}.hal-map-svg circle.on{fill:#22c55e}.hal-map-svg circle.off{fill:#94a3b8}.hal-map-svg circle.dim{opacity:.15}
+.hal-map-cols{column-gap:56px}.hal-map-col:nth-child(3){margin-left:40px}
+@media (max-width:760px){.hal-map-cols{column-gap:44px}.hal-map-col:nth-child(3){margin-left:28px}}
