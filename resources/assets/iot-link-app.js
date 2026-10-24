@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.7.19 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.7.20 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.19';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.20';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -17,9 +17,11 @@
     var m = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/); if (m) h['X-XSRF-TOKEN'] = decodeURIComponent(m[1]);
     if (body) h['Content-Type'] = 'application/json';
     return fetch((path.indexOf('/api/') === 0 ? '' : API) + path, { method: method, credentials: 'same-origin', headers: h, body: body ? JSON.stringify(body) : undefined }).then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok || d.success === false) { var e = new Error(d.message || (r.status === 401 ? '로그인이 필요해요.' : '요청에 실패했어요.')); e.status = r.status; throw e; } return d; });
+      return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok || d.success === false) { var e = new Error(d.message || (r.status === 401 ? '로그인이 필요해요.' : '요청에 실패했어요.')); e.status = r.status; throw e; } if (method !== 'GET') { try { if (BC) BC.postMessage({ t: 'iot', at: Date.now() }); } catch (er) {} } return d; });
     });
   }
+  /* 1.7.20 🔄 같은 브라우저의 다른 탭(재고 관리 서랍 · 업체 재고)과 바로 맞춤 — 바꾸면 알리고, 알림을 받으면 새 값을 받음 */
+  var BC = null; try { BC = new BroadcastChannel('g7-boxes'); } catch (e) {}
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function n(v) { return Number(v || 0).toLocaleString(); }
   function toast(msg, bad) {
@@ -1184,5 +1186,6 @@
       .catch(function () {}).then(function () { liveBusy = false; });
   }
   setInterval(function () { var s = liveSec(); if (s && Date.now() - liveAt >= s * 1000 - 500) live(); }, 5000);   // 5초마다 「때가 됐나」만 봄 — 요청은 정한 간격에 한 번
-  document.addEventListener('visibilitychange', function () { if (!document.hidden && liveSec() && Date.now() - liveAt > 4000) live(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && Date.now() - liveAt > 4000) live(); });   // 1.7.20 「다시 받는 간격」을 꺼 두어도 돌아오면 한 번
+  if (BC) BC.onmessage = function () { if (!document.hidden) { liveBusy = false; live(); } else liveAt = 0; };
 })();
