@@ -234,7 +234,7 @@ $mlink = (string) file_get_contents($root.'/resources/matter/link.ps1');
 check(str_contains($mps, " = 'https://3ds.test'") && str_contains($mps, " = '".str_repeat('a', 32)."'") && str_contains($mps, " = '192.168.0.192'") && ! str_contains($mps, '__') && str_contains($mps, 'function Ensure-Device') && str_contains($mps, '3dsMatter.vbs') && ! str_contains($mps, 'MprLink')
     && $mi::matter("1.2.3.4'; rm") === '' && $mi::matter('ws://h:5580/ws') === 'ws://h:5580/ws' && $mi::matter('[fd00::1]:5580') === '[fd00::1]:5580' && str_contains($mi::ps1('https://x', 'nope'), " = ''")
     && str_contains($mlink, "'X-G7-Via', 'matter'") && str_contains($mlink, "'commission_with_code'") && str_contains($mlink, 'network_only = ') && str_contains($mlink, 'MaxJsonLength') && ! preg_match("/^'@/m", $mlink)
-    && str_contains($app, 'function mtWin()') && str_contains($app, "'/mt/' + (L.code || '') + '.ps1'") && str_contains($app, 'mtWinBind(ov)'), '1.11.0 🪟 Matter 윈도우 한 줄 — 설치 본문 · 중계 · 화면');
+    && str_contains($app, 'function mtWin()') && str_contains($app, "'/mt/' + (L.code || '') + '.ps1'") && str_contains($app, 'mtWinBind(ov); mtGuideBind(ov)') && str_contains($app, 'data-mtg-pane') && ! str_contains($app, 'guideMt() + mtWin()'), '1.11.0 🪟 Matter 윈도우 한 줄 — 설치 본문 · 중계 · 화면');
 
 echo "\n".($fail === 0 ? "OK ({$pass} checks)" : "{$fail} FAILED / ".($pass + $fail))."\n";
 exit($fail === 0 ? 0 : 1);
