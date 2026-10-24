@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.9.3 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.9.4 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.9.3';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.9.4';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -141,9 +141,9 @@
     var fill = function () {
       Array.prototype.forEach.call(ov.querySelectorAll('.hal-gauge-c'), function (c) {
         Array.prototype.forEach.call(c.querySelectorAll('.c.ghost'), function (g) { g.remove(); });
-        var items = c.querySelectorAll('.c'); if (!items.length) return;
+        var items = c.querySelectorAll('.c'); if (!items.length || c.querySelector('.c.inf')) return;   // 1.9.4 무제한(∞) 줄은 채우지 않음
         var w = c.clientWidth, cell = 22, per = Math.max(1, Math.floor((w + 4) / cell)), n = 0;
-        Array.prototype.forEach.call(items, function (i) { n += Math.max(1, Math.round((i.offsetWidth + 4) / cell)); });
+        Array.prototype.forEach.call(items, function (i) { n += Math.max(1, Math.ceil((i.offsetWidth + 4) / cell - 0.05)); });
         var need = (per - (n % per)) % per; if (n < per) need = per - n;
         var buy = !!c.querySelector('.c.add');   // 1.9.2 판매 중이면 가진 칸 뒤 모두 ＋ (누르면 사기 칸으로)
         for (var k = 0; k < need; k++) { var g = document.createElement(buy ? 'button' : 'i'); g.className = 'c ghost' + (buy ? ' add' : ''); if (buy) { g.type = 'button'; g.textContent = '＋'; g.setAttribute('data-slot-add', ''); g.title = '칸 더 사기'; } else g.title = '아직 없는 칸'; c.appendChild(g); }
