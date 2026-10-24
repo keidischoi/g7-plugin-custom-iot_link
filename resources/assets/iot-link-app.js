@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.14.1 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.14.2 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.14.1';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.14.2';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -294,7 +294,7 @@
     if (!hasCo()) return '<div class="hal-scope" role="tablist" aria-label="보기"><button type="button" role="tab" data-scope="all" class="' + (sc !== 'map' ? 'on' : '') + '">📡 기기 <small>' + S.d.devices.length + '</small></button>' + mapTab + '</div>';
     return '<div class="hal-scope" role="tablist" aria-label="기기 범위"><button type="button" role="tab" data-scope="all" class="' + (sc === 'all' ? 'on' : '') + '">📡 전체 <small>' + S.d.devices.length + '</small></button><button type="button" role="tab" data-scope="mine" class="' + (sc === 'mine' ? 'on' : '') + '">👤 내 기기 <small>' + nm + '</small></button>' +
       '<button type="button" role="tab" data-scope="company" class="' + (sc === 'company' ? 'on' : '') + '">🏢 업체 기기 <small>' + nc + '</small></button>' + mapTab + '</div>' +
-      (sc !== 'mine' && coList().length > 1 ? '<div class="hal-gf hal-cos" role="tablist" aria-label="업체">' + [{ id: 0, name: '모든 업체' }].concat(coList()).map(function (c) { var on = coPick() === c.id, n = c.id ? S.d.devices.filter(function (x) { return +x.company_id === c.id; }).length : nc; return '<button type="button" role="tab" data-co="' + c.id + '" class="' + (on ? 'on' : '') + '" aria-selected="' + on + '"><i aria-hidden="true">🏢</i>' + esc(c.name) + '<em>' + n + '</em></button>'; }).join('') + '</div>' : '') +   // 1.8.0
+      (sc !== 'mine' && sc !== 'map' && coList().length > 1 ? '<div class="hal-gf hal-cos" role="tablist" aria-label="업체">' + [{ id: 0, name: '모든 업체' }].concat(coList()).map(function (c) { var on = coPick() === c.id, n = c.id ? S.d.devices.filter(function (x) { return +x.company_id === c.id; }).length : nc; return '<button type="button" role="tab" data-co="' + c.id + '" class="' + (on ? 'on' : '') + '" aria-selected="' + on + '"><i aria-hidden="true">🏢</i>' + esc(c.name) + '<em>' + n + '</em></button>'; }).join('') + '</div>' : '') +   // 1.8.0
       (sc === 'company' ? '<p class="hal-hint">🏢 업체 장비 · 업체 프린터에 붙인 기기 — 그 업체 대표 · 관리자가 함께 고치고, 직원은 보기만 해요. 기록 보관은 🏢 내 업체 › 📡 IoT 연결 칸에서 더 짧게 정할 수 있어요.</p>' : '');
   }
   function shown() { var sp = srcPick(), sv = srvPick(); return S.d.devices.filter(function (x) { return inScope(x) && (sp === 'all' || srcOf(x) === sp) && (sv === 'all' || (srcOf(x) === 'ha' && (x.ha_server || '') === sv)); }); }
