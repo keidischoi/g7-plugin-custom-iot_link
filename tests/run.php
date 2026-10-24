@@ -245,6 +245,10 @@ check(str_contains($msh, "SITE='https://3ds.test'") && str_contains($msh, "CODE=
     && str_contains($mpy, "'X-G7-Via': 'matter'") && str_contains($mpy, "'commission_with_code', {'code': c, 'network_only': True}") && str_contains($mpy, "reconfigure(errors='replace')"),
     '1.12.0 🐧🍎🍓 리눅스 · 맥 한 줄 — bash 설치 본문 (systemd · launchd · crontab · MprLink 와 다른 이름) · link.py 는 파이썬 기본 기능만');
 check(preg_match("/var MT_PATH = 'M[0-9a-zA-Z .\\-]+z';/", $app) === 1 && str_contains($app, 'viewBox="0 0 74.322 72.644"') && ! str_contains($app, '>🧩</i>') && str_contains($app, "data-mt-os=\"sh\""), '1.12.0 Matter 공식 심볼(SVG · 글자색) · 운영체제 고르기');
+// 1.13.0 🔌 연결 끊기 그림 단추 · 센서 빼기 (윈도우 -Remove · 리눅스/맥 --remove · 사이트 기기는 물어보고 허브 API 로)
+check(str_contains($app, "['off', '🔌', '연결 끊기'") && str_contains($app, "off: '<section") && str_contains($mlink, "'remove_node'") && str_contains($mlink, 'function Do-Remove') && str_contains($mlink, '[string]$AlsoSite') && ! preg_match('/\[string\]\$Site\b/', $mlink)
+    && str_contains($mpy, "def do_remove(") && str_contains($mpy, "m.cmd('remove_node'") && str_contains($mpy, "'DELETE', 'hub/%s/devices/%d'") && str_contains($msh, '--remove') && str_contains($mps, '-Remove'),
+    '1.13.0 🔌 연결 끊기 · 센서 빼기 (설치 스크립트를 덮는 $Site 이름 안 씀)');
 
 echo "\n".($fail === 0 ? "OK ({$pass} checks)" : "{$fail} FAILED / ".($pass + $fail))."\n";
 exit($fail === 0 ? 0 : 1);

@@ -53,7 +53,15 @@ async def main(kind: str) -> None:
             elif d["command"] == "commission_with_code":
                 ok = d["args"]["code"] == "34970112332" and d["args"]["network_only"] is True
                 await w.send_json({"message_id": d["message_id"], "result": NODES[0]} if ok else {"message_id": d["message_id"], "error_code": 1, "details": "bad"})
+            elif d["command"] == "remove_node":   # 1.13.0 센서 빼기
+                await w.send_json({"message_id": d["message_id"], "result": None})
         return w
+
+    deleted: list[str] = []
+
+    async def hub_delete(request: web.Request) -> web.Response:
+        deleted.append(request.match_info["code"] + "/" + request.match_info["id"])
+        return web.json_response({"ok": True, "message": "지웠어요."})
 
     async def hub_post(request: web.Request) -> web.Response:
         body = await request.json()
@@ -70,6 +78,7 @@ async def main(kind: str) -> None:
     app = web.Application()
     app.router.add_get("/ws", ws)
     app.router.add_post("/api/plugins/custom-iot_link/hub/{code}/devices", hub_post)
+    app.router.add_delete("/api/plugins/custom-iot_link/hub/{code}/devices/{id}", hub_delete)
     app.router.add_post("/api/plugins/custom-iot_link/in/{t}", ingest)
     runner = web.AppRunner(app)
     await runner.setup()
@@ -141,6 +150,21 @@ async def main(kind: str) -> None:
         check("Matter 서버가 끊으면 다시 붙음", len(socks) > nws)
     finally:
         proc.kill()
+
+    # 1.13.0 센서 빼기 — Matter 서버 remove_node · 사이트 기기도 (묻지 않게 y) · config 에서 짝 지움
+    cfg = json.loads((d / "config.json").read_text(encoding="utf-8-sig"))
+    cfg["devices"] = {"4": {"id": 77, "token": "a" * 32}}
+    cfg["skip"] = []
+    (d / "config.json").write_text(json.dumps(cfg), encoding="utf-8")
+    rm = ps + (["-Remove", "4", "-AlsoSite", "y"] if kind == "ps" else ["--remove", "4", "--site", "y"])
+    await asyncio.to_thread(subprocess.run, rm, capture_output=True, timeout=60, env=env)
+    cfg = json.loads((d / "config.json").read_text(encoding="utf-8-sig"))
+    check("센서 빼기 → Matter 서버 remove_node · 사이트 기기 지움 · 짝 지움", any(c["command"] == "remove_node" and c["args"]["node_id"] == 4 for c in cmds) and deleted == [CODE + "/77"] and "4" not in (cfg.get("devices") or {}))
+    cfg["devices"] = {"4": {"id": 78, "token": "b" * 32}}
+    (d / "config.json").write_text(json.dumps(cfg), encoding="utf-8")
+    rm = ps + (["-Remove", "4", "-AlsoSite", "n"] if kind == "ps" else ["--remove", "4", "--site", "n"])
+    await asyncio.to_thread(subprocess.run, rm, capture_output=True, timeout=60, env=env)
+    check("센서 빼기 · 사이트 기기 남기기 (n)", deleted == [CODE + "/77"] and "4" not in (json.loads((d / "config.json").read_text(encoding="utf-8-sig")).get("devices") or {}))
     last = (d / "last.txt").read_text(encoding="utf-8-sig") if (d / "last.txt").exists() else ""
     print("   last.txt:", last.strip())
     await runner.cleanup()

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.13.0 — 2026-10-25 🔌 Matter 연결 끊기 · 센서 빼기
+
+- 🔌 연결 방법 › Matter 에 **연결 끊기** 그림 단추 — ① 중계 끄기(윈도우 `uninstall.ps1` · 리눅스/맥 `uninstall.sh` · Docker `down`) ② 센서 하나 빼기 ③ 사이트 기기만 지우기 (스크롤 없이 한 칸)
+- ➖ **센서 빼기** — 윈도우 `link.ps1 -Remove [노드]` · 리눅스/맥 `link.py --remove [노드]`: Matter 서버에서 노드를 빼고(애플 홈 · 구글 홈에는 그대로), 사이트 기기도 지울지 물어봄 (`-AlsoSite y|n` · `--site y|n` 이면 묻지 않음 — 허브 API 로 지움) · 번호를 안 주면 목록을 보여 주고 고름
+- 설치 안내 끝에 센서 빼기 명령 · tests/matter_relay.py 에 빼기 시험 (두 중계 각 12개)
+
 ## 1.12.0 — 2026-10-25 🐧🍎🍓 리눅스 · 맥 · 라즈베리파이도 한 줄 · Matter 공식 심볼
 
 - 🐧🍎🍓 **리눅스 · 맥 · 라즈베리파이 한 줄** — `curl -fsSL "…/mt/{연결 코드}.sh?matter=<Matter 서버>" | bash`. 중계 `resources/matter/link.py` 는 **파이썬 기본 기능만**(WebSocket 도 직접 — 따로 깔 것 없음) · `~/.3ds-matter` · 켤 때마다 저절로 (리눅스 systemd → 없으면 crontab · 맥 launchd) · 끄기 `uninstall.sh` · 센서 더 넣기 `link.py --pair`

@@ -3,10 +3,11 @@
 #  집 안 Matter 서버(python-matter-server · HA Matter Server 애드온)의 온습도 센서 값을 사이트 IoT 연결로 보냄
 #  config.json 의 연결 코드로 센서마다 사이트 기기를 저절로 만들고(허브 API), 받는 주소 /in/{키} 로 보냄 — 보내는 규칙은 HA 통합 · 윈도우판(link.ps1)과 같음
 #  돌기: python3 link.py        센서 넣기: python3 link.py --pair        넣은 센서 보기: python3 link.py --nodes
+#  센서 빼기(1.13.0): python3 link.py --remove [노드 번호] [--site y|n]  — Matter 서버에서 빼고, 원하면 사이트 기기도 지움
 #  설치(사이트의 한 줄이 대신 함): python3 link.py --setup <사이트> <연결 코드> [Matter 서버]
 import base64, json, os, random, re, socket, ssl, struct, sys, time, urllib.error, urllib.parse, urllib.request, uuid
 
-VER = '1.12.0'
+VER = '1.13.0'
 DIR = os.path.dirname(os.path.abspath(__file__))
 CFG = os.path.join(DIR, 'config.json')
 LAST = os.path.join(DIR, 'last.txt')
@@ -496,9 +497,63 @@ def setup(site, code, matter):
     return 0
 
 
+def do_remove(o, nid='', site=''):
+    """1.13.0 센서 빼기 — Matter 서버에서 노드를 빼고 (애플 홈 · 구글 홈에는 그대로), 사이트 기기는 물어보고 지움 (site = y · n 이면 묻지 않음)"""
+    if not nid:
+        if show_nodes(o) == 0:
+            return False
+        nid = ask('뺄 노드 번호 (Enter = 그만): ')
+        if not nid:
+            return False
+    if not str(nid).isdigit():
+        warn('노드 번호는 숫자예요 (--nodes 로 보기).')
+        return False
+    m = Matter(matter_url(o['matter']))
+    try:
+        m.cmd('remove_node', {'node_id': int(nid)}, 60)
+    except (RuntimeError, TimeoutError, OSError, ConnectionError) as e:
+        warn('빼지 못했어요: %s' % e)
+        return False
+    finally:
+        m.close()
+    say('✅ 노드 %s 을(를) Matter 서버에서 뺐어요 (애플 홈 · 구글 홈에는 그대로).' % nid)
+    nid = str(nid)
+    dev = o['devices'].get(nid)
+    if dev and o['code']:
+        if not site:
+            site = ask('사이트 기기 #%s 도 지울까요? 기록도 같이 지워져요 (y = 지우기 · Enter = 남기기): ' % dev['id'])
+        if site.strip().lower() in ('y', 'yes', 'ㅛ', '예', '네'):
+            try:
+                st, j = site_req(o, 'DELETE', 'hub/%s/devices/%d' % (o['code'], dev['id']))
+                if st < 400:
+                    say('사이트 기기 #%s 를 지웠어요.' % dev['id'])
+                else:
+                    warn('사이트 기기를 못 지웠어요 (%s) — 사이트 IoT 연결에서 지워 주세요.' % ((j or {}).get('message', st) if isinstance(j, dict) else st))
+            except (OSError, ValueError):
+                warn('사이트에 닿지 않아요 — 사이트 IoT 연결에서 지워 주세요.')
+        else:
+            say('사이트 기기 #%s 와 기록은 남겨 둬요 (「끊김」으로 보여요).' % dev['id'])
+    o['devices'].pop(nid, None)
+    o['skip'] = [x for x in o['skip'] if x != nid]
+    save_cfg(o)
+    return True
+
+
 def main(argv):
     if len(argv) > 1 and argv[1] == '--setup':
         return setup(argv[2] if len(argv) > 2 else '', argv[3] if len(argv) > 3 else '', argv[4] if len(argv) > 4 else '')
+    if len(argv) > 1 and argv[1] == '--remove':
+        rest = argv[2:]
+        site = ''
+        if '--site' in rest:
+            i = rest.index('--site')
+            site = rest[i + 1] if i + 1 < len(rest) else ''
+            rest = rest[:i] + rest[i + 2:]
+        try:
+            do_remove(load_cfg(), rest[0] if rest else '', site)
+        except (OSError, ConnectionError, RuntimeError, TimeoutError) as e:
+            warn('⚠️ %s' % e)
+        return 0
     if len(argv) > 1 and argv[1] in ('--pair', '--nodes'):
         o = load_cfg()
         try:

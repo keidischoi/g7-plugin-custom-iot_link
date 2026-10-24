@@ -17,7 +17,7 @@ final class MatterInstaller
     private const PS = <<<'PS'
 # 3D SUEÑO IoT 연결 — 🧩 Matter 중계 설치 (Windows)
 # 사용: irm "이 주소" | iex        다시 설정: 같은 줄을 다시 실행
-# 센서 넣기: powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\3dsMatter\link.ps1" -Pair
+# 센서 넣기: powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\3dsMatter\link.ps1" -Pair        센서 빼기: … link.ps1 -Remove
 # 끄기: powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\3dsMatter\uninstall.ps1"
 $ErrorActionPreference = 'SilentlyContinue'
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072 } catch {}
@@ -82,7 +82,7 @@ if (Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object
 } else {
   Warn "⚠️ 중계가 시작되지 않았어요 — PC 를 다시 켜면 시작돼요. 지금 바로 하려면: wscript `"$vbs`""
 }
-Say "   센서 더 넣기: powershell -ExecutionPolicy Bypass -File `"$linkFile`" -Pair"
+Say "   센서 더 넣기: powershell -ExecutionPolicy Bypass -File `"$linkFile`" -Pair · 센서 빼기: … -Remove"
 Say "   끄기: powershell -ExecutionPolicy Bypass -File `"$dir\uninstall.ps1`" · 마지막 결과: notepad `"$dir\last.txt`""
 PS;
 
@@ -113,7 +113,7 @@ PS;
 #!/usr/bin/env bash
 # 3D SUEÑO IoT 연결 — 🧩 Matter 중계 설치 (리눅스 · 맥 · 라즈베리파이)
 # 사용: curl -fsSL "이 주소" | bash        다시 설정: 같은 줄을 다시 실행
-# 센서 넣기: python3 ~/.3ds-matter/link.py --pair        끄기: bash ~/.3ds-matter/uninstall.sh
+# 센서 넣기: python3 ~/.3ds-matter/link.py --pair        센서 빼기: … --remove        끄기: bash ~/.3ds-matter/uninstall.sh
 set -u
 SITE='__SITE__'
 CODE='__CODE__'
@@ -198,7 +198,7 @@ if pgrep -f "$DIR/link.py" >/dev/null 2>&1; then
 else
   warn "⚠️ 중계가 시작되지 않았어요 — 마지막 결과: cat $DIR/last.txt · 직접 켜 보기: $RUN"
 fi
-say "   센서 더 넣기: python3 $DIR/link.py --pair · 끄기: bash $DIR/uninstall.sh · 마지막 결과: cat $DIR/last.txt"
+say "   센서 더 넣기: python3 $DIR/link.py --pair · 센서 빼기: python3 $DIR/link.py --remove · 끄기: bash $DIR/uninstall.sh · 마지막 결과: cat $DIR/last.txt"
 BASH;
 
     /** 설치 한 줄의 본문 (bash) — $matter 는 회원이 사이트 화면에 적은 Matter 서버 주소 (비우면 설치 때 물어봄) */
