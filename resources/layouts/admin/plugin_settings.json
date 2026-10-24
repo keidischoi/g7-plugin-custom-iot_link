@@ -12,7 +12,7 @@
     "scripts": [
         {
             "id": "hal_admin_js",
-            "src": "/api/plugins/custom-iot_link/assets/iot-link-app.js?v=1.9.2",
+            "src": "/api/plugins/custom-iot_link/assets/iot-link-app.js?v=1.9.3",
             "async": true,
             "optional": true,
             "required": false,
