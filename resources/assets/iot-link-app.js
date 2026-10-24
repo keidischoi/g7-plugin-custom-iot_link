@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.7.16 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.7.17 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.16';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.17';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -285,10 +285,12 @@
     var at = function (fn) { return d.devices.filter(function (x) { return placed(x) && fn(x); }); };
     var cidOf = function (v) { return +(v || 0); };
     if (sc !== 'company') owners.push(0);
-    if (sc !== 'mine') Object.keys(cos).forEach(function (k) { owners.push(+k); });
+    var coName = Object.assign({}, cos);   // 1.7.17 재고 관리 서랍과 같은 범위 — 직원인 업체의 보관함도 (보기 · 붙이기는 대표 · 관리자만)
+    (d.boxes || []).forEach(function (b) { if (cidOf(b.company_id) && coName[b.company_id] == null) coName[b.company_id] = b.company || '업체'; });
+    if (sc !== 'mine') Object.keys(coName).forEach(function (k) { owners.push(+k); });
     var multi = owners.length > 1, linked = {};
     (d.printers || []).forEach(function (p) { if (p.equipment_id) linked[p.equipment_id] = p.id; });   // 1.7.9 업체 프린터 = 업체 장비 (이어진 것은 하나로)
-    var badge = function (cid) { return cid ? '<span class="hal-own co" title="업체 것">🏢 ' + esc(cos[cid] || '업체') + '</span>' : multi ? '<span class="hal-own me" title="내 것">👤 개인</span>' : ''; };
+    var badge = function (cid) { return cid ? '<span class="hal-own co" title="업체 것">🏢 ' + esc(coName[cid] || '업체') + '</span>' : multi ? '<span class="hal-own me" title="내 것">👤 개인</span>' : ''; };
     var boxHtml = '', prHtml = '', eqHtml = '';
     owners.forEach(function (cid) {
       var boxes = [], have = {};
@@ -307,7 +309,7 @@
         if (mv) b.drag = cid;
         if (b.seen || cid) return badged(binZone(b, on, mv), badge(cid));   // 롤 수를 모르거나 🏢 업체 보관함 — 이름 바꾸기 · 지우기는 재고 관리에서
         var acts = d.config.inventory && !b.loose ? '<button type="button" class="hal-icobtn" data-box-act="rename" data-name="' + esc(b.name) + '" title="이름 바꾸기" aria-label="이름 바꾸기">✏️</button>' : '';
-        acts += '<button type="button" class="hal-icobtn" data-box-act="del" data-name="' + esc(b.name) + '" data-rolls="' + (b.rolls || 0) + '" data-loose="' + (b.loose ? 1 : 0) + '" title="' + (b.loose ? '센서를 대기 칸으로' : '보관함 지우기') + '" aria-label="지우기">🗑</button>';
+        acts += '<button type="button" class="hal-icobtn" data-box-act="del" data-name="' + esc(b.name) + '" data-rolls="' + (b.all != null ? b.all : b.rolls || 0) + '" data-loose="' + (b.loose ? 1 : 0) + '" title="' + (b.loose ? '센서를 대기 칸으로' : '보관함 지우기') + '" aria-label="지우기">🗑</button>';
         return badged(binZone(b, on, mv + acts), badge(cid));
       }).join('');
       prHtml += (d.printers || []).filter(function (p) { return cidOf(p.company_id) === cid; }).map(function (p) {
