@@ -1,4 +1,4 @@
-/* custom-iot_link 1.8.0 — 📡 IoT 연결 */
+/* custom-iot_link 1.8.1 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -568,3 +568,10 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
 .hal-freegrp{display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:100%;padding:6px 0;border-top:1px dashed rgba(148,163,184,.35)}
 .hal-freegrp:first-child{border-top:0}
 .hal-freegrp-t{flex-basis:100%;font-weight:800;opacity:.8}
+/* 1.8.1 🎨 받는 곳(HA 서버 · SmartThings)마다 색 — 칩 왼쪽 띠 · 짧은 표식 · 카드 왼쪽 띠 · 점 */
+.hal-chip.srv{border-left:4px solid var(--srv);padding-left:8px}
+.hal-srvtag{display:inline-flex;align-items:center;margin-left:4px;padding:0 6px;border-radius:999px;background:var(--srv);color:#fff;font-style:normal;font-size:10.5px;font-weight:800;line-height:16px;white-space:nowrap;max-width:7em;overflow:hidden;text-overflow:ellipsis}
+.hal-card.srv{border-left:5px solid var(--srv);position:relative}
+.hal-card.srv > .hal-srvtag{position:absolute;top:8px;right:10px;margin:0}
+.hal-srvdot{display:inline-block;width:9px;height:9px;margin-right:4px;border-radius:50%;background:var(--srv);vertical-align:middle;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+.hal-freegrp{border-left:4px solid var(--srv);padding-left:8px}
