@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.8.6 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.9.0 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.8.6';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.9.0';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -149,7 +149,7 @@
       }).join('') : '<p class="hal-warn">지금 쓸 수 있는 결제 수단이 없어요 (코인 · 마일리지 확장이 꺼져 있거나 값이 정해지지 않았어요).</p>')) +
       ((T.slots || []).length ? '<h4 class="hal-slot-t">구매한 칸</h4><ul class="hal-slotl">' + T.slots.map(function (x) {
         var st = x.status === 'active' ? (x.expires_at ? '🟢 ' + x.expires_at.slice(0, 10) + '까지' : '🟢 계속') : x.status === 'cancelled' ? '↩️ 취소함' : '⚪ 끝남', cx = x.cancel || {};
-        return '<li><b>' + esc(x.for) + ' · 센서 ' + x.size + '개</b><span>' + esc(x.amount_text) + ' · ' + st + '</span>' +
+        return '<li' + (x.status === 'cancelled' ? ' class="off"' : '') + '><b>' + esc(x.for) + ' · 센서' + (x.size ? ' ' + x.size + '개' : '') + '</b><span>' + (x.status === 'cancelled' && /^0D*$/.test(x.amount_text || '') ? '' : esc(x.amount_text) + ' · ') + st + '</span>' +   // 1.9.0 취소한 칸은 흐리게 (예전에 0개 · 0원으로 남은 것은 숫자 빼고)
           (x.mine && x.status === 'active' ? (cx.n > 0 ? '<button type="button" class="hal-btn sm" data-slot-cancel="' + x.id + '" data-max="' + cx.n + '" data-size="' + x.size + '" title="안 쓴 칸 ' + cx.n + '개까지 취소 · 낸 값의 몫을 돌려받아요 (산 뒤 ' + (T.cancel_days || 0) + '일 안)">↩️ 취소</button>' : (cx.why ? '<small class="hal-mute">취소 못 함 — ' + esc(cx.why) + '</small>' : '')) : '') + (x.mode === 'monthly' && x.status === 'active' && x.mine ? '<label class="hal-chk"><input type="checkbox" data-slot-auto="' + x.id + '"' + (x.auto_renew ? ' checked' : '') + '> 자동 연장</label>' : '') + '</li>';
       }).join('') + '</ul>' : '');
     var ov = modal(T.selling === false ? '💳 구매한 센서 칸' : '💳 센서 칸 늘리기', html);
@@ -290,15 +290,48 @@
   var BOX_COL = ['#d97706', '#0d9488', '#65a30d', '#e11d48', '#0284c7', '#c026d3', '#ea580c', '#059669', '#4338ca', '#a16207'];   // 재고 관리 보관함 색판과 같음
   function boxCol(b) { if (/^#[0-9a-f]{3,8}$/i.test(b.color || '')) return b.color; var k = b.key || bkey(b.name), h = 0; for (var i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) | 0; return BOX_COL[Math.abs(h) % BOX_COL.length]; }
   /** 재고 관리 보관함 모양 그대로 — 색 뚜껑 · 투명한 통 안의 롤(필라멘트 색 · 남은 만큼) · 옆면 온습도계 · 앞면 이름표 */
+  /* 1.9.0 🔔 알림 구간 — 「40~60%」 · 「60% 넘으면」 · 「30% 밑이면」 */
+  function rangeText(min, max, u) { return min != null && max != null ? min + '~' + max + u : max != null ? max + u + ' 넘으면' : min != null ? min + u + ' 밑이면' : '안 알림'; }
+  function rangeWarn(hu, st) {
+    var w = [];
+    if (hu && hu.over && hu.humidity != null) w.push('습도 ' + hu.humidity + '% ' + (hu.humidity_min != null && hu.humidity < hu.humidity_min ? '낮음' : '높음'));
+    if (st && st.over && st.temp != null) w.push('온도 ' + st.temp + '° ' + (st.temp_min != null && st.temp < st.temp_min ? '낮음' : '높음'));
+    return w.join(' · ') || '구간 밖';
+  }
+  /** 1.9.0 🔔 보관함에서 바로 — 습도 센서 · 온도 센서의 알림 구간 (아래 · 위, 비우면 그쪽은 안 봄) */
+  function rangeBox(hu, st) {
+    var row = function (x, k, u, lbl, presets) {
+      if (!x) return '<p class="hal-hint">' + lbl + ' 센서가 없어요.</p>';
+      var mn = x[k + '_min'], mx = x[k + '_max'], ro = x.perm === 'view';
+      return '<fieldset class="hal-rng-f"' + (ro ? ' disabled' : '') + '><legend>' + lbl + ' — ' + esc(x.name) + (ro ? ' <small>(보기만)</small>' : '') + '</legend>' +
+        '<div class="hal-rng-in"><input type="number" data-r="' + k + '_min" value="' + (mn == null ? '' : mn) + '" placeholder="아래 없음"> <span>~</span> <input type="number" data-r="' + k + '_max" value="' + (mx == null ? '' : mx) + '" placeholder="위 없음"> <b>' + u + '</b></div>' +
+        (presets ? '<div class="hal-chips">' + presets.map(function (p) { return '<button type="button" class="hal-chip" data-pre="' + k + '" data-a="' + (p[0] == null ? '' : p[0]) + '" data-b="' + (p[1] == null ? '' : p[1]) + '">' + p[2] + '</button>'; }).join('') + '</div>' : '') + '</fieldset>';
+    };
+    var html = '<p class="hal-hint">이 구간을 벗어나면(위로 넘거나 아래로 내려가면) 알려요. 칸을 비우면 그쪽은 보지 않아요.</p>' +
+      row(hu, 'humidity', '%', '💧 습도', [[null, 20, '건조함 ~20%'], [null, 40, '~40%'], [30, 50, '30~50%'], [40, 60, '40~60%'], [null, null, '알림 끔']]) +
+      row(st, 'temp', '°C', '🌡️ 온도', [[null, 30, '~30°C'], [10, 35, '10~35°C'], [null, null, '알림 끔']]);
+    var ov = modal('🔔 알림 구간', html, { ok: '저장', onSave: function (o) {
+      var val = function (k) { var i = o.querySelector('[data-r="' + k + '"]'); return i ? (i.value.trim() === '' ? null : +i.value) : undefined; };
+      var bad = function (a, b) { return a != null && b != null && a >= b; };
+      if (bad(val('humidity_min'), val('humidity_max')) || bad(val('temp_min'), val('temp_max'))) { toast('아래 값은 위 값보다 작아야 해요.', true); return Promise.reject(new Error('')); }
+      var jobs = [], same = hu && st && hu.id === st.id;
+      if (hu && hu.perm !== 'view') jobs.push([hu.id, same ? { humidity_min: val('humidity_min'), humidity_max: val('humidity_max'), temp_min: val('temp_min'), temp_max: val('temp_max') } : { humidity_min: val('humidity_min'), humidity_max: val('humidity_max') }]);
+      if (st && st.perm !== 'view' && !same) jobs.push([st.id, { temp_min: val('temp_min'), temp_max: val('temp_max') }]);
+      var last = null;
+      return jobs.reduce(function (p, j) { return p.then(function () { return api('POST', '/devices/' + j[0] + '/range', j[1]).then(function (r) { last = r; toast(r.message); }); }); }, Promise.resolve())
+        .then(function () { if (last && last.data) { S.d = last.data.overview; draw(); } });
+    } });
+    ov.addEventListener('click', function (ev) { var p = ev.target.closest('[data-pre]'); if (!p) return; var k = p.getAttribute('data-pre'); ov.querySelector('[data-r="' + k + '_min"]').value = p.getAttribute('data-a'); ov.querySelector('[data-r="' + k + '_max"]').value = p.getAttribute('data-b'); });
+  }
   function binZone(b, devs, acts) {
     var rl = b.reels || [], n = Math.min(b.rolls || rl.length, 10), cols = n <= 4 ? Math.max(1, n) : Math.ceil(n / 2), rows = n <= 4 ? 1 : 2, more = (b.rolls || 0) - rl.length;
-    var st = devs.filter(function (x) { return capsOf(x).temp; })[0], hu = devs.filter(function (x) { return capsOf(x).hum; })[0], hot = hu && hu.humidity_max != null && hu.humidity != null && hu.humidity > hu.humidity_max;
+    var st = devs.filter(function (x) { return capsOf(x).temp; })[0], hu = devs.filter(function (x) { return capsOf(x).hum; })[0], hot = (hu && hu.over) || (st && st.over);   // 1.9.0 구간 밖 (위 · 아래)
     var reels = rl.map(function (x, i) { var w = +x.w || 1000, sz = w <= 250 ? 22 : w <= 500 ? 26 : w < 2000 ? 30 : 34, last = more > 0 && i === rl.length - 1;
       return '<i class="reel' + (x.b ? ' bottle' : '') + (x.s ? ' sealed' : '') + (last ? ' more' : '') + '" style="--sz:' + sz + 'px;--c:' + (/^#[0-9a-f]{3,8}$/i.test(x.c || '') ? x.c : '#94a3b8') + ';--p:' + (+x.p || 0) + '"' + ' title="' + (last ? (more + 1) + '개 더 — 재고 관리에서 모두 보기' : esc((x.n || (x.b ? '레진' : '필라멘트')) + ' · 남은 ' + (+x.p || 0) + '%' + (x.s ? ' · 안 뜯은 새 롤' : ''))) + '"' + '>' + (last ? '<b>+' + (more + 1) + '</b>' : '') + '</i>'; }).join('');
-    var gauge = '<span class="gauge" title="🌡️ ' + (st ? esc(st.name) : '온도 센서 없음') + ' · 💧 ' + (hu ? esc(hu.name) : '습도 센서 없음') + '">💧' + (hu ? (hu.humidity == null ? '–' : hu.humidity) + '%' : '<u>빈 칸</u>') + ' 🌡️' + (st ? (st.temp == null ? '–' : st.temp) + '°' : '<u>빈 칸</u>') + '</span>';
+    var gauge = '<span class="gauge' + (hu || st ? ' rng' : '') + '"' + (hu || st ? ' data-rng-h="' + (hu ? hu.id : '') + '" data-rng-t="' + (st ? st.id : '') + '" role="button"' : '') + ' title="🔔 누르면 알림 구간(아래 · 위) 정하기 — 🌡️ ' + (st ? esc(st.name) : '온도 센서 없음') + ' · 💧 ' + (hu ? esc(hu.name) : '습도 센서 없음') + '">💧' + (hu ? (hu.humidity == null ? '–' : hu.humidity) + '%' : '<u>빈 칸</u>') + ' 🌡️' + (st ? (st.temp == null ? '–' : st.temp) + '°' : '<u>빈 칸</u>') + '</span>';
     return '<div class="hal-bd hal-bin' + (b.loose ? ' loose' : '') + (hot ? ' hot' : '') + '" data-drop="location" data-loc="' + esc(b.name) + '" data-ref="' + (+(b.company_id || 0)) + '"' + (b.drag != null ? ' data-mv-name="' + esc(b.name) + '" data-mv-from="' + b.drag + '" title="위 👤 · 🏢 탭으로 끌면 통째로 옮겨요"' : '') + ' style="--bx:' + (b.loose ? '#94a3b8' : boxCol(b)) + ';--cols:' + Math.max(cols, 4) + ';--rows:' + rows + '">' +
       '<span class="lid"></span><span class="body">' + gauge + (reels || '<em>' + (b.loose ? '재고 관리에 없는 위치' : b.seen ? '재고 관리 보관함' : '비었어요') + '</em>') + '</span>' +
-      '<span class="tag"><b title="' + esc(b.name) + '">📦 ' + esc(b.name) + '</b><small>' + (b.loose ? '센서만' : b.seen ? '보관 위치' : (b.rolls || 0) + '개') + (hot ? ' · ⚠️ 습도 ' + hu.humidity_max + '% 넘음' : '') + '</small><span class="acts">' + acts + '</span></span>' +
+      '<span class="tag"><b title="' + esc(b.name) + '">📦 ' + esc(b.name) + '</b><small>' + (b.loose ? '센서만' : b.seen ? '보관 위치' : (b.rolls || 0) + '개') + (hot ? ' · ⚠️ ' + rangeWarn(hu, st) : '') + '</small><span class="acts">' + acts + '</span></span>' +
       (b.company ? '<small class="hal-bin-co">🏢 ' + esc(b.company) + '</small>' : '') +
       '<div class="hal-chips">' + (devs.length ? devs.map(function (x) { return chip(x, true); }).join('') : '<small class="hal-drop-hint">＋ 센서를 여기로</small>') + '</div></div>';
   }
@@ -529,6 +562,8 @@
     bd.onclick = function (e) {
       var c = e.target.closest('[data-chip]');
       if (c) { var id = +c.getAttribute('data-chip'); if (find(id).perm === 'view') { toast('🏢 업체 기기는 그 업체 대표 · 관리자만 옮길 수 있어요.', true); return; } if (S.pick && S.pick !== id) { var zz = c.closest('[data-drop]'); if (zz) { placeTo(S.pick, zz); return; } } S.pick = S.pick === id ? 0 : id; redraw(); return; }
+      var rg = e.target.closest('[data-rng-h],[data-rng-t]');   // 1.9.0 🔔 온습도계 → 알림 구간
+      if (rg && !S.pick) { e.preventDefault(); e.stopPropagation(); rangeBox(find(rg.getAttribute('data-rng-h')) || null, find(rg.getAttribute('data-rng-t')) || null); return; }
       var a = e.target.closest('[data-box-act]'); if (a) { boxAct(a); return; }
       var z = e.target.closest('[data-drop]'); if (z && S.pick) placeTo(S.pick, z);
     };
@@ -1053,6 +1088,8 @@
         '<div data-for="printer equipment other">' + ent('state', '⚙️ 상태 <small>프린터 상태 · 전원 스위치 · 플러그 — 가동 시간을 세요</small>', 'sensor.p1s_print_status 또는 switch.dryer') + '</div>' +
         '<div data-for="printer" class="hal-two">' + ent('progress', '진행률 (%)', 'sensor.p1s_print_progress') + ent('remaining', '남은 시간 (분)', 'sensor.p1s_remaining_time') + ent('job', '작업 이름', 'sensor.p1s_task_name') + '</div></section>') +
       '<section class="hal-sec"><h4><em>3</em> 알림 기준 <small>비우면 알리지 않아요</small></h4>' +
+        '<div class="hal-two"><label>습도가 이보다 낮으면 (%)<input name="humidity_min" type="number" min="0" max="100" inputmode="numeric" value="' + esc(d.humidity_min == null ? '' : d.humidity_min) + '" placeholder="안 알림"></label>' +   // 1.9.0 아래 기준
+          '<label>온도가 이보다 낮으면 (°C)<input name="temp_min" type="number" inputmode="numeric" value="' + esc(d.temp_min == null ? '' : d.temp_min) + '" placeholder="안 알림"></label></div>' +
         '<div class="hal-two"><label>습도가 이보다 높으면 (%)<div class="hal-chips">' + [20, 30, 40, 50].map(function (v) { return '<button type="button" class="hal-chip" data-hm="' + v + '">' + v + '%</button>'; }).join('') + '</div><input name="humidity_max" type="number" min="1" max="100" inputmode="numeric" value="' + esc(d.humidity_max == null ? '' : d.humidity_max) + '" placeholder="안 알림"></label>' +
         '<label>온도가 이보다 높으면 (°C)<div class="hal-chips"></div><input name="temp_max" type="number" inputmode="numeric" value="' + esc(d.temp_max == null ? '' : d.temp_max) + '" placeholder="안 알림"></label></div>' +
         '<label class="hal-chk"><input type="checkbox" name="notify"' + (d.notify ? ' checked' : '') + '> 기준을 넘으면 알림 받기</label><p class="hal-hint">필라멘트는 보통 습도 20~40% 아래로 둬요 (나일론 · PVA 는 더 낮게).</p></section>' +
@@ -1167,17 +1204,34 @@
         '<p class="hal-hint full">예전 방식: Developer Workspace 에서 <b>WebHook SmartApp</b>(Automation)으로 등록했다면 Target URL 은 위와 같고' + (I.legacy_target_url ? ' (예전 주소 <code>' + esc(I.legacy_target_url) + '</code> 로 등록했어도 계속 받아요)' : '') + ', 「연결 코드로 잇기도 보이기」를 켜면 회원 화면에 연결 코드 칸이 나와요. 이 방식은 삼성의 배포 승인을 받기 전에는 등록한 계정만 설치할 수 있어요.</p></div></details>' +
       '<p class="hal-hint full">🔒 SmartThings 가 보내는 모든 요청의 HTTP 서명(rsa-sha256 · Digest · Date)을 확인하고 맞지 않으면 거부해요. 사이트가 받는 권한은 읽기뿐(' + esc((I.scopes || []).join(' · ')) + ')이고, 회원 토큰은 암호화해 두고 끝나기 전에 새로 받아요.</p></section>';
   }
+  /* 1.9.0 ⚙️ 관리자 설정을 탭으로 — 칸은 모두 그려 두고(저장은 그대로 모두) 고른 탭만 보임 · 고른 탭은 이 브라우저에 기억 */
+  var AGROUPS = [
+    ['base', '⚙️ 기본', ['enabled', 'menu_enabled', 'menu_label', 'refresh_sec', 'hacs_repo', 'timezone']],
+    ['limit', '🔢 기기 한도', ['max_devices', 'max_devices_company', 'limit_admin_free', 'max_devices_members', 'max_devices_companies']],
+    ['slot', '💳 센서 칸', ['slot_enabled', 'slot_mode', 'slot_coin_price', 'slot_coin_price10', 'slot_mileage_price', 'slot_mileage_price10', 'slot_cancel_days']],
+    ['send', '📤 값 보내기', ['send_mode', 'change_hum', 'idle_min', 'interval_min', 'away_after_min', 'away_interval_min', 'keep_days', 'stale_hours']],
+    ['alert', '🔔 알림', ['alert_gap_hours', 'notify_site', 'notify_mail']],
+    ['cam', '📷 카메라', ['snapshot', 'snap_gap_min']],
+    ['link', '🔗 다른 확장', ['printer_link', 'company_link']],
+    ['st', '📡 SmartThings', []]
+  ];
+  function agroupOf(k) { for (var i = 0; i < AGROUPS.length; i++) if (AGROUPS[i][2].indexOf(k) >= 0) return AGROUPS[i][0]; return 'base'; }
+  function aTab() { var t = pref('atab', 'base'); return AGROUPS.some(function (g) { return g[0] === t; }) ? t : 'base'; }
+  function aTabShow() { var t = aTab(); qa('[data-tg]').forEach(function (el) { el.hidden = el.getAttribute('data-tg') !== t; }); qa('[data-atab]').forEach(function (b) { var on = b.getAttribute('data-atab') === t; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); }); }
   function renderAdmin() {
     api('GET', '/admin/settings').then(function (r) {
       var s = r.data.settings, st = r.data.stats;
       wrap('<section class="hal-hero"><div><h1>📡 IoT 연결 — 관리자</h1><p>회원 화면: <a href="' + BASE + '" target="_blank">' + BASE + '</a> · 회원 기기의 값 · 받는 주소는 관리자에게도 보이지 않아요</p></div><div class="hal-stats"><span>쓰는 회원 <b>' + n(st.users) + '</b></span><span>기기 <b>' + n(st.devices) + '</b></span><span>🟢 연결됨 <b>' + n(st.live) + '</b></span><span>기록 <b>' + n(st.readings) + '</b>줄</span><span>' + stLogo() + ' SmartThings <b>' + n(st.st_installs) + '</b></span></div></section>' +
+        '<div class="hal-seg hal-atabs" role="tablist" aria-label="설정 묶음">' + AGROUPS.map(function (g) { return '<button type="button" role="tab" data-atab="' + g[0] + '">' + g[1] + '</button>'; }).join('') + '</div>' +   // 1.9.0 탭
         '<div class="hal-form">' + FIELDS.map(function (f) {
-          if (f[2] === 'sel') return '<label>' + esc(f[1]) + '<select data-k="' + f[0] + '">' + f[3].map(function (o) { return '<option value="' + o[0] + '"' + (s[f[0]] === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></label>';
-          if (f[2] === 'area') return '<label class="full">' + esc(f[1]) + '<textarea data-k="' + f[0] + '" rows="2" spellcheck="false" placeholder="비우면 모두 기본값">' + esc(s[f[0]] || '') + '</textarea></label>';   // 1.4.7
-          return f[2] === 'bool' ? '<label class="hal-chk"><input type="checkbox" data-k="' + f[0] + '"' + (s[f[0]] ? ' checked' : '') + '> ' + esc(f[1]) + '</label>' : '<label>' + esc(f[1]) + '<input type="' + (f[2] === 'num' ? 'number' : 'text') + '" data-k="' + f[0] + '" value="' + esc(s[f[0]]) + '"></label>';
-        }).join('') + '<p class="hal-hint full">전송 방식은 여기서 정하고 회원의 통합이 따라요 (회원은 주기를 더 길게만 바꿀 수 있어요). 「값이 변하면」: 습도 · 온도가 정한 만큼 변했을 때만 보내고(잇따라 변해도 1분에 한 번까지), 변화가 없으면 가끔 한 번만 — 값이 안정된 보관함은 요청이 줄고, 뚜껑을 열어 습도가 오르면 더 빨리 알아요. 「주기적으로」: 정한 주기마다 보내요 (기기 100대 · 10분이면 한 시간에 600번). 회원이 사이트의 IoT 연결 · 정비 수첩 화면을 한동안 안 보면(자리 비움) 통합이 느린 주기로 바꿔 보내요 — 그동안에도 출력 시작 · 끝 같은 상태 변화는 바로 오고, 습도 경고는 느린 주기만큼 늦어질 수 있어요. 다시 화면을 열면 다음 번 값이 올 때부터 평소 주기로 돌아와요 (설정 글(YAML)로 붙인 기기는 늘 같은 주기) — 요청 하나에 조회 1 · 저장 1~3. 기록은 기기마다 한 시간에 한 줄만 남기고 위 날짜가 지나면 지워요. 받는 주소는 1분에 30번까지만 받아요.</p>' +
-        '</div>' + stAdmin(s, r.data.smartthings) + '<div class="hal-acts hal-acts-end"><button class="hal-btn pri" id="hal-asave">저장</button></div>');
+          if (f[2] === 'sel') return '<label data-tg="' + agroupOf(f[0]) + '">' + esc(f[1]) + '<select data-k="' + f[0] + '">' + f[3].map(function (o) { return '<option value="' + o[0] + '"' + (s[f[0]] === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></label>';
+          if (f[2] === 'area') return '<label data-tg="' + agroupOf(f[0]) + '" class="full">' + esc(f[1]) + '<textarea data-k="' + f[0] + '" rows="2" spellcheck="false" placeholder="비우면 모두 기본값">' + esc(s[f[0]] || '') + '</textarea></label>';   // 1.4.7
+          return f[2] === 'bool' ? '<label data-tg="' + agroupOf(f[0]) + '" class="hal-chk"><input type="checkbox" data-k="' + f[0] + '"' + (s[f[0]] ? ' checked' : '') + '> ' + esc(f[1]) + '</label>' : '<label data-tg="' + agroupOf(f[0]) + '">' + esc(f[1]) + '<input type="' + (f[2] === 'num' ? 'number' : 'text') + '" data-k="' + f[0] + '" value="' + esc(s[f[0]]) + '"></label>';
+        }).join('') + '<p class="hal-hint full" data-tg="send">전송 방식은 여기서 정하고 회원의 통합이 따라요 (회원은 주기를 더 길게만 바꿀 수 있어요). 「값이 변하면」: 습도 · 온도가 정한 만큼 변했을 때만 보내고(잇따라 변해도 1분에 한 번까지), 변화가 없으면 가끔 한 번만 — 값이 안정된 보관함은 요청이 줄고, 뚜껑을 열어 습도가 오르면 더 빨리 알아요. 「주기적으로」: 정한 주기마다 보내요 (기기 100대 · 10분이면 한 시간에 600번). 회원이 사이트의 IoT 연결 · 정비 수첩 화면을 한동안 안 보면(자리 비움) 통합이 느린 주기로 바꿔 보내요 — 그동안에도 출력 시작 · 끝 같은 상태 변화는 바로 오고, 습도 경고는 느린 주기만큼 늦어질 수 있어요. 다시 화면을 열면 다음 번 값이 올 때부터 평소 주기로 돌아와요 (설정 글(YAML)로 붙인 기기는 늘 같은 주기) — 요청 하나에 조회 1 · 저장 1~3. 기록은 기기마다 한 시간에 한 줄만 남기고 위 날짜가 지나면 지워요. 받는 주소는 1분에 30번까지만 받아요.</p>' +
+        '</div><div data-tg="st">' + stAdmin(s, r.data.smartthings) + '</div><div class="hal-acts hal-acts-end"><button class="hal-btn pri" id="hal-asave">저장</button></div>');
+      aTabShow();
       S.root.onclick = function (ev) {
+        var at = ev.target.closest('[data-atab]'); if (at) { setPref('atab', at.getAttribute('data-atab')); aTabShow(); return; }   // 1.9.0 탭
         var I = r.data.smartthings || {}, c = ev.target.closest('[data-acp]'), t = ev.target.closest('[data-rt]'), g = ev.target.closest('[data-st-reg]');
         if (c) { copy({ url: I.target_url, redirect: I.redirect_uri, name: I.app_name, cli: 'smartthings apps:create', scopes: (I.scopes || []).join(' ') }[c.getAttribute('data-acp')] || '', c); return; }
         if (t) { qa('[data-rt]').forEach(function (b) { b.classList.toggle('on', b === t); }); qa('[data-rp]').forEach(function (p) { p.hidden = p.getAttribute('data-rp') !== t.getAttribute('data-rt'); }); return; }

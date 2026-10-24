@@ -41,6 +41,12 @@ class HaController extends Controller
     }
 
     /** 1.6.0 📦 보관함 보드 — 붙이기 · 떼기 */
+    /** 1.9.0 🔔 보관함에서 바로 알림 구간 */
+    public function range(Request $r, int $id): JsonResponse
+    {
+        return $this->off() ?? $this->result($this->svc->setRange($this->uid($r), $id, array_intersect_key($r->all(), array_flip(['humidity_min', 'humidity_max', 'temp_min', 'temp_max']))), $r);
+    }
+
     public function place(Request $r, int $id): JsonResponse
     {
         return $this->off() ?? $this->result($this->svc->place($this->uid($r), $id, (string) $r->input('target', $r->filled('location') ? 'location' : ''), (string) $r->input('location', ''), (int) $r->input('ref', 0)), $r);

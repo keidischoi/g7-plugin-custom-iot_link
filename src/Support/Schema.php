@@ -190,6 +190,12 @@ final class Schema
                 $t->string('grp', 20)->nullable()->comment('1.4.6 분류 — 비우면 붙인 곳 따라 · equip(장비) · mine(개인 재고) · c{업체 번호} · none(미분류)');
             });
         }
+        if (S::hasTable(self::DEVICES) && ! S::hasColumn(self::DEVICES, 'humidity_min')) {   // 1.9.0 알림 구간 — 아래 기준
+            S::table(self::DEVICES, function (Blueprint $t) {
+                $t->unsignedSmallInteger('humidity_min')->nullable()->comment('1.9.0 습도가 이 값보다 낮으면 알림 (%)');
+                $t->smallInteger('temp_min')->nullable()->comment('1.9.0 온도가 이 값보다 낮으면 알림 (°C)');
+            });
+        }
         if (S::hasTable(self::DEVICES) && ! S::hasColumn(self::DEVICES, 'ha_server')) {   // 1.8.0 🏠 HA 서버마다 (통합 0.4.0+ 가 알려 줌)
             S::table(self::DEVICES, function (Blueprint $t) {
                 $t->string('ha_server', 64)->nullable()->index()->comment('1.8.0 이 기기를 보낸 HA 서버 (HA instance id) — 비면 예전 통합');

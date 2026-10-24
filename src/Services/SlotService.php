@@ -182,7 +182,8 @@ class SlotService
         if (! $ok) {
             return [false, $msg];
         }
-        DB::table(Schema::SLOTS)->where('id', $s->id)->update(['size' => $size - $n, 'amount' => (int) $s->amount - $back, 'status' => $n === $size ? 'cancelled' : 'active', 'updated_at' => now()]);
+        DB::table(Schema::SLOTS)->where('id', $s->id)->update($n === $size ? ['status' => 'cancelled', 'updated_at' => now()]   // 1.9.0 모두 취소 — 산 개수 · 값은 그대로 두고 상태만 (목록에 「1개 · 10,000C · 취소함」)
+            : ['size' => $size - $n, 'amount' => (int) $s->amount - $back, 'updated_at' => now()]);
 
         return [true, '센서 칸 '.$n.'개를 취소했어요 — '.Points::format($back, (string) $s->currency).' 돌려줬어요.'];
     }
