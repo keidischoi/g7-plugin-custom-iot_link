@@ -156,7 +156,7 @@ class SlotService
         }
         $s = DB::table(Schema::SLOTS)->where('id', $id)->first();
         if (! $s || (int) $s->user_id !== $uid) {
-            return [false, '내가 산 칸만 취소할 수 있어요.'];
+            return [false, '내가 구매한 칸만 취소할 수 있어요.'];
         }
         $c = $this->cancelable($uid, $s);
         $n = $n > 0 ? $n : (int) $s->size;

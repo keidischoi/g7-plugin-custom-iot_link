@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.8.4 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.8.5 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.8.4';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.8.5';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -126,7 +126,7 @@
     if (!T.enabled) return;
     var tg = T.targets || [], cur = T.currencies || [];
     var mode = T.mode === 'monthly' ? '달마다 결제 (자동 연장 · 끄면 기한까지)' : '한 번 사면 계속';
-    var html = (T.selling === false ? '<p class="hal-hint">' + (T.exempt ? '관리자는 기기 수 한도에서 빠져서 칸을 살 필요가 없어요. 아래는 지금까지 산 칸이에요.' : '지금은 센서 칸을 팔지 않아요. 아래는 지금까지 산 칸이에요.') + '</p>' :   // 1.8.4
+    var html = (T.selling === false ? '<p class="hal-hint">' + (T.exempt ? '관리자는 기기 수 한도에서 빠져서 칸을 살 필요가 없어요. 아래는 지금까지 구매한 칸이에요.' : '지금은 센서 칸을 팔지 않아요. 아래는 지금까지 구매한 칸이에요.') + '</p>' :   // 1.8.4
       '<p class="hal-hint">기기 수 한도를 넘어 센서를 더 붙이려면 칸을 사요 — <b>' + mode + '</b>. 칸이 끝나도 붙인 기기는 지우지 않아요 (새로 붙이는 것만 막혀요).</p>' +
       (tg.length > 1 ? '<label>어디에 쓸까요<select data-slot-for>' + tg.map(function (t) { return '<option value="' + esc(t.key) + '">' + esc(t.label) + '</option>'; }).join('') + '</select></label>' : '') +
       (cur.length ? cur.map(function (c) {
@@ -135,12 +135,12 @@
           '<span class="hal-slot-qty"><button type="button" class="hal-btn sm" data-qty-step="-1" data-cur="' + c.key + '" aria-label="하나 빼기">−</button><input type="number" min="1" max="' + (T.max_qty || 100) + '" value="1" data-slot-qty="' + c.key + '" aria-label="살 개수"><button type="button" class="hal-btn sm" data-qty-step="1" data-cur="' + c.key + '" aria-label="하나 더하기">＋</button></span>' +
           '<button type="button" class="hal-btn pri" data-slot-buy="' + c.key + '">' + slotBtnText(c, 1) + '</button></div></div>';
       }).join('') : '<p class="hal-warn">지금 쓸 수 있는 결제 수단이 없어요 (코인 · 마일리지 확장이 꺼져 있거나 값이 정해지지 않았어요).</p>')) +
-      ((T.slots || []).length ? '<h4 class="hal-slot-t">산 칸</h4><ul class="hal-slotl">' + T.slots.map(function (x) {
+      ((T.slots || []).length ? '<h4 class="hal-slot-t">구매한 칸</h4><ul class="hal-slotl">' + T.slots.map(function (x) {
         var st = x.status === 'active' ? (x.expires_at ? '🟢 ' + x.expires_at.slice(0, 10) + '까지' : '🟢 계속') : x.status === 'cancelled' ? '↩️ 취소함' : '⚪ 끝남', cx = x.cancel || {};
         return '<li><b>' + esc(x.for) + ' · 센서 ' + x.size + '개</b><span>' + esc(x.amount_text) + ' · ' + st + '</span>' +
           (x.mine && x.status === 'active' ? (cx.n > 0 ? '<button type="button" class="hal-btn sm" data-slot-cancel="' + x.id + '" data-max="' + cx.n + '" data-size="' + x.size + '" title="안 쓴 칸 ' + cx.n + '개까지 취소 · 낸 값의 몫을 돌려받아요 (산 뒤 ' + (T.cancel_days || 0) + '일 안)">↩️ 취소</button>' : (cx.why ? '<small class="hal-mute">취소 못 함 — ' + esc(cx.why) + '</small>' : '')) : '') + (x.mode === 'monthly' && x.status === 'active' && x.mine ? '<label class="hal-chk"><input type="checkbox" data-slot-auto="' + x.id + '"' + (x.auto_renew ? ' checked' : '') + '> 자동 연장</label>' : '') + '</li>';
       }).join('') + '</ul>' : '');
-    var ov = modal(T.selling === false ? '💳 산 센서 칸' : '💳 센서 칸 늘리기', html);
+    var ov = modal(T.selling === false ? '💳 구매한 센서 칸' : '💳 센서 칸 늘리기', html);
     var curOf = function (k) { return cur.filter(function (c) { return c.key === k; })[0] || {}; };
     var qtyOf = function (k) { var i = ov.querySelector('[data-slot-qty="' + k + '"]'); var v = Math.round(+(i && i.value) || 1); return Math.max(1, Math.min(T.max_qty || 100, v)); };
     var redrawBtn = function (k) { var bb = ov.querySelector('[data-slot-buy="' + k + '"]'); if (bb) { bb.textContent = slotBtnText(curOf(k), qtyOf(k)); bb.disabled = slotTotal(curOf(k), qtyOf(k)) <= 0; } };
@@ -639,7 +639,7 @@
     if (S.sel) { var have = {}; S.d.devices.forEach(function (x) { have[x.id] = 1; }); Object.keys(S.sel).forEach(function (k) { if (!have[k]) delete S.sel[k]; }); if (!S.d.devices.length) S.sel = null; }
     var d = S.d, live = d.devices.filter(function (x) { return !x.stale; }).length, over = d.devices.filter(function (x) { return x.over; }).length;
     wrap('<section class="hal-hero"><div><h1>📡 IoT 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 재고 관리 · 정비 수첩 · 내 프린터에 이어요.</p></div>' +
-      '<div class="hal-stats"><span title="연결할 수 있는 기기 (관리자가 정함)">기기 <b>' + d.devices.length + '</b>' + (d.limits ? (d.limits.admin ? ' <small title="관리자는 기기 수 한도가 없어요">· 관리자 무제한</small>' : ' / ' + d.limits.member) : '') + '</span><span>🟢 연결됨 <b>' + live + '</b></span>' + (over ? '<span class="hot">⚠️ 기준 넘음 <b>' + over + '</b></span>' : '') + '<button class="hal-btn ghost" data-guide title="연결 방법 보기" aria-label="연결 방법 보기">❓ 연결 방법</button>' + (d.devices.length > 1 && !S.sel ? '<button class="hal-btn ghost" data-sel-on title="체크 박스로 골라 한 번에 분류 옮기기 · 지우기">☑️ 여러 개 고르기</button>' : '') + (d.slots && d.slots.enabled ? ' <button class="hal-btn ghost" data-slot title="' + (d.slots.selling ? '코인 · 마일리지로 센서 칸 사기 · 산 칸 보기' : '산 센서 칸 보기 · 취소') + '">💳 ' + (d.slots.selling ? '칸 늘리기' : '산 칸') + '</button>' : '') + ' <button class="hal-btn light" data-new>➕ 기기 연결</button></div></section>' +
+      '<div class="hal-stats"><span title="연결할 수 있는 기기 (관리자가 정함)">기기 <b>' + d.devices.length + '</b>' + (d.limits ? (d.limits.admin ? ' <small title="관리자는 기기 수 한도가 없어요">· 관리자 무제한</small>' : ' / ' + d.limits.member) : '') + '</span><span>🟢 연결됨 <b>' + live + '</b></span>' + (over ? '<span class="hot">⚠️ 기준 넘음 <b>' + over + '</b></span>' : '') + '<button class="hal-btn ghost" data-guide title="연결 방법 보기" aria-label="연결 방법 보기">❓ 연결 방법</button>' + (d.devices.length > 1 && !S.sel ? '<button class="hal-btn ghost" data-sel-on title="체크 박스로 골라 한 번에 분류 옮기기 · 지우기">☑️ 여러 개 고르기</button>' : '') + (d.slots && d.slots.enabled ? ' <button class="hal-btn ghost" data-slot title="' + (d.slots.selling ? '코인 · 마일리지로 센서 칸 사기 · 구매한 칸 보기' : '구매한 센서 칸 보기 · 취소') + '">💳 ' + (d.slots.selling ? '칸 늘리기' : '구매한 칸') + '</button>' : '') + ' <button class="hal-btn light" data-new>➕ 기기 연결</button></div></section>' +
       srcCard() +
       (d.devices.length ? scopeBar() + (scope() === 'map' ? mapView() : (S.sel ? selBar() : '') + tools() + (pref('view', 'card') === 'board' ? board() : grouped())) +
         '<p class="hal-note">' + (liveSec() ? '🔄 이 화면은 ' + (liveSec() >= 60 && liveSec() % 60 === 0 ? liveSec() / 60 + '분' : liveSec() + '초') + '마다 스스로 새 값을 받아 와요' : '🔄 새 값을 보려면 화면을 새로 고쳐 주세요') + ' (Home Assistant 는 ' + (d.config.send_mode === 'change' ? '값이 변하면' : (d.config.interval_min || 10) + '분마다') + ' · 상태가 바뀌면 바로 보내요).</p><p class="hal-note">🔒 받는 주소는 비밀번호와 같아요 — 남에게 보이지 마세요. 사이트가 내 집으로 접속하지 않고, 내 Home Assistant 가 보내는 값만 받아요.' + (d.config.inventory ? ' · <a href="/inventory?tab=drawer" data-go>🧵 필라멘트 서랍 보기 (재고 관리)</a>' : '') + '</p>'
