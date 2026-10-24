@@ -27,15 +27,27 @@ class SlotService
         return (bool) Settings::get('slot_enabled');
     }
 
-    /** @param list<array{id: int, name: string}> $companies 내가 대표 · 관리자인 업체 @return array<string, mixed> 회원 화면 */
-    public function info(int $uid, array $companies): array
+    /**
+     * @param  list<array{id: int, name: string}>  $companies  내가 대표 · 관리자인 업체
+     * @param  bool  $exempt  1.8.4 관리자(한도 예외) — 살 필요 없음 (산 칸 목록 · 취소만)
+     * @return array<string, mixed> 회원 화면 — enabled = 창을 보임 · selling = 사기 칸을 보임
+     */
+    public function info(int $uid, array $companies, bool $exempt = false): array
     {
-        if (! self::on() || $uid <= 0 || ! Schema::ensure()) {
+        if ($uid <= 0 || ! Schema::ensure()) {
             return ['enabled' => false];
         }
-        $this->renew($uid);
+        $cids0 = array_column($companies, 'id');
+        $has = DB::table(Schema::SLOTS)->where('status', '!=', 'pending')->where(fn ($q) => $q->where('user_id', $uid)->orWhereIn('company_id', $cids0 ?: [0]))->exists();
+        $selling = self::on() && ! $exempt;
+        if (! $selling && ! $has) {   // 1.8.4 팔지 않고 산 칸도 없으면 창 없음
+            return ['enabled' => false];
+        }
+        if (self::on()) {
+            $this->renew($uid);
+        }
         $cur = [];
-        foreach (Points::CURRENCIES as $c) {
+        foreach ($selling ? Points::CURRENCIES : [] as $c) {
             if (Points::available($c)) {
                 $prices = [];
                 foreach (self::SIZES as $n) {
@@ -57,7 +69,7 @@ class SlotService
             }
         }
 
-        return ['enabled' => true, 'mode' => (string) Settings::get('slot_mode'), 'currencies' => $cur, 'targets' => $targets, 'max_qty' => self::MAX_QTY, 'cancel_days' => (int) Settings::get('slot_cancel_days'),
+        return ['enabled' => true, 'selling' => $selling, 'exempt' => $exempt, 'mode' => (string) Settings::get('slot_mode'), 'currencies' => $cur, 'targets' => $targets, 'max_qty' => self::MAX_QTY, 'cancel_days' => (int) Settings::get('slot_cancel_days'),
             'slots' => $rows->map(fn ($s) => ['id' => (int) $s->id, 'size' => (int) $s->size, 'cancel' => $this->cancelable($uid, $s), 'for' => $s->company_id ? '🏢 '.($cn[(int) $s->company_id] ?? '업체') : '나', 'mine' => (int) $s->user_id === $uid,
                 'amount_text' => Points::format((int) $s->amount, (string) $s->currency), 'mode' => (string) $s->mode, 'status' => (string) $s->status,
                 'expires_at' => $s->expires_at ? Carbon::parse((string) $s->expires_at)->toIso8601String() : null, 'auto_renew' => (bool) $s->auto_renew])->all()];

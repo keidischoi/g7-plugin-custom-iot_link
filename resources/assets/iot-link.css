@@ -1,4 +1,4 @@
-/* custom-iot_link 1.8.3 — 📡 IoT 연결 */
+/* custom-iot_link 1.8.4 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }

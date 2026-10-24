@@ -1202,6 +1202,10 @@ namespace {
     $b13 = DB::table('hal_slots')->find($s13->id);
     t($k2 && $b13->status === 'cancelled' && (int) $b13->size === 0 && $GLOBALS['wallet148']['coin'][1] === 5000 && $L3::member(1) === 20 && ! $sl->cancel(1, (int) $s13->id, 1)[0], '나머지 모두 취소 — 낸 값 모두 돌아옴 · 칸 끝남 · 다시 취소 안 됨');
     t($svc->overview(1)['slots']['cancel_days'] === 3 && isset($svc->overview(1)['slots']['slots'][0]['cancel']), '화면에 취소 날 수 · 칸마다 취소할 수 있는 수');
+    Settings::save(['slot_enabled' => false]);
+    $v4 = $sl->info(1, $cos1); $v4a = $sl->info(1, $cos1, true);
+    t($v4['enabled'] === true && $v4['selling'] === false && $v4['currencies'] === [] && count($v4['slots']) === 1 && $v4a['exempt'] === true && $v4a['selling'] === false && $sl->info(2, []) === ['enabled' => false], '1.8.4 판매를 꺼도 · 관리자라도 산 칸이 있으면 목록 (사기 칸은 없음) · 산 칸 없으면 창 없음');
+    Settings::save(['slot_enabled' => true]);
     DB::table('hal_slots')->delete();
     $js8 = (string) file_get_contents(dirname(__DIR__).'/resources/assets/iot-link-app.js');
     t(str_contains($js8, 'function slotBox()') && str_contains($js8, "'/slots/buy'") && str_contains($js8, "['slot_coin_price10',") && str_contains($js8, 'data-slot-qty=') && str_contains($js8, "'/cancel'") && str_contains($js8, "e.data.reason === 'insufficient'") && str_contains($js8, "['slot_cancel_days',"), '화면 — 💳 칸 늘리기 · 개수 · 취소 · 모자라면 충전 안내 · 관리자 값');
