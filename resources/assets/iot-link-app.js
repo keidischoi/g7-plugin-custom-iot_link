@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.7.15 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.7.16 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.15';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.7.16';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -566,11 +566,12 @@
     var d = S.d, live = d.devices.filter(function (x) { return !x.stale; }).length, over = d.devices.filter(function (x) { return x.over; }).length;
     wrap('<section class="hal-hero"><div><h1>📡 IoT 연결</h1><p>Home Assistant · SmartThings 의 온습도 센서 · 프린터 · 장비 상태를 받아 재고 관리 · 정비 수첩 · 내 프린터에 이어요.</p></div>' +
       '<div class="hal-stats"><span title="연결할 수 있는 기기 (관리자가 정함)">기기 <b>' + d.devices.length + '</b>' + (d.limits ? (d.limits.admin ? ' <small title="관리자는 기기 수 한도가 없어요">· 관리자 무제한</small>' : ' / ' + d.limits.member) : '') + '</span><span>🟢 연결됨 <b>' + live + '</b></span>' + (over ? '<span class="hot">⚠️ 기준 넘음 <b>' + over + '</b></span>' : '') + '<button class="hal-btn ghost" data-guide title="연결 방법 보기" aria-label="연결 방법 보기">❓ 연결 방법</button>' + (d.devices.length > 1 && !S.sel ? '<button class="hal-btn ghost" data-sel-on title="체크 박스로 골라 한 번에 분류 옮기기 · 지우기">☑️ 여러 개 고르기</button>' : '') + (d.slots && d.slots.enabled ? ' <button class="hal-btn ghost" data-slot title="코인 · 마일리지로 센서 칸 사기">💳 칸 늘리기</button>' : '') + ' <button class="hal-btn light" data-new>➕ 기기 연결</button></div></section>' +
-      stCard() +
+      srcCard() +
       (d.devices.length ? scopeBar() + (scope() === 'map' ? mapView() : (S.sel ? selBar() : '') + tools() + (pref('view', 'card') === 'board' ? board() : grouped())) +
         '<p class="hal-note">' + (liveSec() ? '🔄 이 화면은 ' + (liveSec() >= 60 && liveSec() % 60 === 0 ? liveSec() / 60 + '분' : liveSec() + '초') + '마다 스스로 새 값을 받아 와요' : '🔄 새 값을 보려면 화면을 새로 고쳐 주세요') + ' (Home Assistant 는 ' + (d.config.send_mode === 'change' ? '값이 변하면' : (d.config.interval_min || 10) + '분마다') + ' · 상태가 바뀌면 바로 보내요).</p><p class="hal-note">🔒 받는 주소는 비밀번호와 같아요 — 남에게 보이지 마세요. 사이트가 내 집으로 접속하지 않고, 내 Home Assistant 가 보내는 값만 받아요.' + (d.config.inventory ? ' · <a href="/inventory?tab=drawer" data-go>🧵 필라멘트 서랍 보기 (재고 관리)</a>' : '') + '</p>'
         : '<section class="hal-start"><h2>' + haLogo() + ' Home Assistant 는 세 걸음이면 돼요</h2><ol><li><b>① HACS 에서 「3ds」 설치</b><span>단추 한 번으로 저장소가 들어가요</span></li><li><b>② 사이트 주소 · 연결 코드 붙여 넣기</b><span>복사 단추 두 번</span></li><li><b>③ 「⚡ 알아서 찾아 연결」 → 확인</b><span>내 프린터 · 필라멘트 보관 위치와 이름이 맞는 것을 찾아 줘요</span></li></ol><div class="hal-row center"><button class="hal-btn pri big" data-new>➕ 첫 기기 연결하기</button><button class="hal-btn big" data-guide>❓ 그림으로 보는 연결 방법</button></div></section>'));
     qa('[data-guide]').forEach(function (b) { b.onclick = function () { guideBox(); }; });
+    qa('[data-srctab]').forEach(function (b) { b.onclick = function () { setPref('srctab', b.getAttribute('data-srctab')); redraw(); }; });   // 1.7.16
     qa('[data-scope]').forEach(function (b) { b.onclick = function () { setPref('scope', b.getAttribute('data-scope')); setPref('gf', 'all'); S.lim = 0; redraw(); }; });   // 1.5.0
     qa('[data-gf]').forEach(function (b) { b.onclick = function () { setPref('gf', b.getAttribute('data-gf')); S.lim = 0; redraw(); }; });   // 1.4.6 분류 고르기 · 보기 모양
     qa('[data-src]').forEach(function (b) { b.onclick = function () { setPref('src', b.getAttribute('data-src')); S.lim = 0; redraw(); }; });   // 1.4.7 출처
@@ -610,6 +611,32 @@
       '값이 멈추면 기기 카드에 「끊김」으로 보이고, 기기 카드와 그동안의 기록은 그대로 남아요. <a href="' + ST_PAY_URL + '" target="_blank" rel="noopener">삼성 SmartThings 의 안내 글</a></p>';
   }
   function minsLeft(at) { return Math.max(0, Math.ceil((new Date(at.replace(' ', 'T')) - new Date(S.d.now.replace(' ', 'T'))) / 60000)); }
+  /* 1.7.16 받는 곳 칸 — 탭으로 SmartThings · 🏠 Home Assistant (HA 로 이은 센서도 같은 자리에서) */
+  function srcCard() {
+    var d = S.d, ha = d.devices.filter(function (x) { return srcOf(x) === 'ha'; }), st = d.smartthings, ins = (st && st.installs) || [];
+    var tab = pref('srctab', '');
+    if (tab !== 'st' && tab !== 'ha') tab = ins.length || !ha.length ? 'st' : 'ha';
+    if (!st) tab = 'ha';
+    var stOn = ins.filter(function (x) { return x.status === 'active'; }).length, haOn = ha.filter(function (x) { return !x.stale && !x.never; }).length;
+    var bar = '<div class="hal-srctabs" role="tablist" aria-label="받는 곳">' + (st ? '<button type="button" role="tab" data-srctab="st" class="' + (tab === 'st' ? 'on' : '') + '" aria-selected="' + (tab === 'st') + '">' + stLogo() + ' SmartThings <small>' + (ins.length ? '🟢 ' + stOn + ' / ' + ins.length : '–') + '</small></button>' : '') +
+      '<button type="button" role="tab" data-srctab="ha" class="' + (tab === 'ha' ? 'on' : '') + '" aria-selected="' + (tab === 'ha') + '">' + haLogo() + ' Home Assistant <small>' + (ha.length ? '🟢 ' + haOn + ' / ' + ha.length : '–') + '</small></button></div>';
+    return '<div class="hal-srcbox">' + bar + (tab === 'ha' ? haCard(ha) : stCard()) + '</div>';
+  }
+  /** 🏠 Home Assistant 로 이은 센서 — HA 의 「3ds」 통합이 고른 것 (누르면 고치기) */
+  function haCard(ha) {
+    var on = ha.filter(function (x) { return !x.stale && !x.never; }).length, off = ha.filter(function (x) { return x.stale && !x.never; }).length;
+    var pill = ha.length ? (off ? '<span class="hal-pill bad">⚠️ 끊김 ' + off + '</span>' : on ? '<span class="hal-pill on">🟢 연결됨' + (on > 1 ? ' ' + on : '') + '</span>' : '<span class="hal-pill wait">⏳ 값을 기다리는 중</span>') : '<span class="hal-pill">연결 안 됨</span>';
+    var head = '<header class="hal-stc-h"><span class="hal-stc-logo ha" aria-hidden="true">' + haLogo() + '</span><div><h2>Home Assistant</h2><p>HA 의 「3ds」 통합에서 고른 온습도 센서 · 프린터 · 장비 상태가 사이트로 들어와요 (사이트가 HA 에 접속하지 않아요).</p></div>' + pill + '</header>';
+    var chips = ha.map(function (x) {
+      var c = capsOf(x), live = !x.stale && !x.never, v = [];
+      if (c.temp && x.temp != null) v.push(x.temp + '°'); if (c.hum && x.humidity != null) v.push(x.humidity + '%'); if (c.state) v.push(x.is_on ? '가동 중' : '쉬는 중');
+      return '<button type="button" class="hal-hachip' + (live ? '' : ' off') + '"' + (x.perm === 'view' ? '' : ' data-edit="' + x.id + '"') + ' title="' + esc(x.name + ' · ' + (x.where || '📡 대기 칸') + ' · ' + (x.never ? '값을 기다리는 중' : agoText(x.seen))) + '"><span class="hal-dot ' + (x.never ? 'wait' : live ? 'on' : 'off') + '"></span>' + ICON[x.target] + ' ' + esc(x.name) + (v.length ? '<small>' + esc(v.join(' · ')) + '</small>' : '') + '</button>';
+    }).join('');
+    return '<section class="hal-stc ha">' + head + (ha.length ? '<div class="hal-stc-devs ha">' + chips + '</div>'
+      : '<p class="hal-hint">아직 HA 로 이은 센서가 없어요 — HACS 에서 「3ds」를 설치하고 사이트 주소 · 연결 코드를 붙여 넣으면 돼요.</p>') +
+      '<div class="hal-row hal-stc-more"><button type="button" class="hal-btn sm" data-new>➕ 기기 연결</button><button type="button" class="hal-btn sm" data-guide>❓ 연결 방법</button></div>' +
+      '<p class="hal-hint">센서를 더하거나 빼려면 HA › 설정 › 기기 및 서비스 › 3ds › <b>구성</b>. 이름이 보관함 · 프린터 · 장비와 거의 같으면 거기에, 아니면 📡 대기 칸으로 들어와요.</p></section>';
+  }
   function stCard() {
     var T = S.d.smartthings; if (!T) return '';
     var ins = T.installs || [], oa = ins.filter(function (x) { return x.mode === 'oauth'; }), old = ins.filter(function (x) { return x.mode !== 'oauth'; });

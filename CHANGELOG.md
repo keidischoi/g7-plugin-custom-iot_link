@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.16 — 2026-10-23 받는 곳 칸에 SmartThings · Home Assistant 탭
+
+- 위쪽 SmartThings 칸을 「SmartThings · 🏠 Home Assistant」 탭으로 — 탭마다 연결된 수(🟢 연결 / 전체)
+- 🏠 Home Assistant 탭: HA 「3ds」 통합으로 이은 센서를 칩으로 (연결 점 · 붙인 곳 아이콘 · 지금 값), 누르면 고치기 · 끊긴 수 표시 · ➕ 기기 연결 · ❓ 연결 방법
+- 고른 탭 기억 · 처음에는 SmartThings 연결이 있으면 SmartThings, 없고 HA 센서만 있으면 Home Assistant
+
 ## 1.7.15 — 2026-10-23 이름이 거의 같을 때만 저절로 붙임 · 아니면 대기 칸
 
 - 새로 연결한 기기(Home Assistant 통합 · SmartThings)는 이름이 📦 보관함 · 🖨️ 프린터 · 🏭 업체 장비와 거의 같을 때만 거기에 저절로 붙고, 아니면 📡 대기 칸으로 (📦 보드에서 끌어 놓기)
