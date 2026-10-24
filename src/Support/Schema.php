@@ -190,6 +190,12 @@ final class Schema
                 $t->string('grp', 20)->nullable()->comment('1.4.6 분류 — 비우면 붙인 곳 따라 · equip(장비) · mine(개인 재고) · c{업체 번호} · none(미분류)');
             });
         }
+        if (S::hasTable(self::DEVICES) && ! S::hasColumn(self::DEVICES, 'ha_server')) {   // 1.8.0 🏠 HA 서버마다 (통합 0.4.0+ 가 알려 줌)
+            S::table(self::DEVICES, function (Blueprint $t) {
+                $t->string('ha_server', 64)->nullable()->index()->comment('1.8.0 이 기기를 보낸 HA 서버 (HA instance id) — 비면 예전 통합');
+                $t->string('ha_server_name', 60)->nullable()->comment('1.8.0 그 HA 서버 이름 (HA 위치 이름)');
+            });
+        }
         if (S::hasTable(self::ST_INSTALLS) && ! S::hasColumn(self::ST_INSTALLS, 'polled_at')) {
             S::table(self::ST_INSTALLS, function (Blueprint $t) {
                 $t->dateTime('polled_at')->nullable()->comment('1.4.1 값이 오래 안 와서 지금 값을 직접 물어본 때');

@@ -277,6 +277,16 @@ namespace {
     [$ok, , $nd] = $svc->hubSave(1, null, ['target' => 'location', 'location' => 'AMS', 'ent_hum' => 'sensor.ams_humidity', 'humidity_max' => 30]);
     t($ok && $nd['name'] === 'AMS' && str_ends_with($nd['push_url'], '/in/'.$nd['token']) && $svc->ingest($nd['token'], ['humidity' => 20])[0]
         && DB::table('hal_devices')->where('id', $nd['id'])->value('target') === 'location', '통합이 기기를 만들고 그 주소로 보냄 (이름이 보관함과 같으면 거기에)');
+    // 1.8.0 🏠 HA 서버마다 — 통합 0.4.0+ 가 머리글로 알려 줌 · 통합이 받는 목록은 그 서버 것 + 서버가 안 적힌 것만
+    [, , $sa] = $svc->hubSave(1, null, ['target' => 'location', 'location' => '서버A 센서', 'ent_hum' => 'sensor.a_h']);
+    [, , $sb] = $svc->hubSave(1, null, ['target' => 'location', 'location' => '서버B 센서', 'ent_hum' => 'sensor.b_h']);
+    $svc->tagServer((int) $sa['id'], null, ['id' => 'aaaaaaaa1', 'name' => '본가 HA']);
+    $svc->tagServer(null, $sb['token'], ['id' => 'bbbbbbbb2', 'name' => '작업실 HA']);
+    $hA = array_column($svc->hub(1, ['id' => 'aaaaaaaa1', 'name' => '본가 HA'])['devices'], 'id');
+    $ovS = collect($svc->overview(1)['devices'])->keyBy('id');
+    t(in_array((int) $sa['id'], $hA, true) && ! in_array((int) $sb['id'], $hA, true) && in_array((int) $nd['id'], $hA, true) && count($svc->hub(1)['devices']) >= 3
+        && $ovS[(int) $sb['id']]['ha_server_name'] === '작업실 HA' && $ovS[(int) $sa['id']]['ha_server'] === 'aaaaaaaa1' && $ovS[(int) $nd['id']]['ha_server'] === '', '1.8.0 🏠 HA 서버마다 — 기기에 서버 · 통합 목록은 그 서버 것 + 서버 없는 것');
+    DB::table('hal_devices')->whereIn('id', [(int) $sa['id'], (int) $sb['id']])->delete();
     [$okW, , $wd] = $svc->hubSave(1, null, ['target' => 'location', 'location' => 'Awair 거실 공기', 'ent_hum' => 'sensor.awair_h']);
     [$okP, , $pd] = $svc->hubSave(1, null, ['target' => 'location', 'location' => 'Bambu Lab P1S', 'ent_hum' => 'sensor.p1s_h']);
     [$okD, , $dd] = $svc->hubSave(1, null, ['target' => 'location', 'location' => '드라이', 'ent_hum' => 'sensor.dry_h']);
