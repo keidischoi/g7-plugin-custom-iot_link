@@ -33,6 +33,47 @@ final class Points
         return (int) Settings::get('slot_'.($cur === 'coin' ? 'coin' : 'mileage').'_price'.($n === 10 ? '10' : ''));
     }
 
+    /**
+     * 1.8.3 개수를 정해 살 때 값 — 10개마다 묶음 값(있으면) + 나머지는 1개 값. 못 사는 조합이면 0
+     */
+    public static function total(string $cur, int $q): int
+    {
+        if ($q < 1) {
+            return 0;
+        }
+        $one = self::price($cur, 1);
+        $ten = self::price($cur, 10);
+        $packs = $ten > 0 ? intdiv($q, 10) : 0;
+        $rest = $q - $packs * 10;
+        if ($rest > 0 && $one <= 0) {
+            return 0;
+        }
+
+        return $packs * $ten + $rest * $one;
+    }
+
+    /**
+     * 1.8.3 돌려주기 — {plugin}.refund(null, 'custom-iot_link', ref, ['amount' => …, 'reason' => …]) · 같은 ref 에서 남은 만큼까지
+     *
+     * @return array{0: bool, 1: string}
+     */
+    public static function refund(string $cur, string $ref, int $amount, string $reason): array
+    {
+        if ($amount <= 0) {
+            return [true, ''];
+        }
+        try {
+            $r = self::filter(self::prefix($cur).'.refund', null, 'custom-iot_link', $ref, ['amount' => $amount, 'reason' => $reason]);
+        } catch (\Throwable) {
+            $r = null;
+        }
+        if (is_array($r) && ! empty($r['ok'])) {
+            return [true, self::format($amount, $cur).' 돌려줬어요.'];
+        }
+
+        return [false, is_array($r) && trim((string) ($r['message'] ?? '')) !== '' ? (string) $r['message'] : self::label($cur).'(을)를 돌려주지 못했어요. 잠시 뒤 다시 해 주세요.'];
+    }
+
     /** @return array<string, mixed> */
     public static function api(string $cur): array
     {

@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.8.2 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.8.3 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.8.2';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.8.3';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -17,7 +17,7 @@
     var m = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/); if (m) h['X-XSRF-TOKEN'] = decodeURIComponent(m[1]);
     if (body) h['Content-Type'] = 'application/json';
     return fetch((path.indexOf('/api/') === 0 ? '' : API) + path, { method: method, credentials: 'same-origin', headers: h, body: body ? JSON.stringify(body) : undefined }).then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok || d.success === false) { var e = new Error(d.message || (r.status === 401 ? '로그인이 필요해요.' : '요청에 실패했어요.')); e.status = r.status; throw e; } if (method !== 'GET') { try { if (BC) BC.postMessage({ t: 'iot', at: Date.now() }); } catch (er) {} } return d; });
+      return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok || d.success === false) { var e = new Error(d.message || (r.status === 401 ? '로그인이 필요해요.' : '요청에 실패했어요.')); e.status = r.status; e.data = d.data || null; throw e; } if (method !== 'GET') { try { if (BC) BC.postMessage({ t: 'iot', at: Date.now() }); } catch (er) {} } return d; });
     });
   }
   /* 1.7.20 🔄 같은 브라우저의 다른 탭(재고 관리 서랍 · 업체 재고)과 바로 맞춤 — 바꾸면 알리고, 알림을 받으면 새 값을 받음 */
@@ -117,6 +117,10 @@
   function setPref(k, v) { try { localStorage.setItem('hal:' + k, v); } catch (e) {} }
   var VIEWS = [['card', '▦', '카드'], ['row', '☰', '한 줄'], ['banner', '▬', '배너'], ['board', '📦', '보드']];   // 1.6.0 📦 보관함 보드
   /* 1.4.8 💳 센서 칸 사기 — 1개 · 10개 묶음 · 코인 · 마일리지 · 나 또는 내 업체 */
+  /* 1.8.3 💳 개수를 정해 살 때 값 — 서버(Points::total)와 같은 셈: 10개마다 묶음 값(있으면) + 나머지는 1개 값 */
+  function slotTotal(c, q) { var one = +c.unit || 0, ten = +c.pack || 0, packs = ten > 0 ? Math.floor(q / 10) : 0, rest = q - packs * 10; return rest > 0 && one <= 0 ? 0 : packs * ten + rest * one; }
+  function slotFmt(c, v) { var p = (c.prices || [])[0]; var unit = p && /[^\d,\s]+$/.test(p.text) ? p.text.match(/[^\d,\s]+$/)[0] : (c.key === 'coin' ? 'C' : 'P'); return n(v) + unit; }
+  function slotBtnText(c, q) { var t = slotTotal(c, q); return t > 0 ? '센서 ' + q + '개 사기 · ' + slotFmt(c, t) : '이 개수는 살 수 없어요'; }
   function slotBox() {
     var T = S.d.slots || {};
     if (!T.enabled) return;
@@ -126,20 +130,46 @@
       (tg.length > 1 ? '<label>어디에 쓸까요<select data-slot-for>' + tg.map(function (t) { return '<option value="' + esc(t.key) + '">' + esc(t.label) + '</option>'; }).join('') + '</select></label>' : '') +
       (cur.length ? cur.map(function (c) {
         return '<div class="hal-slotc"><div class="hal-slotc-h"><b>' + esc(c.label) + '</b><small>' + (c.balance != null ? '내 잔액 ' + n(c.balance) : '') + (c.charge_url ? ' · <a href="' + esc(c.charge_url) + '" data-go>충전하기 →</a>' : '') + '</small></div>' +
-          '<div class="hal-slotc-b">' + c.prices.map(function (pr) { var each = pr.n > 1 ? ' <small>(1개당 ' + n(Math.round(pr.price / pr.n)) + ')</small>' : ''; return '<button type="button" class="hal-btn' + (pr.n === 10 ? ' pri' : '') + '" data-slot-buy="' + c.key + '" data-n="' + pr.n + '">센서 ' + pr.n + '개 · ' + esc(pr.text) + each + '</button>'; }).join('') + '</div></div>';
+          '<div class="hal-slotc-b"><small class="hal-slot-price">' + c.prices.map(function (pr) { return pr.n + '개 ' + esc(pr.text) + (pr.n > 1 ? ' (1개당 ' + n(Math.round(pr.price / pr.n)) + ')' : ''); }).join(' · ') + '</small>' +   // 1.8.3 개수를 정해 사기
+          '<span class="hal-slot-qty"><button type="button" class="hal-btn sm" data-qty-step="-1" data-cur="' + c.key + '" aria-label="하나 빼기">−</button><input type="number" min="1" max="' + (T.max_qty || 100) + '" value="1" data-slot-qty="' + c.key + '" aria-label="살 개수"><button type="button" class="hal-btn sm" data-qty-step="1" data-cur="' + c.key + '" aria-label="하나 더하기">＋</button></span>' +
+          '<button type="button" class="hal-btn pri" data-slot-buy="' + c.key + '">' + slotBtnText(c, 1) + '</button></div></div>';
       }).join('') : '<p class="hal-warn">지금 쓸 수 있는 결제 수단이 없어요 (코인 · 마일리지 확장이 꺼져 있거나 값이 정해지지 않았어요).</p>') +
       ((T.slots || []).length ? '<h4 class="hal-slot-t">산 칸</h4><ul class="hal-slotl">' + T.slots.map(function (x) {
-        var st = x.status === 'active' ? (x.expires_at ? '🟢 ' + x.expires_at.slice(0, 10) + '까지' : '🟢 계속') : '⚪ 끝남';
-        return '<li><b>' + esc(x.for) + ' · 센서 ' + x.size + '개</b><span>' + esc(x.amount_text) + ' · ' + st + '</span>' + (x.mode === 'monthly' && x.status === 'active' && x.mine ? '<label class="hal-chk"><input type="checkbox" data-slot-auto="' + x.id + '"' + (x.auto_renew ? ' checked' : '') + '> 자동 연장</label>' : '') + '</li>';
+        var st = x.status === 'active' ? (x.expires_at ? '🟢 ' + x.expires_at.slice(0, 10) + '까지' : '🟢 계속') : x.status === 'cancelled' ? '↩️ 취소함' : '⚪ 끝남', cx = x.cancel || {};
+        return '<li><b>' + esc(x.for) + ' · 센서 ' + x.size + '개</b><span>' + esc(x.amount_text) + ' · ' + st + '</span>' +
+          (x.mine && x.status === 'active' ? (cx.n > 0 ? '<button type="button" class="hal-btn sm" data-slot-cancel="' + x.id + '" data-max="' + cx.n + '" data-size="' + x.size + '" title="안 쓴 칸 ' + cx.n + '개까지 취소 · 낸 값의 몫을 돌려받아요 (산 뒤 ' + (T.cancel_days || 0) + '일 안)">↩️ 취소</button>' : (cx.why ? '<small class="hal-mute">취소 못 함 — ' + esc(cx.why) + '</small>' : '')) : '') + (x.mode === 'monthly' && x.status === 'active' && x.mine ? '<label class="hal-chk"><input type="checkbox" data-slot-auto="' + x.id + '"' + (x.auto_renew ? ' checked' : '') + '> 자동 연장</label>' : '') + '</li>';
       }).join('') + '</ul>' : '');
     var ov = modal('💳 센서 칸 늘리기', html);
+    var curOf = function (k) { return cur.filter(function (c) { return c.key === k; })[0] || {}; };
+    var qtyOf = function (k) { var i = ov.querySelector('[data-slot-qty="' + k + '"]'); var v = Math.round(+(i && i.value) || 1); return Math.max(1, Math.min(T.max_qty || 100, v)); };
+    var redrawBtn = function (k) { var bb = ov.querySelector('[data-slot-buy="' + k + '"]'); if (bb) { bb.textContent = slotBtnText(curOf(k), qtyOf(k)); bb.disabled = slotTotal(curOf(k), qtyOf(k)) <= 0; } };
+    ov.addEventListener('input', function (ev) { var i = ev.target.closest('[data-slot-qty]'); if (i) redrawBtn(i.getAttribute('data-slot-qty')); });
     ov.addEventListener('click', function (ev) {
+      var stp = ev.target.closest('[data-qty-step]');
+      if (stp) { var k = stp.getAttribute('data-cur'), i = ov.querySelector('[data-slot-qty="' + k + '"]'); i.value = Math.max(1, Math.min(T.max_qty || 100, qtyOf(k) + +stp.getAttribute('data-qty-step'))); redrawBtn(k); return; }
+      var cb = ev.target.closest('[data-slot-cancel]');
+      if (cb) {   // 1.8.3 ↩️ 취소 — 여러 개면 몇 개를 취소할지
+        var max = +cb.getAttribute('data-max'), size = +cb.getAttribute('data-size'), q = max;
+        if (size > 1) { var a = prompt('몇 개를 취소할까요? (안 쓴 칸 ' + max + '개까지)', String(max)); if (a == null) return; q = Math.round(+a); if (!(q >= 1 && q <= max)) { toast('1 ~ ' + max + ' 사이로 적어 주세요.', true); return; } }
+        else if (!confirm('센서 칸 1개를 취소할까요? 낸 값을 돌려받아요.')) return;
+        cb.disabled = true;
+        api('POST', '/slots/' + cb.getAttribute('data-slot-cancel') + '/cancel', { n: q }).then(function (r) { toast(r.message); S.d = r.data.overview; draw(); ov.__close(); }).catch(function (e) { cb.disabled = false; fail(e); });
+        return;
+      }
       var b = ev.target.closest('[data-slot-buy]'); if (!b) return;
-      var f = ov.querySelector('[data-slot-for]'), forv = f ? f.value : 'me';
-      if (!confirm((f ? f.options[f.selectedIndex].text + ' — ' : '') + b.textContent.replace(/\s+/g, ' ').trim() + ' 을(를) 살까요?')) return;
+      var f = ov.querySelector('[data-slot-for]'), forv = f ? f.value : 'me', k2 = b.getAttribute('data-slot-buy'), c2 = curOf(k2), q2 = qtyOf(k2);
+      if (!confirm((f ? f.options[f.selectedIndex].text + ' — ' : '') + slotBtnText(c2, q2).replace('사기 · ', '· ') + ' 을(를) 살까요?')) return;
       b.disabled = true;
-      api('POST', '/slots/buy', { currency: b.getAttribute('data-slot-buy'), n: +b.getAttribute('data-n'), for: forv }).then(function (r) { toast(r.message); S.d = r.data.overview; draw(); ov.__close(); })
-        .catch(function (e) { b.disabled = false; fail(e); });
+      api('POST', '/slots/buy', { currency: k2, n: q2, for: forv }).then(function (r) { toast(r.message); S.d = r.data.overview; draw(); ov.__close(); })
+        .catch(function (e) {
+          b.disabled = false;
+          if (e.data && e.data.reason === 'insufficient' && c2.charge_url) {   // 1.8.3 모자라면 충전하러 갈지
+            var need = slotTotal(c2, q2), have = c2.balance;
+            if (confirm(e.message + (have != null ? '\n(필요 ' + slotFmt(c2, need) + ' · 내 잔액 ' + slotFmt(c2, have) + ')' : '') + '\n\n충전하러 갈까요?')) { ov.__close(); go(c2.charge_url); }
+            return;
+          }
+          fail(e);
+        });
     });
     ov.addEventListener('change', function (ev) {
       var a = ev.target.closest('[data-slot-auto]'); if (!a) return;
@@ -1074,7 +1104,7 @@
     ['max_devices', '회원 한 명이 연결할 수 있는 기기 (기본 · 1~1000)', 'num'], ['max_devices_company', '업체 하나에 둘 수 있는 기기 (기본 · 그 업체로 분류된 것을 회원 모두 합쳐 · 0 = 막지 않음)', 'num'],   // 1.4.7
     ['limit_admin_free', '관리자(최고 관리자 · 관리자 역할)는 기기 수 · 업체 한도에서 빼기 (칸을 살 필요 없음)', 'bool'],   // 1.4.10
     ['slot_enabled', '💳 한도를 넘는 센서 칸을 코인 · 마일리지로 팔기 (회원 칸 · 업체 칸)', 'bool'], ['slot_mode', '💳 칸 결제 방식', 'sel', [['once', '한 번 사면 계속'], ['monthly', '달마다 결제 (자동 연장)']]],
-    ['slot_coin_price', '💳 센서 1개 값 — 코인 (0 = 안 팖)', 'num'], ['slot_coin_price10', '💳 센서 10개 묶음 값 — 코인 (0 = 안 팖)', 'num'], ['slot_mileage_price', '💳 센서 1개 값 — 마일리지 (0 = 안 팖)', 'num'], ['slot_mileage_price10', '💳 센서 10개 묶음 값 — 마일리지 (0 = 안 팖)', 'num'],   // 1.4.8
+    ['slot_coin_price', '💳 센서 1개 값 — 코인 (0 = 안 팖)', 'num'], ['slot_coin_price10', '💳 센서 10개 묶음 값 — 코인 (0 = 안 팖)', 'num'], ['slot_mileage_price', '💳 센서 1개 값 — 마일리지 (0 = 안 팖)', 'num'], ['slot_mileage_price10', '💳 센서 10개 묶음 값 — 마일리지 (0 = 안 팖)', 'num'], ['slot_cancel_days', '💳 산 뒤 이 날 수 안 · 안 쓴 칸만 취소(환불) — 0 = 취소 안 받음 (0~30)', 'num'],   // 1.8.3   // 1.4.8
     ['max_devices_members', '회원마다 다르게 — 「회원번호 또는 이메일:개수」 쉼표로 (예: 12:50, kim@example.com:100)', 'area'], ['max_devices_companies', '업체마다 다르게 — 「업체번호:개수」 쉼표로 (예: 3:100, 7:0 · 0 = 막지 않음) · 업체 번호는 업체 주소 /companies/번호', 'area'], ['send_mode', '전송 방식 (통합 「3ds」)', 'sel', [['change', '값이 변하면 보내기 (권장)'], ['interval', '주기적으로 보내기']]],
     ['change_hum', '「변하면」: 습도가 이만큼(%) 변하면 보냄 (1~10 · 온도는 0.5°C)', 'num'], ['idle_min', '「변하면」: 변화가 없어도 이만큼(분)마다 한 번 (5~180)', 'num'],
     ['interval_min', '「주기적으로」 · 설정 글(YAML): 값 보내는 주기 (분, 1~60)', 'num'], ['refresh_sec', '화면이 새 값을 다시 받는 간격 (초, 5~3600 · 0 = 끔)', 'num'],
