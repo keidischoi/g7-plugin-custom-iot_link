@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.10.0 — 2026-10-25 🧩 Matter (3ds 연결) — HA 없이 Matter 온습도 센서
+
+- 🧩 **Matter 기기** — 애플 홈 · 구글 홈 · SmartThings 에 넣은 Matter 온습도 센서를, 집 안의 [3ds Matter 연결](https://github.com/keidischoi/matter-3ds-link)(라즈베리파이 · 리눅스 Docker · 윈도우 python)이 사이트로 보냄. 받는 주소는 HA 와 같은 `/in/{키}`
+- ➕ Matter 기기는 **Home Assistant 센서 이름 없이** 만들고 고침 (받는 곳 칸 🧩 Matter 탭 › ➕ Matter 기기 만들기 · ➕ 기기 연결 › 🧩 Matter) → 저장하면 🔑 받는 키 · `config.yaml` 한 줄 복사 (HA 설정 글 대신)
+- 🎨 받는 곳 표시 — 기기 카드 🧩 Matter 배지 · 받는 곳 탭 · 출처 줄 · 📡 대기 칸 묶음 · 색 표식(청록)
+- 🔌 3ds Matter 연결이 보낸 값(`X-G7-Via: matter` · 서버 ID `matter…`)은 HA 로 만든 기기도 Matter 기기로 바꿈 · 허브 API(`hub/{code}/devices`)로 만든 기기도 Matter 기기 · HA 통합의 기기 목록엔 Matter 기기가 안 보임
+- ❓ 연결 방법에 🧩 Matter 탭 (Matter 서버가 있을 때 · 없을 때 · 공유 코드 · Thread)
+
 ## 1.9.5 — 2026-10-24 🗺️ 연결 지도 — 누르면 그 화면 · 선이 붙는 점
 
 - 🔗 붙인 곳 · 이어지는 곳을 누르면 그 화면으로 — 📦 보관함(내 것 = 서랍 그 보관함 · 업체 것 = 업체 재고 그 보관함) · 🖨️ 프린터(프린터 라운지 · 업체면 업체 프린터) · 🏭 장비(재고 관리 장비 탭) · 🧵 재고 관리 · 🛠 정비 수첩 (이름 뒤 ↗)

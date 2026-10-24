@@ -1,10 +1,10 @@
 # 📡 IoT Link (`custom-iot_link`)
 
-**IoT Link is a plugin for [G7 (Gnuboard 7)](https://github.com/gnuboard/g7) sites.** It receives temperature / humidity, printer and device state pushed from members' Home Assistant or SmartThings, and links it to the site's maintenance log (`custom-maintenance`), My Printer (`custom-my_printer`) and company equipment (`custom-companies`).
+**IoT Link is a plugin for [G7 (Gnuboard 7)](https://github.com/gnuboard/g7) sites.** It receives temperature / humidity, printer and device state pushed from members' Home Assistant, SmartThings or Matter sensors (via the 3ds Matter link), and links it to the site's maintenance log (`custom-maintenance`), My Printer (`custom-my_printer`) and company equipment (`custom-companies`).
 
 This plugin is the **server side required by the Home Assistant integration [3ds (`ha-3ds-link`)](https://github.com/keidischoi/ha-3ds-link)** — install it on your G7 site first, then add the integration in Home Assistant.
 
-- The site never connects into a member's home. Home Assistant (or SmartThings) **pushes** values to the site.
+- The site never connects into a member's home. Home Assistant (or SmartThings, or the 3ds Matter link) **pushes** values to the site.
 - Ingest endpoint: `POST /api/plugins/custom-iot_link/in/{secret key}` — `{"temperature": 23.4, "humidity": 41, "state": "running", "progress": 42, "remaining_min": 75, "job": "…"}` (send only what you have)
 - Member page `/iot-link` · admin page `/admin/iot-link`
 
@@ -99,6 +99,22 @@ On `/iot-link`, the SmartThings card → **🔗 Connect SmartThings** → sign i
 ### Legacy method (0.2.0 link code · WebHook SmartApp)
 
 For apps registered in the [Developer Workspace](https://developer.smartthings.com/workspace) as *Automation for the SmartThings App* → *WebHook Endpoint*. Target URL and scopes are the same as above. Turn on "(legacy) also show link-code connection" under the admin "Advanced" section to show the link-code field on the member page (the code is entered in SmartThings app › Automations › ＋ › Add routine › Discover › this app's settings). In *Deploy to Test* state only the registering account can install it.
+
+## 🧩 Matter (1.10.0 — 3ds Matter link, no Home Assistant)
+
+Apple Home / Google Home have no public cloud API, and Matter only works inside the home network — so a small controller has to run at home. The **[3ds Matter link (`matter-3ds-link`)](https://github.com/keidischoi/matter-3ds-link)** connects to a Matter server (an existing one such as the HA Matter Server add-on, or the official `python-matter-server` it can start with Docker) and pushes temperature / humidity to the same ingest endpoint as Home Assistant.
+
+### Members
+
+1. Install the 3ds Matter link — Raspberry Pi / Linux with Docker (`docker compose up -d`, add `--profile server` if there is no Matter server yet), or plain `python link/link.py` on any PC (Windows too) when a Matter server already exists. Put the server address in `config/config.yaml` → `matter:`.
+2. In Apple Home (sensor › ⚙️ › **Turn On Pairing Mode**), Google Home (**Linked Matter apps & services**) or SmartThings (**Share with other services**) get a sharing code and type it into `link.py pair`.
+3. On `/iot-link`: the receivers box › **🧩 Matter** tab › **➕ Create Matter device** (or ➕ Connect device › 🧩 Matter). No Home Assistant entity names are needed. After saving, copy the **🔑 ingest key** (or the ready-made `config.yaml` line) into the link's `devices:` with the node number from `link.py nodes`. It is picked up within 30 seconds.
+
+### How it is shown / stored
+
+- `hal_devices.source = 'matter'` — a 🧩 Matter badge on the card, its own receivers tab, source filter, a group in the 📡 waiting area and a teal colour marker.
+- The link sends `X-G7-Via: matter` and a server ID starting with `matter` (`X-G7-Server`, name in `X-G7-Server-Name`). A device created as a Home Assistant device switches to Matter when the link sends to it. Devices created through the hub API (`POST hub/{code}/devices`) by the link are Matter devices; the HA integration's device list does not include Matter devices (and vice versa).
+- Thread sensors need a Thread border router (HomePod mini, Apple TV, Nest Hub …) and IPv6 route settings on the Linux host — see the link's README.
 
 ## Tests
 

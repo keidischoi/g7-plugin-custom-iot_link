@@ -174,7 +174,7 @@ check(preg_match("/var ST_PATH = 'M[0-9a-zA-Z .\\-]+Z';/", $app) === 1 && substr
     && str_contains((string) file_get_contents($root.'/resources/assets/iot-link.css'), '.hal-stl {'), 'SmartThings 로고: 공식 심볼(SVG) — 카드 · 배지 · 연결 방법 · 관리자 (이모지 없음)');
 // 1.3.1 ➕ 기기 연결 · ❓ 연결 방법 — SmartThings 칸 (Home Assistant 와 바꿔 봄 · SmartThings 만 쓰면 그쪽 먼저)
 check(str_contains($app, 'function connectBox(tab)') && str_contains($app, 'function stConnect(T, oa)') && str_contains($app, 'function srcTab()') && str_contains($app, 'data-ct="st"') && str_contains($app, '<div data-cpn="st">')
-    && str_contains($app, "tab = (tab || srcTab()) === 'st' && hasSt ? 'st' : 'ha';") && substr_count($app, "(tab || srcTab()) === 'st'") === 2 && str_contains($app, 'data-ha-only') && str_contains($app, "guideBox(tab)")
+    && str_contains($app, "tab = tab === 'mt' ? 'mt' : (tab || srcTab()) === 'st' && hasSt ? 'st' : 'ha';") && substr_count($app, "(tab || srcTab()) === 'st'") === 2 && str_contains($app, 'data-ha-only') && str_contains($app, "guideBox(tab)")
     && str_contains((string) file_get_contents($root.'/resources/assets/iot-link.css'), '.hal-ct-loc {'), '1.3.1 「➕ 기기 연결」에 SmartThings 칸 (연결하기 · 위치마다 센서 고르기) · SmartThings 만 쓰면 그쪽을 먼저 보임');
 // 1.3.0 🖨️ SmartThings 의 프린터 기기 (커뮤니티 Edge 드라이버) — DB 없이 보는 것: 알아보기 · 값 바꾸기
 $haSrc13 = (string) file_get_contents($root.'/src/Services/HaService.php');
@@ -224,6 +224,8 @@ foreach (['active', 'locationSensors', 'humidityHistory', 'touch', 'runHours'] a
     check(str_contains($apiSrc, 'public static function '.$fn.'('), 'Api\\Ha::'.$fn);
 }
 check(str_contains($apiSrc, "VERSION = '".$ver."'"), 'Api 버전');
+// 1.10.0 🧩 Matter — 센서 이름 없이 만들기 · 받는 키 · 받는 곳 표시 (탭 · 배지 · 대기 칸 · 출처 줄) · 연결 방법
+check(str_contains($app, "x.source === 'matter' ? 'mt' : 'ha'") && str_contains($app, 'function mtCard(xs)') && str_contains($app, 'function mtKeyBox(d)') && str_contains($app, 'function guideMt()') && str_contains($app, 'data-srctab="mt"') && str_contains($app, 'data-ct="mt"') && str_contains($app, 'data-gt="mt"') && str_contains($app, "v.source = 'matter'") && str_contains($app, "key: 'mt', col:") && str_contains($app, 'function recvKey(x)') && str_contains((string) file_get_contents($root.'/resources/assets/iot-link.css'), '.hal-badge.mt'), '1.10.0 🧩 Matter 화면 — 받는 곳 탭 · 배지 · 색 · 기기 만들기 · 받는 키 · 연결 방법');
 
 echo "\n".($fail === 0 ? "OK ({$pass} checks)" : "{$fail} FAILED / ".($pass + $fail))."\n";
 exit($fail === 0 ? 0 : 1);

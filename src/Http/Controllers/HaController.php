@@ -122,6 +122,12 @@ class HaController extends Controller
         return ['id' => $id, 'name' => mb_substr($name !== '' ? $name : 'Home Assistant', 0, 60)];
     }
 
+    /** 1.10.0 🧩 보낸 프로그램 — 3ds Matter 연결은 X-G7-Via: matter (서버 ID 도 matter… 로 시작) · 아니면 HA */
+    private function via(Request $r): string
+    {
+        return strtolower((string) $r->header('X-G7-Via', '')) === 'matter' || str_starts_with((string) $r->header('X-G7-Server', ''), 'matter') ? 'matter' : 'ha';
+    }
+
     public function hub(Request $r, string $code): JsonResponse
     {
         $uid = $this->svc->linkUser($code);
@@ -140,7 +146,9 @@ class HaController extends Controller
             return $this->hubJson(false, '연결 코드가 맞지 않아요.', [], 404);
         }
         $body = $r->json()->all();
-        $res = $this->svc->hubSave($uid, $id, is_array($body) ? $body : []);
+        $body = (is_array($body) ? $body : []);
+        $body['source'] = $this->via($r);   // 1.10.0 🧩 3ds Matter 연결이 만든 기기는 Matter 기기 (센서 이름 없이)
+        $res = $this->svc->hubSave($uid, $id, $body);
         if ($res[0]) {
             $this->svc->tagServer((int) $res[2]['id'], null, $this->server($r));   // 1.8.0
         }
@@ -195,7 +203,7 @@ class HaController extends Controller
         if (! is_array($body) || $body === []) {
             $body = $request->except(['token']);
         }
-        $res = $this->svc->ingest($token, is_array($body) ? array_slice($body, 0, 12, true) : []);
+        $res = $this->svc->ingest($token, is_array($body) ? array_slice($body, 0, 12, true) : [], $this->via($request));
         if ($res[0]) {
             $this->svc->tagServer(null, $token, $this->server($request));   // 1.8.0 예전에 만든 기기도 값을 보내면 서버가 적힘
         }
