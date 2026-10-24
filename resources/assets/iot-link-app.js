@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.8.5 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.8.6 — 📡 IoT 연결 (Home Assistant · SmartThings 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.8.5';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.8.6';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -121,12 +121,24 @@
   function slotTotal(c, q) { var one = +c.unit || 0, ten = +c.pack || 0, packs = ten > 0 ? Math.floor(q / 10) : 0, rest = q - packs * 10; return rest > 0 && one <= 0 ? 0 : packs * ten + rest * one; }
   function slotFmt(c, v) { var p = (c.prices || [])[0]; var unit = p && /[^\d,\s]+$/.test(p.text) ? p.text.match(/[^\d,\s]+$/)[0] : (c.key === 'coin' ? 'C' : 'P'); return n(v) + unit; }
   function slotBtnText(c, q) { var t = slotTotal(c, q); return t > 0 ? '센서 ' + q + '개 사기 · ' + slotFmt(c, t) : '이 개수는 살 수 없어요'; }
+  /* 1.8.6 📊 칸 그림 — 기본 칸 · 💳 구매한 칸 · 채움 = 쓰는 칸 · 빈 칸 = 남은 칸 · 넘은 만큼은 빨강 · 끝에 ＋ 칸 추가(판매 중) */
+  function slotGauge(u, selling) {
+    var used = +u.used || 0, b = +u.bought || 0;
+    if (u.unlimited) return '<div class="hal-gauge"><div class="hal-gauge-h"><b>' + esc(u.label) + '</b><small>무제한 (관리자) · 사용 ' + used + '칸' + (b ? ' · 💳 구매 ' + b + '칸' : '') + '</small></div></div>';
+    var base = +u.base || 0, tot = base + b, left = Math.max(0, tot - used), over = Math.max(0, used - tot), MAX = 60, cells = '';
+    if (tot + over <= MAX) {
+      for (var i = 0; i < tot; i++) cells += '<i class="c' + (i >= base ? ' buy' : '') + (i < used ? ' on' : '') + '" title="' + (i >= base ? '💳 구매한 칸' : '기본 칸') + ' · ' + (i < used ? '쓰는 중' : '남음') + '"></i>';
+      for (var j = 0; j < over; j++) cells += '<i class="c over on" title="한도를 넘어 붙어 있는 기기"></i>';
+    } else cells = '<span class="hal-gauge-bar"><i style="width:' + Math.min(100, Math.round(used * 100 / Math.max(1, tot))) + '%"></i></span>';
+    if (selling) cells += '<button type="button" class="c add" data-slot-add title="칸 더 사기">＋</button>';
+    return '<div class="hal-gauge"><div class="hal-gauge-h"><b>' + esc(u.label) + '</b><small>전체 <b>' + tot + '</b>칸 (기본 ' + base + (b ? ' + 💳 구매 ' + b : '') + ') · 사용 <b>' + used + '</b> · 남은 <b>' + left + '</b>' + (over ? ' · <span class="hal-over">⚠️ ' + over + '칸 넘음</span>' : '') + '</small></div><div class="hal-gauge-c">' + cells + '</div></div>';
+  }
   function slotBox() {
     var T = S.d.slots || {};
     if (!T.enabled) return;
     var tg = T.targets || [], cur = T.currencies || [];
     var mode = T.mode === 'monthly' ? '달마다 결제 (자동 연장 · 끄면 기한까지)' : '한 번 사면 계속';
-    var html = (T.selling === false ? '<p class="hal-hint">' + (T.exempt ? '관리자는 기기 수 한도에서 빠져서 칸을 살 필요가 없어요. 아래는 지금까지 구매한 칸이에요.' : '지금은 센서 칸을 팔지 않아요. 아래는 지금까지 구매한 칸이에요.') + '</p>' :   // 1.8.4
+    var html = ((T.usage || []).length ? '<div class="hal-gauges">' + T.usage.map(function (u) { return slotGauge(u, T.selling !== false); }).join('') + '<p class="hal-gauge-k"><i class="c"></i>남은 칸 <i class="c on"></i>쓰는 칸 <i class="c buy"></i>💳 구매한 칸' + (T.selling === false && !T.exempt ? ' · 지금은 팔지 않아요' : '') + '</p></div>' : '') + (T.selling === false ? '<p class="hal-hint">' + (T.exempt ? '관리자는 기기 수 한도에서 빠져서 칸을 살 필요가 없어요. 아래는 지금까지 구매한 칸이에요.' : '지금은 센서 칸을 팔지 않아요. 아래는 지금까지 구매한 칸이에요.') + '</p>' :   // 1.8.4
       '<p class="hal-hint">기기 수 한도를 넘어 센서를 더 붙이려면 칸을 사요 — <b>' + mode + '</b>. 칸이 끝나도 붙인 기기는 지우지 않아요 (새로 붙이는 것만 막혀요).</p>' +
       (tg.length > 1 ? '<label>어디에 쓸까요<select data-slot-for>' + tg.map(function (t) { return '<option value="' + esc(t.key) + '">' + esc(t.label) + '</option>'; }).join('') + '</select></label>' : '') +
       (cur.length ? cur.map(function (c) {
@@ -146,6 +158,7 @@
     var redrawBtn = function (k) { var bb = ov.querySelector('[data-slot-buy="' + k + '"]'); if (bb) { bb.textContent = slotBtnText(curOf(k), qtyOf(k)); bb.disabled = slotTotal(curOf(k), qtyOf(k)) <= 0; } };
     ov.addEventListener('input', function (ev) { var i = ev.target.closest('[data-slot-qty]'); if (i) redrawBtn(i.getAttribute('data-slot-qty')); });
     ov.addEventListener('click', function (ev) {
+      if (ev.target.closest('[data-slot-add]')) { var qi = ov.querySelector('[data-slot-qty]'); if (qi) { qi.scrollIntoView({ block: 'center', behavior: 'smooth' }); qi.focus(); qi.select(); } return; }   // 1.8.6 ＋ 칸 추가
       var stp = ev.target.closest('[data-qty-step]');
       if (stp) { var k = stp.getAttribute('data-cur'), i = ov.querySelector('[data-slot-qty="' + k + '"]'); i.value = Math.max(1, Math.min(T.max_qty || 100, qtyOf(k) + +stp.getAttribute('data-qty-step'))); redrawBtn(k); return; }
       var cb = ev.target.closest('[data-slot-cancel]');
