@@ -21,7 +21,6 @@ final class MqttService
 
     public const SEEN_DAYS = 7;
 
-    public const DEFAULT_HOST = '192.168.0.54';   // 사이트 주인의 브로커 — 처음 칸에 채워 둠 (회원마다 고침)
 
     public function __construct(private HaService $ha) {}
 
@@ -234,7 +233,7 @@ final class MqttService
             'map' => (object) $map, 'pace' => $pace + ['send_mode' => $pace['mode']]];
     }
 
-    /** 화면에 보일 것 — 비밀번호는 빼고 (적혀 있는지만) @return array<string, mixed> */
+    /** 화면에 보일 것 — 비밀번호는 빼고 (적혀 있는지만) · 1.16.5 처음에 남의 브로커 주소를 채워 두지 않음 (블루투스만 쓰는 사람이 헷갈림) @return array<string, mixed> */
     public function view(int $uid): array
     {
         $c = $this->get($uid);
@@ -247,7 +246,7 @@ final class MqttService
             $relay = null;
         }
 
-        return ['host' => $c['saved'] ? $c['host'] : self::DEFAULT_HOST, 'port' => $c['port'], 'user' => $c['user'], 'has_pass' => $c['pass'] !== '', 'tls' => $c['tls'], 'topics' => $c['topics'], 'saved' => $c['saved'] && $c['host'] !== '',
+        return ['host' => $c['host'], 'port' => $c['port'], 'user' => $c['user'], 'has_pass' => $c['pass'] !== '', 'tls' => $c['tls'], 'topics' => $c['topics'], 'saved' => $c['saved'] && $c['host'] !== '',
             'seen' => $seen, 'picked' => count($pick), 'relay' => is_array($relay) ? $relay : null, 'max_seen' => self::MAX_SEEN];
     }
 }
