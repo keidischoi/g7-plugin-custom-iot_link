@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.16.8 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.16.9 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.8';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.9';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -731,15 +731,17 @@
   function mapLines() {
     var m = q('[data-map]'); if (!m) return;
     var svg = m.querySelector('svg'), r0 = m.getBoundingClientRect(), pos = {};
-    m.querySelectorAll('[data-n]').forEach(function (el) { var r = el.getBoundingClientRect(); pos[el.getAttribute('data-n')] = { l: r.left - r0.left + m.scrollLeft, r: r.right - r0.left + m.scrollLeft, y: r.top - r0.top + m.scrollTop + r.height / 2 }; });   // 좁은 화면은 옆으로 밀림 — 민 만큼 더함
+    m.querySelectorAll('[data-n]').forEach(function (el) { var r = el.getBoundingClientRect(); pos[el.getAttribute('data-n')] = { l: r.left - r0.left + m.scrollLeft, r: r.right - r0.left + m.scrollLeft, y: r.top - r0.top + m.scrollTop + r.height / 2, t: r.top - r0.top + m.scrollTop, b: r.bottom - r0.top + m.scrollTop }; });   // 좁은 화면은 옆으로 밀림 — 민 만큼 더함
     svg.setAttribute('width', m.scrollWidth); svg.setAttribute('height', m.scrollHeight);
     svg.innerHTML = (S.mapE || []).map(function (e) {
       var a = pos[e[0]], b = pos[e[1]]; if (!a || !b) return '';
       var left = /^(pc|srv):/.test(String(e[0])), x1 = left ? a.l : a.r, x2 = b.l, dx = Math.max(24, (x2 - x1) / 2);   // 1.16.2 💻 PC → 받는 곳: 같은 칸 — 왼쪽 가장자리끼리
-      var d = left ? 'M' + x1 + ' ' + a.y + ' C' + (x1 - 30) + ' ' + a.y + ' ' + (x2 - 30) + ' ' + b.y + ' ' + x2 + ' ' + b.y : 'M' + x1 + ' ' + a.y + ' C' + (x1 + dx) + ' ' + a.y + ' ' + (x2 - dx) + ' ' + b.y + ' ' + x2 + ' ' + b.y;
+      var mid = String(e[0]).indexOf('srv:') === 0, y1 = a.y, y2 = b.y;   // 1.16.9 🌐 3DS 서버 → 중계 PC: 상자 가운데끼리 (아래 가운데 → 위 가운데)
+      if (mid) { x1 = (a.l + a.r) / 2; y1 = a.b; x2 = (b.l + b.r) / 2; y2 = b.t; }
+      var d = mid ? 'M' + x1 + ' ' + y1 + ' C' + x1 + ' ' + (y1 + 18) + ' ' + x2 + ' ' + (y2 - 18) + ' ' + x2 + ' ' + y2 : left ? 'M' + x1 + ' ' + a.y + ' C' + (x1 - 30) + ' ' + a.y + ' ' + (x2 - 30) + ' ' + b.y + ' ' + x2 + ' ' + b.y : 'M' + x1 + ' ' + a.y + ' C' + (x1 + dx) + ' ' + a.y + ' ' + (x2 - dx) + ' ' + b.y + ' ' + x2 + ' ' + b.y;
       return '<path data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + (String(e[0]).indexOf('srv:') === 0 ? ' srvl' : '') + '" d="' + d + '"/>' +
         // 1.9.5 선이 붙는 곳 — 양 끝에 점
-        '<circle data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" cx="' + x1 + '" cy="' + a.y + '" r="4"/><circle data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" cx="' + x2 + '" cy="' + b.y + '" r="4"/>';
+        '<circle data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" cx="' + x1 + '" cy="' + y1 + '" r="4"/><circle data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" cx="' + x2 + '" cy="' + y2 + '" r="4"/>';
     }).join('');
   }
   function mapBind() {
