@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.16.10 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.17.0 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.10';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.17.0';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -1469,6 +1469,7 @@
     ['change_hum', '「변하면」: 습도가 이만큼(%) 변하면 보냄 (1~10 · 온도는 0.5°C)', 'num'], ['idle_min', '「변하면」: 변화가 없어도 이만큼(분)마다 한 번 (5~180)', 'num'],
     ['interval_min', '「주기적으로」 · 설정 글(YAML): 값 보내는 주기 (분, 1~60)', 'num'], ['refresh_sec', '화면이 새 값을 다시 받는 간격 (초, 5~3600 · 0 = 끔)', 'num'],
     ['away_after_min', '회원이 화면을 이만큼(분) 안 보면 「자리 비움」 (5~1440 · 0 = 끔: 늘 같은 주기)', 'num'], ['away_interval_min', '자리 비움일 때 값 보내는 주기 (분) — 통합 「3ds」이 스스로 늦춤', 'num'], ['keep_days', '온습도 기록을 며칠 둘지 (한 시간에 한 줄)', 'num'], ['stale_hours', '몇 시간 소식이 없으면 「끊김」', 'num'], ['alert_gap_hours', '같은 기기의 경고를 다시 보내기까지 (시간)', 'num'],
+    ['load_slow', '🧯 서버 부하가 높으면 기기 연결 간격을 늘림 (2배 · 4배 — 사이트가 먼저 버티게 · HA 통합 · Matter · MQTT · BT 중계가 따름)', 'bool'],   // 1.17.0
     ['notify_site', '기준을 넘으면 사이트 알림', 'bool'], ['notify_mail', '기준을 넘으면 메일도', 'bool'], ['snapshot', '카메라 사진 받기 (기기마다 최신 한 장 · 주인만 봄)', 'bool'], ['snap_gap_min', '사진을 받는 가장 짧은 간격 (분)', 'num'], ['printer_link', '내 프린터로 출력 상태 넘기기', 'bool'], ['company_link', '업체 보유 장비에 연결', 'bool'], ['hacs_repo', 'HACS 통합 저장소 (GitHub 주인/이름)', 'text'], ['timezone', '시간대 (예: Asia/Seoul)', 'text']];
   /* 📡 SmartThings — 관리자 설정 · 앱 등록 안내 (한 걸음씩)
    *  1.1.0 API Access App (OAuth-In) — ⚡ 자동 등록(개인 액세스 토큰을 한 번 붙여 넣기) · 📝 직접 등록(Developer Center 또는 SmartThings CLI)
@@ -1518,7 +1519,7 @@
     ['base', '⚙️ 기본', ['enabled', 'menu_enabled', 'menu_label', 'refresh_sec', 'hacs_repo', 'timezone']],
     ['limit', '🔢 기기 한도', ['max_devices', 'max_devices_company', 'limit_admin_free', 'max_devices_members', 'max_devices_companies']],
     ['slot', '💳 센서 칸', ['slot_enabled', 'slot_mode', 'slot_coin_price', 'slot_coin_price10', 'slot_mileage_price', 'slot_mileage_price10', 'slot_cancel_days']],
-    ['send', '📤 값 보내기', ['send_mode', 'change_hum', 'idle_min', 'interval_min', 'away_after_min', 'away_interval_min', 'keep_days', 'stale_hours']],
+    ['send', '📤 값 보내기', ['send_mode', 'change_hum', 'idle_min', 'interval_min', 'away_after_min', 'away_interval_min', 'load_slow', 'keep_days', 'stale_hours']],
     ['alert', '🔔 알림', ['alert_gap_hours', 'notify_site', 'notify_mail']],
     ['cam', '📷 카메라', ['snapshot', 'snap_gap_min']],
     ['link', '🔗 다른 확장', ['printer_link', 'company_link']],

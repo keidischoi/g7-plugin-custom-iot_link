@@ -58,6 +58,7 @@ class MqttController extends Controller
             return response()->json(['ok' => false, 'message' => '연결 코드가 맞지 않아요.'], 404);
         }
         $seen = $r->json('seen');
+        \Plugins\Custom\IotLink\Support\Load::hit('mqtt');   // 1.17.0 서버 상태 페이지
 
         return response()->json(['ok' => true] + $this->svc->relay($uid, is_array($seen) ? array_values($seen) : [], (string) $r->json('broker', ''), $this->server($r), (string) $r->json('ver', ''), (string) $r->json('ble', '')), 200, ['Cache-Control' => 'no-store']);
     }

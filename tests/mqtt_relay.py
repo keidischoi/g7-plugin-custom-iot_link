@@ -153,7 +153,25 @@ async def main(kind: str) -> None:
             return web.json_response({"ok": False, "message": "unknown"}, status=404)
         return web.json_response({"ok": True, "message": "ok", "mode": "change", "change_hum": 2, "change_temp": 0.5, "gap_sec": 10, "next_min": 15})
 
+    batches: list = []
+
+    async def hub_in(request: web.Request) -> web.Response:   # 1.17.0 📶 묶음 — st["batch"] 가 꺼져 있으면 옛 사이트(404 글)
+        if not st.get("batch"):
+            return web.Response(status=404, text="404: Not Found")
+        if request.match_info["code"] != CODE:
+            return web.json_response({"ok": False, "message": "연결 코드가 맞지 않아요."}, status=404)
+        b = await request.json()
+        batches.append((b, dict(request.headers)))
+        out = {}
+        for it in b.get("items") or []:
+            got.append((it["t"], it["v"], dict(request.headers)))
+            out[it["t"]] = {"ok": True, "message": "ok", "mode": "change", "change_hum": 2, "change_temp": 0.5, "gap_sec": 10, "next_min": 15} if it["t"] in (st["tok"], "b" * 32) else {"ok": False, "message": "unknown"}
+            if not out[it["t"]]["ok"]:   # 사이트에서 지운 기기 — 다음 맞춤의 map 에서도 빠짐 (진짜 사이트처럼)
+                st["map"] = {k: v for k, v in st["map"].items() if v != it["t"]}
+        return web.json_response({"ok": True, "items": out})
+
     app = web.Application()
+    app.router.add_post("/api/plugins/custom-iot_link/hub/{code}/in", hub_in)
     app.router.add_post("/api/plugins/custom-iot_link/hub/{code}/mqtt", hub_mqtt)
     app.router.add_post("/api/plugins/custom-iot_link/in/{t}", ingest)
     runner = web.AppRunner(app)
@@ -240,6 +258,33 @@ async def main(kind: str) -> None:
             if any(c["ok"] for c in conns[nc:]):
                 break
         check("브로커가 끊으면 다시 붙음", any(c["ok"] for c in conns[nc:]))
+        check("묶음을 모르는 옛 사이트(404)면 예전처럼 in/{키} 하나씩", not batches and any(g[0] == "b" * 32 for g in got))
+    finally:
+        proc.kill()
+
+    # 1.17.0 📶 묶음 — 때가 된 센서(+ 곧 차례인 것)를 hub/{code}/in 한 번에 · 지운 기기(unknown)는 목록에서 뺌
+    st["batch"] = True
+    st["map"] = {"zigbee2mqtt/거실 온습도": TOK, "tele/sonoff/SENSOR": "b" * 32, "shellies/ht1/sensor": "d" * 32}
+    got.clear()
+    proc = subprocess.Popen(ps, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+    try:
+        for _ in range(60):
+            await asyncio.sleep(0.5)
+            if batches:
+                break
+        await asyncio.sleep(2)
+        b0 = batches[0][0]["items"] if batches else []
+        check("📶 센서 셋을 한 요청으로 (hub/{code}/in)", len(b0) == 3 and {i["t"] for i in b0} == {TOK, "b" * 32, "d" * 32} and next(i["v"] for i in b0 if i["t"] == TOK) == {"temperature": 23.4, "humidity": 45.1})
+        check("📶 묶음 머리글 X-G7-Via: mqtt · 하나씩 보낸 것 없음", batches and batches[0][1].get("X-G7-Via") == "mqtt" and len(got) == sum(len(x[0]["items"]) for x in batches))
+        n = len(batches)
+        await send_all("tele/sonoff/SENSOR", {"AM2301": {"Temperature": 25.0, "Humidity": 50.3}})
+        await send_all("shellies/ht1/sensor/temperature", "30")
+        for _ in range(40):
+            await asyncio.sleep(0.5)
+            if len(batches) > n:
+                break
+        later = [i["t"] for x in batches[n:] for i in x[0]["items"]]
+        check("📶 사이트가 모른다고 한 기기(unknown)는 다시 안 보냄 · 바뀐 센서는 다음 묶음으로", "b" * 32 in later and "d" * 32 not in later)
     finally:
         proc.kill()
     if kind == "ps":   # 1.16.0 📶 블루투스 — 신호 읽기(기종마다) · 브로커 없이도 돎

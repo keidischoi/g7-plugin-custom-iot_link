@@ -1357,6 +1357,66 @@ namespace {
     $mtRow = DB::table('hal_devices')->where('id', $pk2[2]['id'] ?? 0)->first();
     t($mtRow && ! in_array((int) $mtRow->id, array_column($svc->hub(1, ['id' => 'aaaaaaaa1', 'name' => '본가 HA'])['devices'], 'id'), true), '허브 기기 목록: HA 통합엔 MQTT 기기가 안 보임');
 
+    // ───── 1.17.0 📶 묶음 받는 곳 · 🧯 부하 배수 · 서버 상태 세기 ─────
+    echo "■ 1.17.0 묶음 · 부하 조절\n";
+    $LD = \Plugins\Custom\IotLink\Support\Load::class;
+    $lvl = function (?int $l): void {   // 요청마다 기억(static)을 지우고 부하 단계를 정함
+        \Illuminate\Support\Facades\Cache::forget('svcload:level');
+        if ($l !== null) {
+            \Illuminate\Support\Facades\Cache::put('svcload:level', $l, 60);
+        }
+        (fn () => self::$level = null)->bindTo(null, \Plugins\Custom\IotLink\Support\Load::class)();
+    };
+    Settings::save(['send_mode' => 'change', 'away_after_min' => 0, 'load_slow' => true]);
+    $mine17 = DB::table('hal_devices')->where('user_id', 1)->orderBy('id')->limit(2)->get()->all();
+    $o17 = (array) $mine17[0];
+    unset($o17['id']);
+    $o17['user_id'] = 2;
+    $o17['token'] = str_repeat('9', 32);
+    $other17 = (int) DB::table('hal_devices')->insertGetId($o17);
+    $HC = new \Plugins\Custom\IotLink\Http\Controllers\HaController($svc);
+    $bin = fn (string $c, array $items, string $via = 'mqtt') => $HC->ingestBatch(Illuminate\Http\Request::create('/x', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_X_G7_VIA' => $via, 'HTTP_X_G7_SERVER' => 'mqttabc123', 'HTTP_X_G7_SERVER_NAME' => 'GBOOK%20(Windows)'], json_encode(['items' => $items])), $c);
+    $c17 = $svc->linkCode(1);
+    $lvl(0);
+    $rb = $bin($c17, [['t' => $mine17[0]->token, 'v' => ['temperature' => 22.5, 'humidity' => 41]], ['t' => $mine17[1]->token, 'v' => ['humidity' => 55]], ['t' => str_repeat('9', 32), 'v' => ['humidity' => 99]], ['t' => str_repeat('8', 32), 'v' => []], ['t' => 'bad', 'v' => []]]);
+    $jb = json_decode($rb->getContent(), true)['items'] ?? [];
+    $d0 = DB::table('hal_devices')->where('id', $mine17[0]->id)->first();
+    t($rb->getStatusCode() === 200 && ($jb[$mine17[0]->token]['ok'] ?? false) === true && ($jb[$mine17[0]->token]['next_min'] ?? 0) === 30 && ($jb[$mine17[1]->token]['ok'] ?? false) === true
+        && (float) $d0->humidity === 41.0 && (float) $d0->temp === 22.5 && $d0->ha_server === 'mqttabc123' && $d0->ha_server_name === 'GBOOK (Windows)',
+        '1.17.0 hub/{code}/in — 키마다 in/{키} 와 같은 처리 · 답에 next_min (pace) · 중계 이름도 한 번에');
+    t(($jb[str_repeat('9', 32)]['message'] ?? '') === 'unknown' && (float) DB::table('hal_devices')->where('id', $other17)->value('humidity') !== 99.0 && ($jb[str_repeat('8', 32)]['message'] ?? '') === 'unknown' && ! isset($jb['bad']),
+        '1.17.0 남의 기기 · 지운 기기는 unknown (값을 받지 않음) · 틀린 키는 뺌');
+    t($bin(str_repeat('0', 32), [['t' => $mine17[0]->token, 'v' => ['humidity' => 1]]])->getStatusCode() === 404 && $bin($c17, [])->getStatusCode() === 422 && $bin($c17, array_fill(0, 201, ['t' => $mine17[0]->token, 'v' => []]))->getStatusCode() === 422,
+        '1.17.0 틀린 연결 코드 404 · 빈 묶음 · 200개 넘으면 422');
+    // 🧯 부하 배수
+    $lvl(2);
+    $p4 = $svc->pace(1);
+    $h4 = $svc->hub(1);
+    $lvl(1);
+    $p2 = $svc->pace(1);
+    Settings::save(['load_slow' => false]);
+    $lvl(2);
+    $pOff = $svc->pace(1);
+    Settings::save(['load_slow' => true]);
+    $lvl(0);
+    t($p4['next_min'] === 120 && $p4['gap_sec'] === 240 && $h4['next_min'] === 120 && $h4['gap_sec'] === 240 && $p2['next_min'] === 60 && $p2['gap_sec'] === 120 && $pOff['next_min'] === 30 && $pOff['gap_sec'] === 60,
+        '1.17.0 🧯 부하 바쁨 2배 · 아주 바쁨 4배 (next_min · gap_sec · 허브도) · load_slow 끄면 그대로');
+    // 서버 상태 페이지가 읽는 세기
+    $mn = date('YmdHi');
+    foreach ([fn () => $HC->ingest(Illuminate\Http\Request::create('/x', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], '{"humidity":40}'), $mine17[0]->token),
+        fn () => (new \Plugins\Custom\IotLink\Http\Controllers\MqttController($svc, new \Plugins\Custom\IotLink\Services\MqttService($svc)))->relay(Illuminate\Http\Request::create('/x', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], '{"seen":[],"broker":"ok"}'), $c17)] as $call) {
+        try {
+            $call();   // 세기는 답(response()) 전에 — 시험 앱엔 응답 공장이 없어 답에서 멈춰도 됨
+        } catch (\Throwable) {
+        }
+    }
+    $cnt = fn (string $m) => (int) \Illuminate\Support\Facades\Cache::get('svcstat:iot_link:'.$m.':'.$mn);
+    t($cnt('batch') >= 1 && $cnt('in') >= 3 && $cnt('mqtt') >= 1, '1.17.0 svcstat:iot_link:{in|batch|mqtt}:{YmdHi} — 받은 값 수 · 묶음 수 · MQTT 중계 맞춤 수 ('.$cnt('in').' · '.$cnt('batch').' · '.$cnt('mqtt').')');
+    $rel17 = (string) file_get_contents(dirname(__DIR__).'/resources/mqtt/link.py').(string) file_get_contents(dirname(__DIR__).'/resources/mqtt/link.ps1').(string) file_get_contents(dirname(__DIR__).'/resources/matter/link.py').(string) file_get_contents(dirname(__DIR__).'/resources/matter/link.ps1');
+    t(substr_count($rel17, "hub/%s/in") === 2 && substr_count($rel17, 'hub/$($o.code)/in') === 2 && substr_count($rel17, "BATCH['off'] = True") === 2 && substr_count($rel17, '$script:BatchOff = $true') === 2,
+        '1.17.0 중계 넷(MQTT · BT 파이썬 · 윈도우 · Matter 파이썬 · 윈도우) — 묶음 · 옛 사이트면 하나씩 (실제 흐름은 tests/mqtt_relay.py · matter_relay.py)');
+    DB::table('hal_devices')->where('id', $other17)->delete();
+
     echo "\n통과 {$pass} · 실패 {$fail}\n";
     exit($fail ? 1 : 0);
 }

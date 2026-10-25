@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Plugins\Custom\IotLink\Support\Links;
 use Plugins\Custom\IotLink\Support\Notify;
 use Plugins\Custom\IotLink\Support\Limits;
+use Plugins\Custom\IotLink\Support\Load;
 use Plugins\Custom\IotLink\Support\Rules;
 use Plugins\Custom\IotLink\Support\Schema;
 use Plugins\Custom\IotLink\Support\Settings;
@@ -584,10 +585,11 @@ class HaService
         }
 
         $change = Settings::get('send_mode') === 'change';
+        $f = Load::factor();   // 1.17.0 🧯 서버가 바쁘면 2배 · 4배
 
         // 0.1.6 next_min = 정해진 때마다 한 번 보내는 주기 (「변하면」 방식에서는 변화가 없을 때의 신호 주기). gap_sec = 변해서 보낼 때의 최소 간격 (자리 비움이면 길게)
-        return ['next_min' => (int) Settings::get($away ? 'away_interval_min' : ($change ? 'idle_min' : 'interval_min')), 'snap' => (bool) Settings::get('snapshot') && (! $away || $snapPublic), 'away' => $away,
-            'mode' => $change ? 'change' : 'interval', 'change_hum' => (int) Settings::get('change_hum'), 'change_temp' => 0.5, 'gap_sec' => $away ? 600 : 60];
+        return ['next_min' => min(1440, (int) Settings::get($away ? 'away_interval_min' : ($change ? 'idle_min' : 'interval_min')) * $f), 'snap' => (bool) Settings::get('snapshot') && (! $away || $snapPublic), 'away' => $away,
+            'mode' => $change ? 'change' : 'interval', 'change_hum' => (int) Settings::get('change_hum'), 'change_temp' => 0.5, 'gap_sec' => ($away ? 600 : 60) * $f, 'load' => $f];
     }
 
     /** 연결 코드 새로 만들기 — 예전 코드로는 통합이 기기를 만들거나 고치지 못함 (이미 만든 기기의 값 보내기는 그대로 됨) @return array{0: bool, 1: string} */
@@ -632,7 +634,7 @@ class HaService
             'equipment' => array_map(fn ($e) => ['id' => $e['id'], 'name' => trim((string) (collect($o['companies'])->firstWhere('id', $e['company_id'])['name'] ?? '').' — '.$e['name'], ' —')], $o['equipment']),
             'devices' => array_map(fn ($d) => ['id' => $d['id'], 'name' => $d['name'], 'target' => $d['target'], 'token' => $d['token'], 'printer_id' => $d['printer_id'], 'equipment_id' => $d['equipment_id'], 'location' => $d['location'], 'entities' => $d['entities'], 'humidity_max' => $d['humidity_max'], 'temp_max' => $d['temp_max'], 'snap_public' => $d['snap_public']], array_values(array_filter($o['devices'], fn ($d) => $d['source'] === ($srv && str_starts_with($srv['id'], 'matter') ? 'matter' : 'ha')))),   // 0.2.0 SmartThings 기기는 HA 통합에 안 보임 · 1.10.0 Matter 기기는 3ds Matter 연결에만
             'push_url' => $o['config']['base'], 'interval_min' => (int) Settings::get('interval_min'), 'send_mode' => (string) Settings::get('send_mode'),
-            'next_min' => (int) Settings::get(Settings::get('send_mode') === 'change' ? 'idle_min' : 'interval_min'), 'change_hum' => (int) Settings::get('change_hum'), 'change_temp' => 0.5, 'gap_sec' => 60, 'snapshot' => (bool) Settings::get('snapshot'), 'snap_gap_min' => (int) Settings::get('snap_gap_min'), 'snap_max' => self::SNAP_MAX];
+            'next_min' => min(1440, (int) Settings::get(Settings::get('send_mode') === 'change' ? 'idle_min' : 'interval_min') * Load::factor()), 'change_hum' => (int) Settings::get('change_hum'), 'change_temp' => 0.5, 'gap_sec' => 60 * Load::factor(), 'snapshot' => (bool) Settings::get('snapshot'), 'snap_gap_min' => (int) Settings::get('snap_gap_min'), 'snap_max' => self::SNAP_MAX];
     }
 
     /** 통합이 기기를 만들거나 고침 — 화면에서 하는 것과 같은 규칙 @return array{0: bool, 1: string, 2?: array<string, mixed>} */
@@ -693,6 +695,30 @@ class HaService
     }
 
     /** 1.8.0 🏠 그 기기를 보낸 HA 서버를 적어 둠 — 바뀌었을 때만 (값을 받을 때마다 부르므로 같으면 쓰지 않음) @param array{id: string, name: string}|null $srv */
+    /** 1.17.0 📶 묶음으로 받은 기기들 — 서버 이름을 한 번에 (tagServer 와 같은 규칙) @param list<string> $tokens */
+    public function tagServers(array $tokens, ?array $srv, int $uid): void
+    {
+        if (! $srv || $tokens === [] || ! Schema::ensure()) {
+            return;
+        }
+        try {
+            DB::table(Schema::DEVICES)->whereIn('token', $tokens)->where('user_id', $uid)
+                ->where(fn ($q) => $q->whereNull('ha_server')->orWhere('ha_server', '!=', $srv['id'])->orWhereNull('ha_server_name')->orWhere('ha_server_name', '!=', $srv['name']))
+                ->update(['ha_server' => $srv['id'], 'ha_server_name' => $srv['name']]);
+        } catch (\Throwable) {
+        }
+    }
+
+    /** 1.17.0 연결 코드의 회원 기기인 받는 키만 @param list<string> $tokens @return array<string, true> */
+    public function ownTokens(int $uid, array $tokens): array
+    {
+        try {
+            return array_fill_keys(DB::table(Schema::DEVICES)->where('user_id', $uid)->whereIn('token', $tokens)->pluck('token')->all(), true);
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
     public function tagServer(?int $id, ?string $token, ?array $srv, ?int $uid = null): void
     {
         if (! $srv || ($id === null && $token === null) || ! Schema::ensure()) {

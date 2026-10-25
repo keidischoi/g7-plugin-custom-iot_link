@@ -10,7 +10,7 @@ try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::S
 $script:Dir = if ($PSScriptRoot) { $PSScriptRoot } else { Join-Path $env:LOCALAPPDATA '3dsMatter' }
 $script:Cfg = Join-Path $script:Dir 'config.json'
 $script:Inv = [Globalization.CultureInfo]::InvariantCulture
-$script:Ver = '1.13.0'
+$script:Ver = '1.17.0'
 
 function Log($m) { try { Set-Content -Encoding UTF8 (Join-Path $script:Dir 'last.txt') "$(Get-Date -Format s) $m" } catch {} }
 function Mono { return [Diagnostics.Stopwatch]::GetTimestamp() / [Diagnostics.Stopwatch]::Frequency }
@@ -170,20 +170,57 @@ function Pusher-Apply($p, $a) {
   $v = Get-K $a 'gap_sec'; if ($null -ne $v) { $p.gap = [Math]::Max(10, [int]$v) }
   $v = Get-K $a 'next_min'; if ($v -and [int]$v -ge 1 -and [int]$v -ne $p.interval) { $p.interval = [int]$v; $p.next = [Math]::Min($p.next, (Mono) + $p.interval * 60) }
 }
+function Pusher-Due($p) { return ($null -ne $p.pending -and (Mono) -ge $p.pending) -or (Mono) -ge $p.next }
+function Pusher-Ready($p) { return $p.values.Count -gt 0 -and $p.avail }
+# 1.17.0 곧 보낼 차례 (주기의 절반 안 · 2분 안) — 다른 센서를 보낼 때 같이 실어 한 번에
+function Pusher-Soon($p) { return (Pusher-Ready $p) -and ($p.next - (Mono)) -le [Math]::Min($p.interval * 30, 120) }
+function Pusher-Take($p) {
+  $p.pending = $null; $p.last = Mono; $p.next = $p.last + $p.interval * 60
+  $b = @{}; foreach ($k in @($p.values.Keys)) { $p.sent[$k] = $p.values[$k]; $b[$k] = $p.values[$k] }
+  return $b
+}
 # 돌려줌: 'ok' · 'unknown'(사이트가 키를 모름 — 지운 기기) · 'fail'
+function Pusher-Took($p, [int]$status, $j) {
+  if ($status -eq 404 -and (Get-K $j 'message') -eq 'unknown') { return 'unknown' }
+  if ($status -ge 400) { Log "노드 $($p.nid): 사이트가 값을 받지 않았어요 ($status $(Get-K $j 'message'))"; return 'fail' }
+  Pusher-Apply $p $j
+  Log "노드 $($p.nid): 보냄 온도 $(Get-K $p.values 'temperature') · 습도 $(Get-K $p.values 'humidity')"
+  return 'ok'
+}
 function Pusher-Push($o, $p) {
-  $p.pending = $null
-  if ($p.values.Count -eq 0 -or -not $p.avail) { return 'fail' }
-  $p.last = Mono; $p.next = $p.last + $p.interval * 60
-  foreach ($k in @($p.values.Keys)) { $p.sent[$k] = $p.values[$k] }
-  try {
-    $r = Site-Req $o 'POST' "in/$($p.dev.token)" $p.values
-    if ($r.status -eq 404 -and (Get-K $r.json 'message') -eq 'unknown') { return 'unknown' }
-    if ($r.status -ge 400) { Log "노드 $($p.nid): 사이트가 값을 받지 않았어요 ($($r.status) $(Get-K $r.json 'message'))"; return 'fail' }
-    Pusher-Apply $p $r.json
-    Log "노드 $($p.nid): 보냄 온도 $(Get-K $p.values 'temperature') · 습도 $(Get-K $p.values 'humidity')"
-    return 'ok'
-  } catch { Log "노드 $($p.nid): 보내지 못했어요 — $($_.Exception.Message)"; return 'fail' }
+  if (-not (Pusher-Ready $p)) { $p.pending = $null; return 'fail' }
+  $b = Pusher-Take $p
+  try { $r = Site-Req $o 'POST' "in/$($p.dev.token)" $b; return (Pusher-Took $p $r.status $r.json) }
+  catch { Log "노드 $($p.nid): 보내지 못했어요 — $($_.Exception.Message)"; return 'fail' }
+}
+# 1.17.0 📶 때가 된 센서(+ 곧 차례인 것)를 한 번에 — POST hub/{code}/in · 사이트가 모르면(옛 사이트 404) 예전처럼 하나씩 · 돌려줌 @{ 노드 = 'ok' | 'unknown' | 'fail' }
+$script:BatchOff = $false
+function Push-All($o, $pushers) {
+  $out = @{}
+  $due = @(@($pushers.Values) | Where-Object { Pusher-Due $_ })
+  if (-not $due.Count) { return $out }
+  if ($script:BatchOff -or $pushers.Count -eq 1 -or -not $o.code) { foreach ($p in $due) { $out[$p.nid] = Pusher-Push $o $p }; return $out }
+  foreach ($p in $due) { if (-not (Pusher-Ready $p)) { $out[$p.nid] = Pusher-Push $o $p } }   # 값이 없거나 노드가 꺼짐
+  $go = @(@($due | Where-Object { Pusher-Ready $_ }) + @(@($pushers.Values) | Where-Object { $due -notcontains $_ -and (Pusher-Soon $_) }) | Select-Object -First 200)
+  if (-not $go.Count) { return $out }
+  $rows = New-Object Collections.ArrayList
+  foreach ($p in $go) { [void]$rows.Add(@{ t = $p.dev.token; v = (Pusher-Take $p) }) }
+  try { $r = Site-Req $o 'POST' "hub/$($o.code)/in" @{ items = $rows } }
+  catch { Log "센서 $($go.Count)개를 보내지 못했어요 — $($_.Exception.Message)"; foreach ($p in $go) { $out[$p.nid] = 'fail' }; return $out }
+  if (($r.status -eq 404 -or $r.status -eq 405) -and (Get-K $r.json 'ok') -ne $false) {
+    $script:BatchOff = $true   # 묶음을 모르는 옛 사이트 — 이제부터 하나씩
+    foreach ($p in $go) { $out[$p.nid] = Pusher-Push $o $p }; return $out
+  }
+  $items = Get-K $r.json 'items'
+  if ($r.status -ge 400 -or $items -isnot [Collections.IDictionary]) { Log "사이트가 값을 받지 않았어요 ($($r.status))"; foreach ($p in $go) { $out[$p.nid] = 'fail' }; return $out }
+  $n = 0
+  foreach ($p in $go) {
+    $a = Get-K $items ([string]$p.dev.token)
+    $out[$p.nid] = if ((Get-K $a 'ok') -eq $true) { Pusher-Took $p 200 $a } else { Pusher-Took $p 404 $(if ($a) { $a } else { @{ message = 'fail' } }) }
+    if ($out[$p.nid] -eq 'ok') { $n++ }
+  }
+  Log "센서 $($n)개를 한 번에 보냄"
+  return $out
 }
 
 # ── 사이트 기기 저절로 만들기 (연결 코드 · 허브 API — 서버는 X-G7-Via: matter 를 보고 Matter 기기로 만듦)
@@ -234,13 +271,11 @@ function Run-Once($o) {
     while ($true) {
       $x = Mt-Recv $m 1
       if ($null -ne $x -and (Has-K $x 'event')) { & $onEvent $x }
-      foreach ($p in @($pushers.Values)) {
-        if (($null -ne $p.pending -and (Mono) -ge $p.pending) -or (Mono) -ge $p.next) {
-          $res = Pusher-Push $o $p
-          if ($res -eq 'unknown') {   # 사이트에서 지운 기기 — 다시 만들지 않음 (다시 보내려면 config.json 의 skip 에서 빼기)
-            Log "노드 $($p.nid): 사이트에서 지운 기기예요 — 이제 안 보내요"
-            $o.devices.Remove($p.nid); $o.skip = @($o.skip + $p.nid); Save-Cfg $o; $pushers.Remove($p.nid)
-          }
+      $res = Push-All $o $pushers   # 1.17.0 📶 한 바퀴에 때가 된 것을 모아 한 번에
+      foreach ($nid in @($res.Keys)) {
+        if ($res[$nid] -eq 'unknown') {   # 사이트에서 지운 기기 — 다시 만들지 않음 (다시 보내려면 config.json 의 skip 에서 빼기)
+          Log "노드 $($nid): 사이트에서 지운 기기예요 — 이제 안 보내요"
+          $o.devices.Remove($nid); $o.skip = @($o.skip + $nid); Save-Cfg $o; $pushers.Remove($nid)
         }
       }
     }

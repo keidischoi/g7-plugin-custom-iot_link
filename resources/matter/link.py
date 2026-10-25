@@ -7,7 +7,7 @@
 #  설치(사이트의 한 줄이 대신 함): python3 link.py --setup <사이트> <연결 코드> [Matter 서버]
 import base64, json, os, random, re, socket, ssl, struct, sys, time, urllib.error, urllib.parse, urllib.request, uuid
 
-VER = '1.13.0'
+VER = '1.17.0'
 DIR = os.path.dirname(os.path.abspath(__file__))
 CFG = os.path.join(DIR, 'config.json')
 LAST = os.path.join(DIR, 'last.txt')
@@ -295,19 +295,34 @@ class Pusher:
             self.interval = nm
             self.next = min(self.next, time.monotonic() + nm * 60)
 
-    def push(self, o):
-        """'ok' · 'unknown'(사이트에서 지운 기기) · 'fail'"""
+    def ready(self):
+        return bool(self.values) and self.avail
+
+    def soon(self):
+        """1.17.0 곧 보낼 차례 (주기의 절반 안 · 2분 안) — 다른 센서를 보낼 때 같이 실어 한 번에"""
+        return self.ready() and self.next - time.monotonic() <= min(self.interval * 30, 120)
+
+    def take(self):
         self.pending = None
-        if not self.values or not self.avail:
-            return 'fail'
         self.last = time.monotonic()
         self.next = self.last + self.interval * 60
         self.sent.update(self.values)
+        return dict(self.values)
+
+    def push(self, o):
+        """'ok' · 'unknown'(사이트에서 지운 기기) · 'fail'"""
+        if not self.ready():
+            self.pending = None
+            return 'fail'
+        body = self.take()
         try:
-            st, j = site_req(o, 'POST', 'in/' + self.dev['token'], dict(self.values))
+            st, j = site_req(o, 'POST', 'in/' + self.dev['token'], body)
         except (OSError, ValueError) as e:
             log('노드 %s: 보내지 못했어요 — %s' % (self.nid, e))
             return 'fail'
+        return self.took(st, j)
+
+    def took(self, st, j):
         if st == 404 and isinstance(j, dict) and j.get('message') == 'unknown':
             return 'unknown'
         if st >= 400:
@@ -316,6 +331,42 @@ class Pusher:
         self.apply(j)
         log('노드 %s: 보냄 온도 %s · 습도 %s' % (self.nid, self.values.get('temperature', '-'), self.values.get('humidity', '-')))
         return 'ok'
+
+
+BATCH = {'off': False}
+
+
+def push_all(o, pushers):
+    """1.17.0 📶 때가 된 센서(+ 곧 차례인 것)를 한 번에 — POST hub/{code}/in · 사이트가 모르면(옛 사이트 404) 예전처럼 하나씩
+    돌려줌 {노드: 'ok' | 'unknown' | 'fail'}"""
+    due = [p for p in pushers.values() if p.due()]
+    if not due:
+        return {}
+    if BATCH['off'] or len(pushers) == 1 or not o.get('code'):
+        return {p.nid: p.push(o) for p in due}
+    out = {p.nid: p.push(o) for p in due if not p.ready()}   # 값이 없거나 노드가 꺼짐 — 'fail' (보낼 것 없음)
+    go = [p for p in due if p.ready()] + [p for p in pushers.values() if p not in due and p.soon()]
+    go = go[:200]
+    if not go:
+        return out
+    bodies = [(p, p.take()) for p in go]
+    try:
+        st, j = site_req(o, 'POST', 'hub/%s/in' % o['code'], {'items': [{'t': p.dev['token'], 'v': b} for p, b in bodies]})
+    except (OSError, ValueError) as e:
+        log('센서 %d개를 보내지 못했어요 — %s' % (len(go), e))
+        return dict(out, **{p.nid: 'fail' for p in go})
+    if st in (404, 405) and not (isinstance(j, dict) and j.get('ok') is False):
+        BATCH['off'] = True   # 묶음을 모르는 옛 사이트 — 이제부터 하나씩
+        return dict(out, **{p.nid: p.push(o) for p in go})
+    items = j.get('items') if isinstance(j, dict) else None
+    if st >= 400 or not isinstance(items, dict):
+        log('사이트가 값을 받지 않았어요 (%s)' % st)
+        return dict(out, **{p.nid: 'fail' for p in go})
+    for p in go:
+        a = items.get(p.dev['token'])
+        out[p.nid] = p.took(200, a) if isinstance(a, dict) and a.get('ok') else p.took(404, a if isinstance(a, dict) else {'message': 'fail'})
+    log('센서 %d개를 한 번에 보냄' % sum(1 for p in go if out[p.nid] == 'ok'))
+    return out
 
 
 def ensure_device(o, nid, attrs):
@@ -384,13 +435,13 @@ def run_once(o):
             x = m.ws.recv(1)
             if isinstance(x, dict) and 'event' in x:
                 on_event(x)
-            for p in list(pushers.values()):
-                if p.due() and p.push(o) == 'unknown':   # 사이트에서 지운 기기 — 다시 만들지 않음 (다시 보내려면 config.json 의 skip 에서 빼기)
-                    log('노드 %s: 사이트에서 지운 기기예요 — 이제 안 보내요' % p.nid)
-                    o['devices'].pop(p.nid, None)
-                    o['skip'].append(p.nid)
+            for nid, res in push_all(o, pushers).items():   # 1.17.0 📶 한 바퀴에 때가 된 것을 모아 한 번에
+                if res == 'unknown':   # 사이트에서 지운 기기 — 다시 만들지 않음 (다시 보내려면 config.json 의 skip 에서 빼기)
+                    log('노드 %s: 사이트에서 지운 기기예요 — 이제 안 보내요' % nid)
+                    o['devices'].pop(nid, None)
+                    o['skip'].append(nid)
                     save_cfg(o)
-                    pushers.pop(p.nid, None)
+                    pushers.pop(nid, None)
     finally:
         m.close()
 
