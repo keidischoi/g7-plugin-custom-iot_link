@@ -50,7 +50,7 @@ class MqttController extends Controller
         return ['id' => $id, 'name' => mb_substr($name !== '' ? $name : 'MQTT 중계', 0, 60)];
     }
 
-    /** POST hub/{code}/mqtt — {seen: [{key, name, temperature, humidity}], broker: ok|start|까닭, ver} */
+    /** POST hub/{code}/mqtt — {seen: [{key, name, temperature, humidity}], broker: ok|start|none|까닭, ble: on|off|까닭 (1.16.0 윈도우 중계), ver} */
     public function relay(Request $r, string $code): JsonResponse
     {
         $uid = $this->ha->linkUser($code);
@@ -59,7 +59,7 @@ class MqttController extends Controller
         }
         $seen = $r->json('seen');
 
-        return response()->json(['ok' => true] + $this->svc->relay($uid, is_array($seen) ? array_values($seen) : [], (string) $r->json('broker', ''), $this->server($r), (string) $r->json('ver', '')), 200, ['Cache-Control' => 'no-store']);
+        return response()->json(['ok' => true] + $this->svc->relay($uid, is_array($seen) ? array_values($seen) : [], (string) $r->json('broker', ''), $this->server($r), (string) $r->json('ver', ''), (string) $r->json('ble', '')), 200, ['Cache-Control' => 'no-store']);
     }
 
     private const TXT = ['Content-Type' => 'text/plain; charset=utf-8', 'Cache-Control' => 'no-store', 'X-Content-Type-Options' => 'nosniff'];

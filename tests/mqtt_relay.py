@@ -67,7 +67,7 @@ async def main(kind: str) -> None:
     conns: list[dict] = []
     syncs: list[dict] = []
     got: list[tuple[str, dict, dict]] = []
-    st = {"pass": "pw1", "rev": "r1", "map": {}, "tok": TOK}
+    st = {"pass": "pw1", "rev": "r1", "map": {}, "tok": TOK, "host": "127.0.0.1"}
 
     async def broker(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         c = {"w": writer, "subs": [], "user": None, "pass": None, "ok": False, "pings": 0}
@@ -143,7 +143,7 @@ async def main(kind: str) -> None:
             return web.json_response({"ok": False, "message": "연결 코드가 맞지 않아요."}, status=404)
         b = await request.json()
         syncs.append({"body": b, "via": request.headers.get("X-G7-Via"), "srv": request.headers.get("X-G7-Server", "")})
-        return web.json_response({"ok": True, "config": {"host": "127.0.0.1", "port": bport, "user": "zig", "pass": st["pass"], "tls": False, "topics": ["#"]}, "rev": st["rev"],
+        return web.json_response({"ok": True, "config": {"host": st["host"], "port": bport, "user": "zig", "pass": st["pass"], "tls": False, "topics": ["#"]}, "rev": st["rev"],
                                   "map": st["map"], "pace": {"send_mode": "change", "change_hum": 2, "change_temp": 0.5, "gap_sec": 10, "next_min": 15}})
 
     async def ingest(request: web.Request) -> web.Response:
@@ -167,7 +167,7 @@ async def main(kind: str) -> None:
     src = (ROOT / "resources/mqtt" / fn).read_text(encoding="utf-8")
     (d / fn).write_text(src, encoding="utf-8-sig" if kind == "ps" else "utf-8")
     (d / "config.json").write_text(json.dumps({"site": f"http://127.0.0.1:{port}", "code": CODE, "server_name": "시험 PC"}), encoding="utf-8")
-    ps = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(d / fn)] if kind == "ps" else [sys.executable, "-I", str(d / fn)]
+    ps = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(d / fn), "-NoBle"] if kind == "ps" else [sys.executable, "-I", str(d / fn)]
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
 
     # 찾기 (-Scan) — 사이트 설정으로 붙고, 찾은 토픽을 사이트에 알림
@@ -242,6 +242,28 @@ async def main(kind: str) -> None:
         check("브로커가 끊으면 다시 붙음", any(c["ok"] for c in conns[nc:]))
     finally:
         proc.kill()
+    if kind == "ps":   # 1.16.0 📶 블루투스 — 신호 읽기(기종마다) · 브로커 없이도 돎
+        r = await asyncio.to_thread(subprocess.run, ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ROOT / "tests/ble_decode.ps1"), "-Link", str(d / fn)], capture_output=True, timeout=120)
+        out = r.stdout.decode("cp949", "replace")
+        if "init: on" not in out:
+            print("   (이 PC 에 블루투스가 없어 블루투스 시험은 건너뜀)", out[-300:])
+        else:
+            want = ["BTHome v2 => BTHome|25.1|50.6", "pvvx => pvvx|23.4|45.1", "ATC1441 => ATC|23.5|45", "Govee H5075 => Govee|23.4|45.1", "SwitchBot => SwitchBot|23.5|45", "Inkbird => Inkbird|23.4|45.1", "Xiaomi 100D => Xiaomi|23.5|45.1"]
+            check("📶 블루투스 신호 읽기 — BTHome · pvvx · ATC · Govee · SwitchBot · Inkbird · 샤오미", all(w in out for w in want))
+            lines = {l.split(" => ")[0].strip(): l.split(" => ")[1].strip() for l in out.splitlines() if " => " in l}
+            check("📶 암호 걸린 것 · 온습도계 아닌 것은 안 읽음", lines.get("BTHome 암호", "x") == "" and lines.get("냉장고", "x") == "" and lines.get("Xiaomi 암호", "x") == "")
+            check("📶 키 ble/MAC · 이름 (기기 이름 · 없으면 종류 + MAC 끝)", "take ble/A4:C1:38:1A:2B:3C pvvx 2B3C t=23.5 h=45.1" in out and "take ble/A4:C1:38:AA:BB:CC ATC_AABBCC t=21" in out)
+            st["host"] = ""
+            n = len(syncs)
+            proc = subprocess.Popen(ps[:-1], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+            try:
+                for _ in range(40):
+                    await asyncio.sleep(0.5)
+                    if len(syncs) > n + 1:
+                        break
+                check("📶 브로커 주소가 없어도 블루투스로 돎 (broker none · ble on 을 사이트에)", any(s["body"].get("ble") == "on" and s["body"].get("broker") == "none" for s in syncs[n:]))
+            finally:
+                proc.kill()
     last = (d / "last.txt").read_text(encoding="utf-8-sig") if (d / "last.txt").exists() else ""
     print("   last.txt:", last.strip())
     srv.close()

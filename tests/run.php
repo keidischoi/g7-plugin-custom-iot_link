@@ -193,7 +193,7 @@ $e3 = $pt ? $S::event(['deviceId' => 'dev-bambu-01', 'componentId' => 'progress'
 check($roles === ['p_bed', 'p_nozzle', 'p_online', 'p_progress', 'p_state'] && ($e1['payload'] ?? []) === ['state' => 'printing', '_printer' => true] && ($e2['payload'] ?? []) === ['nozzle' => 220.0, '_printer' => true]
     && ($e3['payload'] ?? []) === ['progress' => 37.0, '_printer' => true] && ($e3['sensor']['unit'] ?? '') === '%'
     && $S::printerTriples('dev-th-0001', [['id' => 'main', 'capabilities' => [['id' => 'temperatureMeasurement'], ['id' => 'relativeHumidityMeasurement'], ['id' => 'acme.status']]]], []) === []
-    && str_contains($app, "x.kind === 'printer' ? '🖨️'") && str_contains($app, 'x.resave') && str_contains($app, 'class="hal-sec hal-sup"') && str_contains($app, 'guideSteps(steps) + sup + more') && str_contains($app, 'cancelled · error 실패') && str_contains($haSrc13, "! \$changed && ! in_array(\$state, ['printing', 'paused'], true)"),
+    && str_contains($app, "x.kind === 'printer' ? '🖨️'") && str_contains($app, 'x.resave') && str_contains($app, 'class="hal-sec hal-sup"') && str_contains($app, "['sup', '🖨️', '프린터에 쓸 수 있는 것', '지원 표', supA], ['sts', '📋', '받는 상태'") && str_contains($app, 'cancelled · error 실패') && str_contains($haSrc13, "! \$changed && ! in_array(\$state, ['printing', 'paused'], true)"),
     '1.3.0 프린터 기기: Bambu 의 칸을 역할대로 (열림 = 출력 중 · 노즐 온도 °F → °C · 맞춤 진행률) · 온습도계는 프린터가 아님 · 「쉬는 중」은 바뀐 그때만 넘김 · 연결 방법에 지원 표 · 받는 상태 목록');
 // 1.2.0 🖨️ 프린터 라운지 — 센서 고르기에서 내 프린터에 붙이기 · 프린터 라운지에서 바로 오기 · 붙인 곳 띠 · 필터 두 개
 $haSrc = (string) file_get_contents($root.'/src/Services/HaService.php');
@@ -205,7 +205,7 @@ check(str_contains($app, "value=\"p:' + p.id + '\"") && str_contains($app, "prin
     '1.2.0 프린터 라운지: 센서 고르기의 「내 프린터에 붙이기」 · 바로 오기(?st=pick&printer=) · 붙인 곳 띠 · 값을 보낸 곳(via)으로 가림 · 필터 printer_env · sources');
 // 1.1.0 💳 고지 — 삼성의 유료 이용제 전환으로 무료 이용이 중지될 수 있음: 연결하기 전(큰 단추 칸) · 연결한 뒤(카드) · 연결 방법 · 센서 고르기 · 관리자 화면 · 오류 글
 check(substr_count($app, 'stPay()') >= 5 && str_contains($app, '무료 이용이 중지되어 값이 더 들어오지 않게 될 수 있어요') && str_contains($app, '유료 이용제') && str_contains($app, "+ stPay() + '</div>' : '';") && str_contains($app, "(go ? '' : stPay())")
-    && str_contains($app, "+ stPay() + guideSteps(steps) + sup + more;") && str_contains($app, '무료 이용이 중지되면 앱 등록 · 회원 연결 · 값 받기가 멈출 수 있어요') && str_contains($app, 'blog.smartthings.com/smartthings-updates/a-new-enhanced-smartthings-api-experience'),
+    && str_contains($app, "<div data-mtg-top>' + stPay() + '</div>' + guideSteps(steps, ") && str_contains($app, '무료 이용이 중지되면 앱 등록 · 회원 연결 · 값 받기가 멈출 수 있어요') && str_contains($app, 'blog.smartthings.com/smartthings-updates/a-new-enhanced-smartthings-api-experience'),
     '고지: 무료 이용이 중지될 수 있음 — 회원 카드(연결 전 · 후) · 연결 방법 · 센서 고르기 · 관리자 화면');
 $hint = preg_match("/public const PAY_HINT = '([^']+)';/", $svcSrc, $hm) ? $hm[1] : '';
 check(str_contains($hint, '무료 이용이 중지') && substr_count($svcSrc, 'self::PAY_HINT') >= 3 && mb_strlen('SmartThings 토큰을 새로 받지 못했어요 (HTTP 401) — 앱에서 설정을 한 번 더 저장해 주세요.'.$hint) <= 160
@@ -250,9 +250,9 @@ check(preg_match("/var MT_PATH = 'M[0-9a-zA-Z .\\-]+z';/", $app) === 1 && str_co
 check(str_contains($app, "['off', '🔌', '연결 끊기'") && str_contains($app, "off: '<section") && str_contains($mlink, "'remove_node'") && str_contains($mlink, 'function Do-Remove') && str_contains($mlink, '[string]$AlsoSite') && ! preg_match('/\[string\]\$Site\b/', $mlink)
     && str_contains($mpy, "def do_remove(") && str_contains($mpy, "m.cmd('remove_node'") && str_contains($mpy, "'DELETE', 'hub/%s/devices/%d'") && str_contains($msh, '--remove') && str_contains($mps, '-Remove'),
     '1.13.0 🔌 연결 끊기 · 센서 빼기 (설치 스크립트를 덮는 $Site 이름 안 씀)');
-check(str_contains($app, "else if (srcOf(x) === 'mt') { sn = 'src:mt:'") && str_contains($app, "'k-mt'") && ! str_contains($app, 'Home Assistant · SmartThings 의 온습도'), '1.13.1 🗺️ 연결 지도 — Matter 받는 곳은 SmartThings 가 아니라 Matter · 중계 이름');
-check(str_contains($app, "var pn = 'src:pc:' + p.host") && str_contains($app, 'K0.push(sortKey') && str_contains($app, 'cols[0] = cols[0].map(') && str_contains($svcSrc, '\'host\' => (string) ($p->link_host ?? \'\')'), '1.14.0 🗺️ 같은 PC — 프린터 연결 · Matter 중계 같은 이름 (아이콘만 다르게) · 나란히');
-check(str_contains($app, 'function mapKeep(cid)') && str_contains($app, 'if (!mapKeep(p.company_id)) return;') && str_contains($app, 'if (!mapKeep(x.company_id)) return;') && str_contains($app, "qa('[data-mapco]')") && str_contains($app, "</svg>' + mapBar() + '<div class=\"hal-map-cols\">"), '1.14.0 🗺️ 연결 지도 필터 — 전체 · 개인 · 업체마다');
+check(str_contains($app, "else if (srcOf(x) === 'mt') { var mpc = pcNode(x.ha_server_name); sn = 'src:mt:'") && str_contains($app, "'k-mt'") && ! str_contains($app, 'Home Assistant · SmartThings 의 온습도'), '1.13.1 🗺️ 연결 지도 — Matter 받는 곳은 SmartThings 가 아니라 Matter · 중계 이름');
+check(str_contains($app, "var pc = pcNode(p.host), pn = 'src:pl:' + pc") && str_contains($app, 'K[c].push(sortKey') && str_contains($app, 'cols[c] = cols[c].map(') && str_contains($svcSrc, '\'host\' => (string) ($p->link_host ?? \'\')'), '1.14.0 🗺️ 같은 PC — 프린터 연결 · Matter 중계 같은 이름 (아이콘만 다르게) · 나란히');
+check(str_contains($app, 'function mapKeep(cid)') && str_contains($app, 'if (!mapKeep(p.company_id)) return;') && str_contains($app, 'if (!mapKeep(x.company_id)) return;') && str_contains($app, "qa('[data-mapco]')") && str_contains($app, "</svg>' + mapBar() + '<div class=\"hal-map-cols' + (vis.length > 4 ? ' five' : '') + '\">"), '1.14.0 🗺️ 연결 지도 필터 — 전체 · 개인 · 업체마다');
 check(str_contains($app, "sc !== 'mine' && sc !== 'map' && coList().length > 1"), '1.14.2 🗺️ 연결 지도 탭에서는 위쪽 업체 줄 숨김 (지도 안 필터로)');
 // 1.15.0 📨 MQTT 중계 — 한 줄 설치 (윈도우 · 리눅스/맥) · 중계는 파이썬 기본 기능만 · 브로커 계정은 사이트에서 받아 감 (설치 본문에 없음) · 화면
 $qi = \Plugins\Custom\IotLink\Support\MqttInstaller::class;
@@ -270,6 +270,14 @@ check(str_contains($app, 'function mqCard(xs)') && str_contains($app, 'function 
     && str_contains($app, "if (!v.pass) delete v.pass;") && str_contains($app, 'autocomplete="new-password"') && str_contains($app, "key: 'mq', col:") && str_contains($app, "'k-mq'") && str_contains($app, 'mqBind();')
     && str_contains((string) file_get_contents($root.'/src/routes/api.php'), "Route::post('hub/{code}/mqtt'") && str_contains((string) file_get_contents($root.'/src/Http/Controllers/HaController.php'), "return \$v === 'mqtt' || str_starts_with(\$s, 'mqtt') ? 'mqtt'"),
     '1.15.0 📨 MQTT 화면 — 받는 곳 탭 · 브로커 설정(비밀번호는 바꿀 때만) · 찾은 센서 받기 · 한 줄 · 연결 지도 · 주소');
+// 1.16.0 📶 블루투스 (윈도우 중계 — csc 로 만든 도우미 · 브로커 없이도) · 연결 방법 MQTT 탭 · 걸음마다 그림 단추 · 🗺️ 💻 중계 PC 칸
+$qlps = (string) file_get_contents($root.'/resources/mqtt/link.ps1');
+check(str_contains($qlps, 'BluetoothLEAdvertisementWatcher') && str_contains($qlps, "'csc.exe'") && str_contains($qlps, 'static string BtHome(') && str_contains($qlps, 'static string Govee(') && str_contains($qlps, 'static string SwitchBot(') && str_contains($qlps, 'static string Mi(')
+    && str_contains($qlps, "ble = \$script:Ble") && str_contains($qlps, "\$brk = 'none'") && str_contains($qlps, '[switch]$NoBle') && ! preg_match("/^'@/m", $qlps) && str_contains($qi::ps1('https://x', str_repeat('a', 32)), '$script:Ble = Ble-Init'),
+    '1.16.0 📶 블루투스 온습도계 — 윈도우 중계가 바로 들음 (BTHome · ATC · 샤오미 · Govee · SwitchBot) · 브로커 없이도');
+check(str_contains($app, 'function guideMq()') && str_contains($app, 'data-gt="mq"') && str_contains($app, "['ble', '📶', '블루투스 온습도계'") && str_contains($app, 'function guideSteps(steps, extra)') && str_contains($app, 'data-mtg-top') && str_contains($app, "data-guide-mq")
+    && str_contains($app, "if (g.parentNode) Array.prototype.forEach.call(g.parentNode.querySelectorAll('[data-mtg-top]')"), '1.16.0 ❓ 연결 방법 — MQTT · 📶 블루투스 탭 · HA · SmartThings 도 걸음마다 그림 단추 (스크롤 없이)');
+check(str_contains($app, "var pcNode = function (name)") && str_contains($app, "['💻', '중계 PC']") && str_contains($app, "if (qpc) edge(qpc, sn, live)") && str_contains($app, "edge(pc, pn, !!p.live); edge(pn, tn, !!p.live)"), '1.16.0 🗺️ 연결 지도 — 💻 중계 PC → 받는 곳(프린터 연결 · Matter · MQTT) → 기기');
 
 echo "\n".($fail === 0 ? "OK ({$pass} checks)" : "{$fail} FAILED / ".($pass + $fail))."\n";
 exit($fail === 0 ? 0 : 1);
