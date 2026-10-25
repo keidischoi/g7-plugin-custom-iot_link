@@ -1321,7 +1321,7 @@ namespace {
     // 1.15.0 📨 MQTT 중계 — 브로커 설정(비밀번호 암호화) · 중계가 받아 가는 것 · 찾은 토픽 · 받기 / 그만 받기
     $mq = new \Plugins\Custom\IotLink\Services\MqttService($svc);
     $v0 = $mq->view(1);
-    t($v0['host'] === '192.168.0.54' && ! $v0['saved'] && $v0['port'] === 1883 && $v0['topics'] === ['#'] && isset($svc->overview(1)['mqtt']['seen']), 'MQTT: 처음엔 브로커 칸에 192.168.0.54 · 1883 · # (저장 전) · 화면 자료에 mqtt');
+    t($v0['host'] === '' && ! $v0['saved'] && $v0['port'] === 1883 && $v0['topics'] === ['#'] && isset($svc->overview(1)['mqtt']['seen']), 'MQTT: 처음엔 브로커 주소 빈칸 · 1883 · # (저장 전) · 화면 자료에 mqtt');
     t(! $mq->save(1, ['host' => 'bad host!', 'port' => 1883])[0] && ! $mq->save(1, ['host' => 'h', 'port' => 70000])[0] && ! $mq->save(1, ['host' => 'h', 'topics' => 'a/#/b'])[0] && ! $mq->save(1, ['host' => 'h', 'topics' => 'a+/b'])[0], 'MQTT: 이상한 주소 · 포트 · 토픽은 거절');
     t($mq->save(1, ['host' => 'mqtt://192.168.0.54', 'port' => '1883', 'user' => 'zig', 'pass' => 'pw1', 'tls' => false, 'topics' => "zigbee2mqtt/+\ntele/+/SENSOR"])[0], 'MQTT: 저장');
     $raw = (string) DB::table('hal_links')->where('user_id', 1)->value('mqtt');

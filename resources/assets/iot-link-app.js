@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.16.4 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.16.5 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.4';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.5';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -881,8 +881,8 @@
     return '<section class="hal-sec hal-mtwin hal-mqwin" data-mqos="' + os + '"><h4>' + mqLogo() + ' 중계 설치 <small>한 줄 · 따로 깔 것 없음</small></h4>' +
       '<div class="hal-seg hal-mtos" role="tablist"><button type="button" role="tab" data-mq-os="win" class="' + (sh ? '' : 'on') + '" aria-selected="' + !sh + '">🪟 윈도우</button><button type="button" role="tab" data-mq-os="sh" class="' + (sh ? 'on' : '') + '" aria-selected="' + sh + '">🐧 리눅스 · 🍎 맥 · 🍓 라즈베리파이</button></div>' +
       '<div class="hal-copy"><span>' + (sh ? '터미널' : 'PowerShell') + '</span><code data-mq-line>' + esc(mqLine(os)) + '</code><button type="button" class="hal-btn sm pri" data-mq-cp>📋 복사</button></div>' +
-      '<ol class="hal-stc-steps"><li><em>1</em>위 ⚙️ 브로커 설정 저장</li><li><em>2</em>' + (sh ? '<b>터미널</b> 열기 (SSH 도 돼요)' : '시작 › <b>PowerShell</b> 열기') + '</li><li><em>3</em>붙여 넣고 Enter</li></ol>' +
-      '<p class="hal-hint">브로커와 같은 집 네트워크의 늘 켜 두는 기기에 · 켤 때마다 저절로 시작해요' + (sh ? ' (python3 기본 기능만 · systemd · crontab · 맥은 launchd)' : '') + '. 🔒 한 줄에 내 연결 코드가 들어 있어요 (남에게 보이지 마세요).</p></section>';
+      '<ol class="hal-stc-steps"><li><em>1</em>' + (sh ? '<b>터미널</b> 열기 (SSH 도 돼요)' : '시작 › <b>PowerShell</b> 열기') + '</li><li><em>2</em>붙여 넣고 Enter</li><li><em>3</em>찾은 센서에서 <b>➕ 받기</b></li></ol>' +
+      '<p class="hal-hint">' + (sh ? '🐧🍎 리눅스 · 맥은 MQTT 만 받아요 — 먼저 위 <b>⚙️ MQTT 브로커 설정</b>을 저장해 주세요 (python3 기본 기능만 · systemd · crontab · 맥은 launchd). ' : '📶 블루투스만 쓰면 이것만으로 끝 — 브로커 설정은 필요 없어요. MQTT 브로커도 쓰면 위 <b>⚙️ MQTT 브로커 설정</b>을 저장하세요. ') + '센서 · 브로커 가까이 늘 켜 두는 PC 에 · 켤 때마다 저절로 시작해요. 🔒 한 줄에 내 연결 코드가 들어 있어요 (남에게 보이지 마세요).</p></section>';
   }
   function mqWinBind(root) {
     Array.prototype.forEach.call(root.querySelectorAll('[data-mq-cp]'), function (b) { b.onclick = function () { var box = b.closest('.hal-mqwin'); copy(mqLine(box && box.getAttribute('data-mqos')), b); }; });
@@ -892,9 +892,11 @@
   function mqBad(r) { return !!(r && r.broker && r.broker !== 'ok' && r.broker !== 'start' && r.broker !== 'none'); }   // none = 브로커 없이 블루투스만 (1.16.0)
   function mqCard(xs) {
     var M = S.d.mqtt || { seen: [], topics: ['#'], port: 1883, host: '' }, R = M.relay, live = mqLive(R), bad = live && mqBad(R), ble = live && R.ble === 'on';
-    var pill = !M.saved && !ble ? '<span class="hal-pill wait">⚙️ 브로커 설정 전</span>' : !R ? '<span class="hal-pill">연결 안 됨</span>' : !live ? '<span class="hal-pill bad">⚠️ 중계 꺼짐</span>' : bad ? '<span class="hal-pill bad">⚠️ 브로커 확인</span>' : '<span class="hal-pill on">🟢 연결됨' + (M.picked ? ' ' + M.picked : '') + '</span>';
-    var brk = '<div class="hal-mqb"><div><b>📮 ' + esc(M.host || '브로커 주소 없음') + ':' + esc(M.port) + '</b><small>' + (M.user ? '👤 ' + esc(M.user) + (M.has_pass ? ' · 🔑 비밀번호' : '') : '계정 없음') + (M.tls ? ' · 🔒 TLS' : '') + ' · 토픽 <code>' + esc(M.topics.join('  ')) + '</code></small></div><button type="button" class="hal-btn sm' + (M.saved ? '' : ' pri') + '" data-mq-set>⚙️ 브로커 설정</button></div>' +
-      (R ? '<p class="hal-hint hal-mqr">💻 <b>' + esc(R.name || '중계') + '</b> · ' + (live ? '🟢 ' : '⚪ ') + esc(agoText(R.at)) + (bad ? ' · <b class="hal-mqerr">⚠️ ' + esc(R.broker) + '</b>' : '') + (R.ble ? ' · 📶 블루투스 <span class="hal-beta" title="실제 블루투스 센서로 아직 시험하지 못했어요 — 안 되면 알려 주세요">🧪 베타</span> ' + (R.ble === 'on' ? (live ? '듣는 중' : '꺼짐') : R.ble === 'off' ? '없음' : '<b class="hal-mqerr">⚠️ ' + esc(R.ble) + '</b>') : '') + '</p>' : '');
+    var pill = !R ? '<span class="hal-pill">연결 안 됨</span>' : !live ? '<span class="hal-pill bad">⚠️ 중계 꺼짐</span>' : bad ? '<span class="hal-pill bad">⚠️ 브로커 확인</span>' : '<span class="hal-pill on">🟢 연결됨' + (M.picked ? ' ' + M.picked : '') + '</span>';
+    // 1.16.5 처음인 사람 — 블루투스는 한 줄이면 끝 · MQTT 브로커는 있을 때만 (주소 칸을 먼저 보이지 않음)
+    var brk = !M.saved ? '<div class="hal-mqb sub"><div><b>📮 MQTT 브로커 <small>있을 때만 · 블루투스만 쓰면 필요 없어요</small></b><small>Zigbee2MQTT · Tasmota · Shelly 의 값이 올라오는 Mosquitto 같은 곳</small></div><button type="button" class="hal-btn sm" data-mq-set>⚙️ MQTT 브로커 설정</button></div>'
+      : '<div class="hal-mqb"><div><b>📮 ' + esc(M.host || '브로커 주소 없음') + ':' + esc(M.port) + '</b><small>' + (M.user ? '👤 ' + esc(M.user) + (M.has_pass ? ' · 🔑 비밀번호' : '') : '계정 없음') + (M.tls ? ' · 🔒 TLS' : '') + ' · 토픽 <code>' + esc(M.topics.join('  ')) + '</code></small></div><button type="button" class="hal-btn sm" data-mq-set>⚙️ 브로커 설정</button></div>';
+    brk += (R ? '<p class="hal-hint hal-mqr">💻 <b>' + esc(R.name || '중계') + '</b> · ' + (live ? '🟢 ' : '⚪ ') + esc(agoText(R.at)) + (bad ? ' · <b class="hal-mqerr">⚠️ ' + esc(R.broker) + '</b>' : '') + (R.ble ? ' · 📶 블루투스 <span class="hal-beta" title="실제 블루투스 센서로 아직 시험하지 못했어요 — 안 되면 알려 주세요">🧪 베타</span> ' + (R.ble === 'on' ? (live ? '듣는 중' : '꺼짐') : R.ble === 'off' ? '없음' : '<b class="hal-mqerr">⚠️ ' + esc(R.ble) + '</b>') : '') + '</p>' : '');
     // 1.15.1 찾은 센서는 단추(칩) — 누르면 받기 · 받는 것(✅)을 누르면 그만 받기. 토픽 · 언제는 단추에 올리면
     var chip = function (s) {
       var on = s.device_id != null, dv = on ? find(s.device_id) : null, v = [];
@@ -903,9 +905,9 @@
     };
     var seen = M.seen || [];
     var list = seen.length ? '<h4 class="hal-mqh">🔎 찾은 센서 <small>' + seen.length + '개 · 누르면 받기 (📡 대기 칸) · ✅ 받는 중</small></h4><div class="hal-mqcs">' + seen.map(chip).join('') + '</div>'
-      : '<p class="hal-hint">' + (R && live ? '🔎 중계가 브로커에서 온습도 토픽을 찾는 중이에요 — 센서가 값을 올리면 여기에 보여요 (토픽 칸이 맞는지도 봐 주세요).' : '아직 찾은 센서가 없어요 — 브로커 설정을 저장하고, 늘 켜 두는 PC 에 아래 한 줄로 중계를 설치하면 브로커의 온습도 토픽이 여기에 보여요.') + '</p>';
-    return '<section class="hal-stc mq"><header class="hal-stc-h"><span class="hal-stc-logo mq" aria-hidden="true">' + mqLogo() + '</span><div><h2>MQTT · BT <small>3ds 중계 · MQTT 브로커 · 📶 블루투스</small></h2><p>Zigbee2MQTT · Tasmota · Shelly · ESPHome 처럼 집 안 MQTT 브로커에 올라오는 온습도 값을, 「3ds MQTT 중계」가 사이트로 보내요. 윈도우 중계 PC 는 주변 블루투스 온습도계(샤오미 · Govee · SwitchBot · BTHome)도 바로 들어요 (🧪 베타) (Home Assistant 없이 · 사이트가 집에 접속하지 않아요).</p></div>' + pill + '</header>' +
-      brk + list + (R ? '<details class="hal-mtmore"><summary>💻 다른 기기에 설치 (윈도우 · 리눅스 · 맥)</summary>' + mqWin() + '</details>' : mqWin()) +
+      : '<p class="hal-hint">' + (R && live ? '🔎 중계가 찾는 중이에요 — 블루투스 온습도계 · 브로커 토픽이 값을 보내면 여기에 보여요.' : '아직 찾은 센서가 없어요 — 아래 한 줄로 중계를 설치하면 주변 📶 블루투스 온습도계(윈도우)와 MQTT 브로커의 온습도 토픽이 여기에 보여요.') + '</p>';
+    return '<section class="hal-stc mq"><header class="hal-stc-h"><span class="hal-stc-logo mq" aria-hidden="true">' + mqLogo() + '</span><div><h2>MQTT · BT <small>3ds 중계 · MQTT 브로커 · 📶 블루투스</small></h2><p>📶 블루투스 온습도계(샤오미 · Govee · SwitchBot · BTHome — 윈도우 PC · 🧪 베타)와 📮 집 안 MQTT 브로커(Zigbee2MQTT · Tasmota · Shelly · ESPHome)의 온습도를 「3ds 중계」가 사이트로 보내요. 브로커가 없어도 블루투스만으로 돼요 (Home Assistant 없이 · 사이트가 집에 접속하지 않아요).</p></div>' + pill + '</header>' +
+      (!M.saved && !R ? list + mqWin() + brk : brk + list + (R ? '<details class="hal-mtmore"><summary>💻 다른 기기에 설치 (윈도우 · 리눅스 · 맥)</summary>' + mqWin() + '</details>' : mqWin())) +   // 1.16.5 처음이면 한 줄 설치 먼저 · 브로커는 맨 아래 (있을 때만)
       '<div class="hal-row hal-stc-more"><button type="button" class="hal-btn sm" data-guide-mq>❓ 연결 방법</button></div></section>';
   }
   /** 1.16.0 ❓ 연결 방법 › MQTT · 📶 블루투스 — 그림 단추 (스크롤 없이) */
