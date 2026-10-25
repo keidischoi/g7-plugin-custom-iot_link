@@ -1,4 +1,4 @@
-/* custom-iot_link 1.16.1 — 📡 IoT 연결 */
+/* custom-iot_link 1.16.2 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -695,4 +695,7 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
 .hal-map-cols.five{grid-template-columns:minmax(130px,.8fr) minmax(140px,.85fr) minmax(150px,1fr) minmax(130px,.9fr) minmax(100px,.6fr);column-gap:56px;min-width:980px}   /* 1.16.0 앞 두 칸 이름이 안 잘리게 */
 
 .hal-map-cols.five{grid-template-columns:minmax(140px,.9fr) minmax(150px,.95fr) minmax(150px,1fr) minmax(130px,.9fr) minmax(84px,.42fr)}   /* 이어지는 곳은 좁게 · 앞 두 칸 넓게 */
+/* 1.16.2 🗺️ 중계 PC 는 받는 곳 칸 안 — 그 PC 의 받는 곳은 들여쓰기 (선이 왼쪽으로) */
+.hal-map-col .hal-mn.sub { margin-left:20px; }
+.hal-map-cols { padding-left:20px; }
 

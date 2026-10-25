@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.16.1 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.16.2 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.1';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.2';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -658,7 +658,7 @@
     var lbl = function (ic, t, sub) { return '<i aria-hidden="true">' + ic + '</i><span><b>' + esc(t) + '</b>' + (sub ? '<small>' + sub + '</small>' : '') + '</span>'; };
     // 1.16.0 💻 중계 PC — 프린터 연결 프로그램 · Matter 중계 · MQTT 중계가 같은 PC 면 하나로 (「GBOOK (Windows)」 = 「GBOOK」)
     var pcK = function (n) { return String(n || '').replace(/\s*\((windows|linux|mac|macos)\)\s*$/i, '').trim(); };
-    var pcNode = function (name) { var nm = pcK(name); if (!nm) return ''; var id = 'pc:' + nm.toLowerCase(); node(0, id, lbl('💻', nm, '중계 PC — 집 안에서 사이트로 보냄'), 'k-pc', '', nm.toLowerCase()); return id; };
+    var pcNode = function (name) { var nm = pcK(name); if (!nm) return ''; var id = 'pc:' + nm.toLowerCase(); node(1, id, lbl('💻', nm, '중계 PC — 집 안에서 사이트로 보냄'), 'k-pc', '', nm.toLowerCase() + ' 0'); return id; };   // 1.16.2 받는 곳 칸 안 — 그 PC 의 받는 곳 바로 위 · 선은 왼쪽으로
     var boxOf = {}, boxOfC = {}; (d.boxes || []).forEach(function (b) { if (!boxOf[bkey(b.name)]) boxOf[bkey(b.name)] = b; boxOfC[(+(b.company_id || 0)) + '|' + bkey(b.name)] = b; });   // 1.9.5 주인(개인 · 업체)마다
     var inst = (d.smartthings && d.smartthings.installs) || [], stOf = {};
     inst.forEach(function (s) { (s.site_devices || []).forEach(function (id) { stOf[id] = s; }); if (s.device_id) stOf[s.device_id] = stOf[s.device_id] || s; });
@@ -675,7 +675,7 @@
       if (p.equipment_id && d.config.inventory) { node(4, 'x:eq', lbl('🏭', '업체 장비', '장비 상태 · 온습도'), 'k-ext', go2('/inventory?tab=equipment')); edge(tn, 'x:eq', !!p.live); }   // 1.7.9 이어진 업체 장비
       // 1.7.4 사이트 ⇄ 💻 PC(라즈베리파이)의 연결 프로그램 ⇄ 프린터 — 프린터 라운지와 같은 이름 · SimplyPrint 는 따로
       if (p.via === 'simply') { node(1, 'src:simply', lbl('🔗', 'SimplyPrint', '클라우드로 프린터 상태를 받음'), 'k-hook'); edge('src:simply', tn, !!p.live); }
-      else if ((p.via === 'script' || (p.seen && !p.via)) && p.host) { var pc = pcNode(p.host), pn = 'src:pl:' + pc; node(1, pn, lbl('🖨️', '프린터 연결', '프린터 ⇄ 사이트 (상태 · 원격 출력)'), 'k-hook', '', pcK(p.host).toLowerCase() + ' 1'); edge(pc, pn, !!p.live); edge(pn, tn, !!p.live); }   // 1.16.0 💻 PC → 🖨️ 프린터 연결   // 1.14.0 💻 PC 이름 (내 프린터 0.1.95+) — 같은 PC 의 Matter 중계와 같은 이름 · 아이콘만 다르게
+      else if ((p.via === 'script' || (p.seen && !p.via)) && p.host) { var pc = pcNode(p.host), pn = 'src:pl:' + pc; node(1, pn, lbl('🖨️', '프린터 연결', '프린터 ⇄ 사이트 (상태 · 원격 출력)'), 'k-hook sub', '', pcK(p.host).toLowerCase() + ' 1'); edge(pc, pn, !!p.live); edge(pn, tn, !!p.live); }   // 1.16.0 💻 PC → 🖨️ 프린터 연결   // 1.14.0 💻 PC 이름 (내 프린터 0.1.95+) — 같은 PC 의 Matter 중계와 같은 이름 · 아이콘만 다르게
       else if (p.via === 'script' || (p.seen && !p.via)) { node(1, 'src:pc', lbl('💻', 'PC 연결 프로그램', 'PC · 라즈베리파이에서 프린터 ⇄ 사이트 (상태를 받고 · 원격 출력을 보냄)'), 'k-hook'); edge('src:pc', tn, !!p.live); }
     });
     d.devices.forEach(function (x) {
@@ -685,8 +685,8 @@
       // ① 출처
       var s = srcOf(x) === 'st' ? stOf[x.id] : null, sn;
       if (srcOf(x) === 'ha') { sn = 'src:ha'; node(1, sn, haLogo() + '<span><b>Home Assistant</b><small>값을 보내는 집</small></span>', 'k-ha'); }
-      else if (srcOf(x) === 'mt') { var mpc = pcNode(x.ha_server_name); sn = 'src:mt:' + (mpc || x.ha_server || ''); node(1, sn, mtLogo() + '<span><b>Matter</b><small>Matter 중계 — Matter 서버의 센서 → 사이트</small></span>', 'k-mt', '', pcK(x.ha_server_name).toLowerCase() + ' 2'); if (mpc) edge(mpc, sn, live); }   // 1.16.0 💻 PC → 🧩 Matter
-      else if (srcOf(x) === 'mq') { var qpc = pcNode(x.ha_server_name); sn = 'src:mq:' + (qpc || x.ha_server || ''); node(1, sn, mqLogo() + '<span><b>MQTT · 📶</b><small>MQTT 중계 — 브로커의 토픽 · 블루투스 온습도계 → 사이트</small></span>', 'k-mq', '', pcK(x.ha_server_name).toLowerCase() + ' 3'); if (qpc) edge(qpc, sn, live); }   // 1.16.0 💻 PC → 📨 MQTT · 📶
+      else if (srcOf(x) === 'mt') { var mpc = pcNode(x.ha_server_name); sn = 'src:mt:' + (mpc || x.ha_server || ''); node(1, sn, mtLogo() + '<span><b>Matter</b><small>Matter 중계 — Matter 서버의 센서 → 사이트</small></span>', 'k-mt' + (mpc ? ' sub' : ''), '', pcK(x.ha_server_name).toLowerCase() + ' 2'); if (mpc) edge(mpc, sn, live); }   // 1.16.0 💻 PC → 🧩 Matter
+      else if (srcOf(x) === 'mq') { var qpc = pcNode(x.ha_server_name); sn = 'src:mq:' + (qpc || x.ha_server || ''); node(1, sn, mqLogo() + '<span><b>MQTT · 📶</b><small>MQTT 중계 — 브로커의 토픽 · 블루투스 온습도계 → 사이트</small></span>', 'k-mq' + (qpc ? ' sub' : ''), '', pcK(x.ha_server_name).toLowerCase() + ' 3'); if (qpc) edge(qpc, sn, live); }   // 1.16.0 💻 PC → 📨 MQTT · 📶
       else if (s) { sn = 'src:st' + s.id; node(1, sn, stLogo() + '<span><b>' + esc(s.location || 'SmartThings') + '</b><small>SmartThings' + (s.status === 'active' ? '' : ' · ⚠️ ' + esc(s.status)) + '</small></span>', 'k-st'); }
       else { sn = 'src:st'; node(1, sn, stLogo() + '<span><b>SmartThings</b><small>클라우드 센서</small></span>', 'k-st'); }
       // ② 기기
@@ -719,29 +719,16 @@
       '<div class="hal-map" data-map><svg class="hal-map-svg" aria-hidden="true"></svg>' + mapBar() + '<div class="hal-map-cols' + (vis.length > 4 ? ' five' : '') + '">' + vis.map(function (i) { var c = cols[i]; return '<div class="hal-map-col"><h4><i aria-hidden="true">' + T[i][0] + '</i>' + T[i][1] + ' <small>' + c.length + '</small></h4>' + (c.join('') || '<p class="hal-hint">—</p>') + '</div>'; }).join('') + '</div></div></div>';
   }
   /** 선 그리기 — 마디의 실제 자리를 재서 곡선으로 (창 크기가 바뀌면 다시) */
-  /* 1.16.1 💻 중계 PC 는 이어지는 받는 곳(프린터 연결 · Matter · MQTT) 바로 왼쪽 같은 높이에 — 위에서부터 차례로 내려 놓음 */
-  function mapAlignPc(m) {
-    var col = m.querySelector('.hal-map-cols.five > .hal-map-col:first-child'); if (!col) return;
-    var ns = Array.prototype.slice.call(col.querySelectorAll('.hal-mn'));
-    ns.forEach(function (n) { n.style.marginTop = ''; });
-    ns.forEach(function (n) {
-      var id = n.getAttribute('data-n'), ys = [];
-      (S.mapE || []).forEach(function (e) { if (e[0] !== id) return; var t = m.querySelector('[data-n="' + (window.CSS && CSS.escape ? CSS.escape(e[1]) : e[1]) + '"]'); if (t) { var r = t.getBoundingClientRect(); ys.push(r.top + r.height / 2); } });
-      if (!ys.length) return;
-      var want = ys.reduce(function (a, b) { return a + b; }, 0) / ys.length, r = n.getBoundingClientRect(), d = want - (r.top + r.height / 2);
-      if (d > 0) n.style.marginTop = d + 'px';
-    });
-  }
   function mapLines() {
     var m = q('[data-map]'); if (!m) return;
-    mapAlignPc(m);
     var svg = m.querySelector('svg'), r0 = m.getBoundingClientRect(), pos = {};
     m.querySelectorAll('[data-n]').forEach(function (el) { var r = el.getBoundingClientRect(); pos[el.getAttribute('data-n')] = { l: r.left - r0.left + m.scrollLeft, r: r.right - r0.left + m.scrollLeft, y: r.top - r0.top + m.scrollTop + r.height / 2 }; });   // 좁은 화면은 옆으로 밀림 — 민 만큼 더함
     svg.setAttribute('width', m.scrollWidth); svg.setAttribute('height', m.scrollHeight);
     svg.innerHTML = (S.mapE || []).map(function (e) {
       var a = pos[e[0]], b = pos[e[1]]; if (!a || !b) return '';
-      var x1 = a.r, x2 = b.l, dx = Math.max(24, (x2 - x1) / 2);
-      return '<path data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" d="M' + x1 + ' ' + a.y + ' C' + (x1 + dx) + ' ' + a.y + ' ' + (x2 - dx) + ' ' + b.y + ' ' + x2 + ' ' + b.y + '"/>' +
+      var left = String(e[0]).indexOf('pc:') === 0, x1 = left ? a.l : a.r, x2 = b.l, dx = Math.max(24, (x2 - x1) / 2);   // 1.16.2 💻 PC → 받는 곳: 같은 칸 — 왼쪽 가장자리끼리
+      var d = left ? 'M' + x1 + ' ' + a.y + ' C' + (x1 - 16) + ' ' + a.y + ' ' + (x2 - 22) + ' ' + b.y + ' ' + x2 + ' ' + b.y : 'M' + x1 + ' ' + a.y + ' C' + (x1 + dx) + ' ' + a.y + ' ' + (x2 - dx) + ' ' + b.y + ' ' + x2 + ' ' + b.y;
+      return '<path data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" d="' + d + '"/>' +
         // 1.9.5 선이 붙는 곳 — 양 끝에 점
         '<circle data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" cx="' + x1 + '" cy="' + a.y + '" r="4"/><circle data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" cx="' + x2 + '" cy="' + b.y + '" r="4"/>';
     }).join('');
