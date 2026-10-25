@@ -123,10 +123,13 @@ class HaController extends Controller
         return ['id' => $id, 'name' => mb_substr($name !== '' ? $name : 'Home Assistant', 0, 60)];
     }
 
-    /** 1.10.0 🧩 보낸 프로그램 — 3ds Matter 연결은 X-G7-Via: matter (서버 ID 도 matter… 로 시작) · 아니면 HA */
+    /** 1.10.0 🧩 보낸 프로그램 — 3ds Matter 연결은 X-G7-Via: matter (서버 ID 도 matter… 로 시작) · 1.15.0 📨 MQTT 중계는 mqtt · 아니면 HA */
     private function via(Request $r): string
     {
-        return strtolower((string) $r->header('X-G7-Via', '')) === 'matter' || str_starts_with((string) $r->header('X-G7-Server', ''), 'matter') ? 'matter' : 'ha';
+        $v = strtolower((string) $r->header('X-G7-Via', ''));
+        $s = (string) $r->header('X-G7-Server', '');
+
+        return $v === 'mqtt' || str_starts_with($s, 'mqtt') ? 'mqtt' : ($v === 'matter' || str_starts_with($s, 'matter') ? 'matter' : 'ha');
     }
 
     public function hub(Request $r, string $code): JsonResponse

@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Plugins\Custom\IotLink\Http\Controllers\AdminController;
 use Plugins\Custom\IotLink\Http\Controllers\AssetController;
 use Plugins\Custom\IotLink\Http\Controllers\HaController;
+use Plugins\Custom\IotLink\Http\Controllers\MqttController;
 use Plugins\Custom\IotLink\Http\Controllers\SmartThingsController;
 use Plugins\Custom\IotLink\Support\LegacyRoutes;
 
@@ -33,12 +34,17 @@ Route::get('mt/{code}.ps1', [HaController::class, 'matterPs1'])->where('code', '
 // 1.12.0 🐧🍎🍓 리눅스 · 맥 · 라즈베리파이 한 줄 (curl -fsSL "주소" | bash — python3 기본 기능만)
 Route::get('mt/{code}.sh', [HaController::class, 'matterSh'])->where('code', '[a-f0-9]{32}')->middleware('throttle:20,1')->name('matter.sh');
 
+// 1.15.0 📨 MQTT 중계 한 줄 설치 — 윈도우 irm "주소" | iex · 리눅스 · 맥 curl -fsSL "주소" | bash (브로커 설정은 중계가 사이트에서 받아 감)
+Route::get('mq/{code}.ps1', [MqttController::class, 'ps1'])->where('code', '[a-f0-9]{32}')->middleware('throttle:20,1')->name('mqtt.ps1');
+Route::get('mq/{code}.sh', [MqttController::class, 'sh'])->where('code', '[a-f0-9]{32}')->middleware('throttle:20,1')->name('mqtt.sh');
+
 // HACS 통합 ↔ 사이트 (로그인 없음, 주소의 연결 코드) — 붙일 곳 목록 · 기기 만들기/고치기/지우기
 Route::middleware('throttle:30,1')->where(['code' => '[a-f0-9]{32}'])->group(function () {
     Route::get('hub/{code}', [HaController::class, 'hub'])->name('hub');
     Route::post('hub/{code}/devices', [HaController::class, 'hubSave'])->name('hub.devices.store');
     Route::put('hub/{code}/devices/{id}', [HaController::class, 'hubSave'])->whereNumber('id')->name('hub.devices.update');
     Route::delete('hub/{code}/devices/{id}', [HaController::class, 'hubDelete'])->whereNumber('id')->name('hub.devices.destroy');
+    Route::post('hub/{code}/mqtt', [MqttController::class, 'relay'])->name('hub.mqtt');   // 1.15.0 📨 MQTT 중계 — 찾은 토픽 알림 · 설정 받기 (30초마다)
 });
 
 Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () {
@@ -56,6 +62,8 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () {
     Route::delete('devices/{id}', [HaController::class, 'delete'])->whereNumber('id')->name('devices.destroy');
     Route::get('devices/{id}/snap', [HaController::class, 'snapShow'])->whereNumber('id')->name('devices.snap');
     Route::post('link/rotate', [HaController::class, 'rotateLink'])->name('link.rotate');
+    Route::put('mqtt', [MqttController::class, 'save'])->middleware('throttle:30,1')->name('mqtt.save');   // 1.15.0 📨 브로커 설정
+    Route::post('mqtt/pick', [MqttController::class, 'pick'])->middleware('throttle:60,1')->name('mqtt.pick');   // 1.15.0 📨 찾은 토픽 받기 · 그만 받기
     // 0.2.0 SmartThings — 연결 코드(1분에 10번까지) · 이을 기기 바꾸기 · 끊기 (내 것만)
     Route::post('smartthings/code', [SmartThingsController::class, 'code'])->middleware('throttle:10,1')->name('smartthings.code');
     Route::put('smartthings/installs/{id}', [SmartThingsController::class, 'relink'])->whereNumber('id')->name('smartthings.relink');

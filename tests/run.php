@@ -9,6 +9,7 @@ require __DIR__.'/../src/Support/Settings.php';
 require __DIR__.'/../src/Support/SmartThings.php';
 require __DIR__.'/../src/Support/StSignature.php';
 require __DIR__.'/../src/Support/MatterInstaller.php';
+require __DIR__.'/../src/Support/MqttInstaller.php';
 
 use Plugins\Custom\IotLink\Support\Rules as R;
 use Plugins\Custom\IotLink\Support\Settings as S;
@@ -226,7 +227,7 @@ foreach (['active', 'locationSensors', 'humidityHistory', 'touch', 'runHours'] a
 }
 check(str_contains($apiSrc, "VERSION = '".$ver."'"), 'Api 버전');
 // 1.10.0 🧩 Matter — 센서 이름 없이 만들기 · 받는 키 · 받는 곳 표시 (탭 · 배지 · 대기 칸 · 출처 줄) · 연결 방법
-check(str_contains($app, "x.source === 'matter' ? 'mt' : 'ha'") && str_contains($app, 'function mtCard(xs)') && str_contains($app, 'function mtKeyBox(d)') && str_contains($app, 'function guideMt()') && str_contains($app, 'data-srctab="mt"') && str_contains($app, 'data-ct="mt"') && str_contains($app, 'data-gt="mt"') && str_contains($app, "v.source = 'matter'") && str_contains($app, "key: 'mt', col:") && str_contains($app, 'function recvKey(x)') && str_contains((string) file_get_contents($root.'/resources/assets/iot-link.css'), '.hal-badge.mt'), '1.10.0 🧩 Matter 화면 — 받는 곳 탭 · 배지 · 색 · 기기 만들기 · 받는 키 · 연결 방법');
+check(str_contains($app, "x.source === 'matter' ? 'mt' : x.source === 'mqtt' ? 'mq' : 'ha'") && str_contains($app, 'function mtCard(xs)') && str_contains($app, 'function mtKeyBox(d)') && str_contains($app, 'function guideMt()') && str_contains($app, 'data-srctab="mt"') && str_contains($app, 'data-ct="mt"') && str_contains($app, 'data-gt="mt"') && str_contains($app, "v.source = 'matter'") && str_contains($app, "key: 'mt', col:") && str_contains($app, 'function recvKey(x)') && str_contains((string) file_get_contents($root.'/resources/assets/iot-link.css'), '.hal-badge.mt'), '1.10.0 🧩 Matter 화면 — 받는 곳 탭 · 배지 · 색 · 기기 만들기 · 받는 키 · 연결 방법');
 // 1.11.0 🪟 Matter 윈도우 한 줄 — PowerShell 설치 본문 (link.ps1 그대로 · 코드 · Matter 주소만 · 따옴표 막음 · MprLink 와 다른 폴더)
 $mi = \Plugins\Custom\IotLink\Support\MatterInstaller::class;
 $mps = $mi::ps1('https://3ds.test/', str_repeat('a', 32), '192.168.0.192');
@@ -253,6 +254,22 @@ check(str_contains($app, "else if (srcOf(x) === 'mt') { sn = 'src:mt:'") && str_
 check(str_contains($app, "var pn = 'src:pc:' + p.host") && str_contains($app, 'K0.push(sortKey') && str_contains($app, 'cols[0] = cols[0].map(') && str_contains($svcSrc, '\'host\' => (string) ($p->link_host ?? \'\')'), '1.14.0 🗺️ 같은 PC — 프린터 연결 · Matter 중계 같은 이름 (아이콘만 다르게) · 나란히');
 check(str_contains($app, 'function mapKeep(cid)') && str_contains($app, 'if (!mapKeep(p.company_id)) return;') && str_contains($app, 'if (!mapKeep(x.company_id)) return;') && str_contains($app, "qa('[data-mapco]')") && str_contains($app, "</svg>' + mapBar() + '<div class=\"hal-map-cols\">"), '1.14.0 🗺️ 연결 지도 필터 — 전체 · 개인 · 업체마다');
 check(str_contains($app, "sc !== 'mine' && sc !== 'map' && coList().length > 1"), '1.14.2 🗺️ 연결 지도 탭에서는 위쪽 업체 줄 숨김 (지도 안 필터로)');
+// 1.15.0 📨 MQTT 중계 — 한 줄 설치 (윈도우 · 리눅스/맥) · 중계는 파이썬 기본 기능만 · 브로커 계정은 사이트에서 받아 감 (설치 본문에 없음) · 화면
+$qi = \Plugins\Custom\IotLink\Support\MqttInstaller::class;
+$qps = $qi::ps1('https://3ds.test/', str_repeat('a', 32));
+$qsh = $qi::sh('https://3ds.test/', str_repeat('a', 32));
+$qlps = (string) file_get_contents($root.'/resources/mqtt/link.ps1');
+$qlpy = (string) file_get_contents($root.'/resources/mqtt/link.py');
+preg_match_all('/^import (.+)$/m', $qlpy, $qimp);
+check(str_contains($qps, " = 'https://3ds.test'") && str_contains($qps, " = '".str_repeat('a', 32)."'") && ! str_contains($qps, '__') && str_contains($qps, 'function Scan-Topics') && str_contains($qps, '3dsMqtt.vbs') && ! str_contains($qps, '3dsMatter') && str_contains($qi::ps1('https://x', 'nope'), " = ''")
+    && str_contains($qsh, "SITE='https://3ds.test'") && str_contains($qsh, '3ds-mqtt.service') && str_contains($qsh, 'me.3ds.mqtt') && str_contains($qsh, 'def scan(') && ! str_contains($qsh, '3ds-matter') && ! preg_match('/^PYEOF$/m', $qlpy) && ! preg_match("/^'@/m", $qlps)
+    && array_diff(array_map('trim', explode(',', implode(',', $qimp[1]))), $stdlib) === [] && ! preg_match('/^(from|import) (paho|aiohttp|yaml|requests)\b/m', $qlpy)
+    && str_contains($qlpy, "'X-G7-Via': 'mqtt'") && str_contains($qlps, "'X-G7-Via', 'mqtt'") && str_contains($qlpy, "'hub/%s/mqtt'") && str_contains($qlps, '"hub/$($o.code)/mqtt"') && ! str_contains($qlpy, "o['pass']") && ! str_contains($qlps, '$o.pass'),
+    '1.15.0 📨 MQTT 중계 한 줄 설치 — 윈도우 · 리눅스/맥 · Matter 와 다른 폴더 · 기본 기능만 · 계정은 이 PC 에 안 적음');
+check(str_contains($app, 'function mqCard(xs)') && str_contains($app, 'function mqSetBox()') && str_contains($app, "data-srctab=\"mq\"") && str_contains($app, "api('PUT', '/mqtt', v)") && str_contains($app, "api('POST', '/mqtt/pick'") && str_contains($app, "'/mq/' + (L.code || '')")
+    && str_contains($app, "if (!v.pass) delete v.pass;") && str_contains($app, 'autocomplete="new-password"') && str_contains($app, "key: 'mq', col:") && str_contains($app, "'k-mq'") && str_contains($app, 'mqBind();')
+    && str_contains((string) file_get_contents($root.'/src/routes/api.php'), "Route::post('hub/{code}/mqtt'") && str_contains((string) file_get_contents($root.'/src/Http/Controllers/HaController.php'), "return \$v === 'mqtt' || str_starts_with(\$s, 'mqtt') ? 'mqtt'"),
+    '1.15.0 📨 MQTT 화면 — 받는 곳 탭 · 브로커 설정(비밀번호는 바꿀 때만) · 찾은 센서 받기 · 한 줄 · 연결 지도 · 주소');
 
 echo "\n".($fail === 0 ? "OK ({$pass} checks)" : "{$fail} FAILED / ".($pass + $fail))."\n";
 exit($fail === 0 ? 0 : 1);

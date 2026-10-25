@@ -194,6 +194,7 @@ class HaService
             'now' => self::now(),
             'devices' => $rows->map(fn ($d) => $this->device($d, $hist[(int) $d->id] ?? [], $pn, $equip) + ['perm' => (int) $d->user_id === $uid || in_array((int) $d->company_id, array_column($companies, 'id'), true) ? 'manage' : 'view', 'mine' => (int) $d->user_id === $uid] + ['sensors' => $byDev[(int) $d->id] ?? [], 'group' => self::group((string) ($d->grp ?? ''), (string) $d->target, $d->company_id ? (int) $d->company_id : null, $mcids ?: array_column($companies, 'id')), 'group_auto' => self::group('', (string) $d->target, $d->company_id ? (int) $d->company_id : null, $mcids ?: array_column($companies, 'id'))])->all(),
             'smartthings' => $st,
+            'mqtt' => (new MqttService($this))->view($uid),   // 1.15.0 📨 MQTT 중계 — 브로커 설정(비밀번호 빼고) · 찾은 토픽 · 중계 상태
             'printers' => $printers, 'companies' => $companies, 'member_companies' => $mcos, 'equipment' => array_values($equip), 'locations' => $this->locations($uid),
             'boxes' => Links::boxes($uid),   // 1.6.0 📦 보관함 보드 (재고 관리의 보관함 · 색 · 롤 수)
             'targets' => Rules::TARGETS,
@@ -354,8 +355,8 @@ class HaService
         foreach (Rules::ENTITIES as $k) {
             $ent[$k] = Rules::entity(is_array($in['entities'] ?? null) ? ($in['entities'][$k] ?? '') : ($in['ent_'.$k] ?? ''));
         }
-        $src = $old ? (string) ($old->source ?? 'ha') : (($in['source'] ?? '') === 'matter' ? 'matter' : 'ha');   // 1.10.0 🧩 Matter(3ds 연결) — 새로 만들 때만 고름
-        if ($ent['temp'] === '' && $ent['hum'] === '' && $ent['state'] === '' && ! in_array($src, ['smartthings', 'matter'], true)) {   // 0.2.0 SmartThings · 1.10.0 Matter 기기는 센서 이름이 없음
+        $src = $old ? (string) ($old->source ?? 'ha') : (in_array($in['source'] ?? '', ['matter', 'mqtt'], true) ? (string) $in['source'] : 'ha');   // 1.10.0 🧩 Matter(3ds 연결) · 1.15.0 📨 MQTT 중계 — 새로 만들 때만 고름
+        if ($ent['temp'] === '' && $ent['hum'] === '' && $ent['state'] === '' && ! in_array($src, ['smartthings', 'matter', 'mqtt'], true)) {   // 0.2.0 SmartThings · 1.10.0 Matter 기기는 센서 이름이 없음
             return [false, 'Home Assistant 의 센서 이름을 하나는 적어 주세요 (예: sensor.drybox_humidity).'];
         }
         $lim = static fn ($v, int $min, int $max) => $v === null || $v === '' || ! is_numeric($v) ? null : max($min, min($max, (int) $v));
@@ -381,7 +382,7 @@ class HaService
             $id = (int) DB::table(Schema::DEVICES)->insertGetId($row + ['user_id' => $uid, 'source' => $src, 'token' => Rules::token(), 'created_at' => now()]);
         }
 
-        return [true, $old ? '고쳤어요.' : ($src === 'matter' ? '기기를 만들었어요. 이제 받는 키를 3ds Matter 연결 설정에 넣어 주세요.' : '기기를 만들었어요. 이제 설정 글을 Home Assistant 에 붙여 넣어 주세요.'), ['id' => $id]];
+        return [true, $old ? '고쳤어요.' : ($src === 'mqtt' ? '기기를 만들었어요.' : ($src === 'matter' ? '기기를 만들었어요. 이제 받는 키를 3ds Matter 연결 설정에 넣어 주세요.' : '기기를 만들었어요. 이제 설정 글을 Home Assistant 에 붙여 넣어 주세요.')), ['id' => $id]];
     }
 
     /**

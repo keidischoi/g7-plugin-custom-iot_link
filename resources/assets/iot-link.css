@@ -1,4 +1,4 @@
-/* custom-iot_link 1.14.2 — 📡 IoT 연결 */
+/* custom-iot_link 1.15.0 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -648,3 +648,21 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
 /* 1.14.0 🗺️ 연결 지도 필터 */
 .hal-mapf { margin:0 2px 8px; }
 .hal-map > .hal-mapf { position:sticky; left:0; z-index:1; width:max-content; max-width:calc(100% - 20px); margin:6px 10px 8px; }   /* 1.14.1 지도 상자 안 (옆으로 밀어도 그 자리)  */
+/* 1.15.0 📨 MQTT 중계 */
+.hal-mn.k-mq { border-left:4px solid #7c3aed; }
+.hal-badge.mq { background:#ede9fe; color:#6d28d9; } html.dark .hal-badge.mq, .dark .hal-badge.mq { background:#3b0764; color:#ddd6fe; }
+.hal-badge.mq .hal-stl, .hal-srctabs .hal-mql { width:14px; height:14px; vertical-align:-2px; }
+.hal-stc-logo.mq { display:inline-flex; align-items:center; justify-content:center; color:#7c3aed; } .hal-stc-logo.mq .hal-stl { width:38px; height:38px; filter:none; }
+.hal-stc.mq h2 small { margin-left:6px; font-size:12px; font-weight:600; opacity:.7; }
+.hal-mqb { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--soft); margin:8px 0 4px; }
+.hal-mqb > div { min-width:0; display:flex; flex-direction:column; gap:2px; } .hal-mqb small { color:var(--mute); overflow-wrap:anywhere; } .hal-mqb code { font-size:11.5px; }
+.hal-mqr { margin:4px 2px 8px; } .hal-mqerr { color:#b91c1c; } html.dark .hal-mqerr, .dark .hal-mqerr { color:#fca5a5; }
+.hal-mqh { margin:12px 0 6px; font-size:14px; } .hal-mqh small { font-weight:500; color:var(--mute); margin-left:4px; }
+.hal-mql { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+.hal-mqi { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border:1px solid var(--line); border-radius:10px; }
+.hal-mqi.on { border-color:#7c3aed; box-shadow:inset 3px 0 0 #7c3aed; }
+.hal-mqi > div { min-width:0; display:flex; flex-direction:column; gap:2px; } .hal-mqi small { color:var(--mute); overflow-wrap:anywhere; } .hal-mqi code { font-size:11px; }
+.hal-mqi .hal-btn { flex:none; }
+.hal-mqwin h4 .hal-stl { width:18px; height:18px; vertical-align:-3px; }
+.hal-modal textarea[name=topics] { width:100%; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:13px; }
+
