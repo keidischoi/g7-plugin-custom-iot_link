@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.16.6 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.16.7 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.6';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.7';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -710,6 +710,13 @@
       if (x.target === 'printer') { node(4, 'x:mpr', lbl('🖨️', '프린터 라운지', '출력 상태 · 주변 온습도'), 'k-ext', go2('/my-printer')); edge(tn, 'x:mpr', live); }
       if (x.target === 'equipment' && d.config.inventory) { node(4, 'x:eq', lbl('🏭', '업체 장비', '장비 상태 · 온습도'), 'k-ext', go2('/inventory?tab=equipment')); edge(tn, 'x:eq', live); }
       if (c.state && x.target !== 'location') { node(4, 'x:mnt', lbl('🛠', '정비 수첩', '가동 시간 → 정비 때'), 'k-ext', go2('/maintenance')); edge(tn, 'x:mnt', live); }
+    });
+    // 1.16.7 🏠 HA · 💻 PC 연결 프로그램 · 🔷 SmartThings 도 중계 PC 와 선으로 — 중계 PC 가 하나뿐일 때만 (같은 집으로 봄 · 여럿이면 어느 PC 인지 몰라 잇지 않음)
+    var pcs = Object.keys(N).filter(function (k) { return k.indexOf('pc:') === 0; });
+    if (pcs.length === 1) Object.keys(N).forEach(function (k) {
+      if (!/^src:(ha|st|pc$|simply)/.test(k)) return;
+      var live = E.some(function (e) { return e[0] === k && e[2]; });
+      edge(pcs[0], k, live);
     });
     S.mapE = E;
     var T = [['💻', '중계 PC'], ['📥', '받는 곳'], ['📡', '기기'], ['📌', '붙인 곳'], ['🔗', '이어지는 곳']];
