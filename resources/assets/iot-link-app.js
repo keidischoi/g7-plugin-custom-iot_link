@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.16.9 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.16.10 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.9';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.10';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -675,8 +675,8 @@
       if (p.equipment_id && d.config.inventory) { node(4, 'x:eq', lbl('🏭', '업체 장비', '장비 상태 · 온습도'), 'k-ext', go2('/inventory?tab=equipment')); edge(tn, 'x:eq', !!p.live); }   // 1.7.9 이어진 업체 장비
       // 1.7.4 사이트 ⇄ 💻 PC(라즈베리파이)의 연결 프로그램 ⇄ 프린터 — 프린터 라운지와 같은 이름 · SimplyPrint 는 따로
       if (p.via === 'simply') { node(1, 'src:simply', lbl('🔗', 'SimplyPrint', '클라우드로 프린터 상태를 받음'), 'k-hook'); edge('src:simply', tn, !!p.live); }
-      else if ((p.via === 'script' || (p.seen && !p.via)) && p.host) { var pc = pcNode(p.host), pn = 'src:pl:' + pc; node(1, pn, lbl('🖨️', '프린터 연결', '프린터 ⇄ 사이트 (상태 · 원격 출력)'), 'k-hook sub', '', pcK(p.host).toLowerCase() + ' 1'); edge(pc, pn, !!p.live); edge(pn, tn, !!p.live); }   // 1.16.0 💻 PC → 🖨️ 프린터 연결   // 1.14.0 💻 PC 이름 (내 프린터 0.1.95+) — 같은 PC 의 Matter 중계와 같은 이름 · 아이콘만 다르게
-      else if (p.via === 'script' || (p.seen && !p.via)) { node(1, 'src:pc', lbl('💻', 'PC 연결 프로그램', 'PC · 라즈베리파이에서 프린터 ⇄ 사이트 (상태를 받고 · 원격 출력을 보냄)'), 'k-hook'); edge('src:pc', tn, !!p.live); }
+      else if ((p.via === 'script' || (p.seen && !p.via)) && p.host) { var pc = pcNode(p.host), pn = 'src:pl:' + pc; node(1, pn, lbl('🖨️', 'MprLink', '프린터 라운지 연결 프로그램 — 프린터 ⇄ 사이트 (상태 · 원격 출력)'), 'k-hook sub', '', pcK(p.host).toLowerCase() + ' 1'); edge(pc, pn, !!p.live); edge(pn, tn, !!p.live); }   // 1.16.0 💻 PC → 🖨️ 프린터 연결   // 1.14.0 💻 PC 이름 (내 프린터 0.1.95+) — 같은 PC 의 Matter 중계와 같은 이름 · 아이콘만 다르게
+      else if (p.via === 'script' || (p.seen && !p.via)) { node(1, 'src:pc', lbl('🖨️', 'MprLink', '프린터 라운지 연결 프로그램 — PC 이름을 안 보내는 예전 판 (⚙ 의 한 줄을 다시 실행하면 그 PC 아래로)'), 'k-hook'); edge('src:pc', tn, !!p.live); }
     });
     d.devices.forEach(function (x) {
       if (!mapKeep(x.company_id)) return;   // 1.14.0 🗺️ 필터
