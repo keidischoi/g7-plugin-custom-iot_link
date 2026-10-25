@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.16.0 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.16.1 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.0';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.1';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -719,8 +719,22 @@
       '<div class="hal-map" data-map><svg class="hal-map-svg" aria-hidden="true"></svg>' + mapBar() + '<div class="hal-map-cols' + (vis.length > 4 ? ' five' : '') + '">' + vis.map(function (i) { var c = cols[i]; return '<div class="hal-map-col"><h4><i aria-hidden="true">' + T[i][0] + '</i>' + T[i][1] + ' <small>' + c.length + '</small></h4>' + (c.join('') || '<p class="hal-hint">—</p>') + '</div>'; }).join('') + '</div></div></div>';
   }
   /** 선 그리기 — 마디의 실제 자리를 재서 곡선으로 (창 크기가 바뀌면 다시) */
+  /* 1.16.1 💻 중계 PC 는 이어지는 받는 곳(프린터 연결 · Matter · MQTT) 바로 왼쪽 같은 높이에 — 위에서부터 차례로 내려 놓음 */
+  function mapAlignPc(m) {
+    var col = m.querySelector('.hal-map-cols.five > .hal-map-col:first-child'); if (!col) return;
+    var ns = Array.prototype.slice.call(col.querySelectorAll('.hal-mn'));
+    ns.forEach(function (n) { n.style.marginTop = ''; });
+    ns.forEach(function (n) {
+      var id = n.getAttribute('data-n'), ys = [];
+      (S.mapE || []).forEach(function (e) { if (e[0] !== id) return; var t = m.querySelector('[data-n="' + (window.CSS && CSS.escape ? CSS.escape(e[1]) : e[1]) + '"]'); if (t) { var r = t.getBoundingClientRect(); ys.push(r.top + r.height / 2); } });
+      if (!ys.length) return;
+      var want = ys.reduce(function (a, b) { return a + b; }, 0) / ys.length, r = n.getBoundingClientRect(), d = want - (r.top + r.height / 2);
+      if (d > 0) n.style.marginTop = d + 'px';
+    });
+  }
   function mapLines() {
     var m = q('[data-map]'); if (!m) return;
+    mapAlignPc(m);
     var svg = m.querySelector('svg'), r0 = m.getBoundingClientRect(), pos = {};
     m.querySelectorAll('[data-n]').forEach(function (el) { var r = el.getBoundingClientRect(); pos[el.getAttribute('data-n')] = { l: r.left - r0.left + m.scrollLeft, r: r.right - r0.left + m.scrollLeft, y: r.top - r0.top + m.scrollTop + r.height / 2 }; });   // 좁은 화면은 옆으로 밀림 — 민 만큼 더함
     svg.setAttribute('width', m.scrollWidth); svg.setAttribute('height', m.scrollHeight);
