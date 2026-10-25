@@ -20,6 +20,9 @@ Route::get('assets/{file}', [AssetController::class, 'show'])
 // Home Assistant → 사이트 (로그인 없음, 주소의 비밀 키). 주소 하나가 보내는 곳(IP)마다 1분에 30번까지
 Route::post('in/{token}', [HaController::class, 'ingest'])->where('token', '[a-f0-9]{32}')->middleware('throttle:30,1')->name('in');
 
+// 1.17.0 📶 중계(MQTT · BT · Matter)가 여러 센서 값을 한 번에 — 연결 코드로 (받는 키는 그 회원 기기만) · 보내는 곳(IP)마다 1분에 60번
+Route::post('hub/{code}/in', [HaController::class, 'ingestBatch'])->where('code', '[a-f0-9]{32}')->middleware('throttle:60,1')->name('hub.in');
+
 // 카메라 사진 (본문 = JPEG) — 1분에 6번까지, 서비스가 정한 간격보다 잦으면 버림
 Route::post('in/{token}/snap', [HaController::class, 'snap'])->where('token', '[a-f0-9]{32}')->middleware('throttle:6,1')->name('in.snap');
 

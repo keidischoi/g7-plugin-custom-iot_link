@@ -229,6 +229,7 @@ class HaController extends Controller
         if (! is_array($body) || $body === []) {
             $body = $request->except(['token']);
         }
+        \Plugins\Custom\IotLink\Support\Load::hit('in');   // 1.17.0 서버 상태 페이지
         $res = $this->svc->ingest($token, is_array($body) ? array_slice($body, 0, 12, true) : [], $this->via($request));
         if ($res[0]) {
             $this->svc->tagServer(null, $token, $this->server($request));   // 1.8.0 예전에 만든 기기도 값을 보내면 서버가 적힘
@@ -236,5 +237,50 @@ class HaController extends Controller
 
         // 0.1.5 next_min · snap — 통합이 이 값을 보고 다음 주기를 맞춤 (회원이 사이트를 안 보는 동안에는 느리게)
         return response()->json(['ok' => $res[0], 'message' => $res[1]] + ($res[2] ?? []), $res[0] ? 200 : 404);
+    }
+
+    /**
+     * 1.17.0 📶 POST hub/{code}/in {items: [{t: 받는 키, v: {temperature, humidity, …}}]} — 중계(MQTT · BT · Matter)가 때가 된 센서를 한 번에 (200개까지)
+     *  받는 키는 그 연결 코드 회원의 기기만 · 키마다 in/{키} 와 같은 처리 → 답 {ok, items: {키: {ok, message, next_min, gap_sec, …}}}
+     */
+    public function ingestBatch(Request $request, string $code): JsonResponse
+    {
+        $uid = $this->svc->linkUser($code);
+        if (! $uid) {
+            return new JsonResponse(['ok' => false, 'message' => '연결 코드가 맞지 않아요.'], 404);
+        }
+        $items = $request->json('items');
+        if (! is_array($items) || $items === [] || count($items) > 200) {
+            return new JsonResponse(['ok' => false, 'message' => '묶음이 비었거나 너무 커요 (200개까지).'], 422);
+        }
+        $toks = array_values(array_unique(array_filter(array_map(static fn ($it) => is_array($it) ? (string) ($it['t'] ?? '') : '', $items), static fn ($t) => (bool) preg_match('/^[a-f0-9]{32}$/', $t))));
+        $own = $this->svc->ownTokens($uid, $toks);
+        $via = $this->via($request);
+        $out = $okT = [];
+        foreach ($items as $it) {
+            $t = is_array($it) ? (string) ($it['t'] ?? '') : '';
+            if (! preg_match('/^[a-f0-9]{32}$/', $t) || isset($out[$t])) {
+                continue;
+            }
+            if (! isset($own[$t])) {
+                $out[$t] = ['ok' => false, 'message' => 'unknown'];   // 지운 기기 · 남의 기기 — 중계가 목록에서 뺌
+                continue;
+            }
+            $v = is_array($it['v'] ?? null) ? array_slice($it['v'], 0, 12, true) : [];
+            try {
+                $res = $this->svc->ingest($t, $v, $via);
+            } catch (\Throwable) {
+                $res = [false, 'error'];
+            }
+            $out[$t] = ['ok' => $res[0], 'message' => $res[1]] + ($res[2] ?? []);
+            if ($res[0]) {
+                $okT[] = $t;
+            }
+        }
+        $this->svc->tagServers($okT, $this->server($request), $uid);
+        \Plugins\Custom\IotLink\Support\Load::hit('batch');
+        \Plugins\Custom\IotLink\Support\Load::hit('in', count($out));
+
+        return new JsonResponse(['ok' => true, 'items' => (object) $out], 200, ['Cache-Control' => 'no-store']);
     }
 }

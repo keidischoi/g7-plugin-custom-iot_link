@@ -11,7 +11,7 @@ try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::S
 $script:Dir = if ($PSScriptRoot) { $PSScriptRoot } else { Join-Path $env:LOCALAPPDATA '3dsMqtt' }
 $script:Cfg = Join-Path $script:Dir 'config.json'
 $script:Inv = [Globalization.CultureInfo]::InvariantCulture
-$script:Ver = '1.16.0'
+$script:Ver = '1.17.0'
 $script:MaxSeen = 150; $script:MaxBody = 16384; $script:SyncSec = 30
 $script:NoCheck = [Net.Security.RemoteCertificateValidationCallback] { $true }   # 집 안 브로커는 보통 스스로 만든 인증서
 
@@ -203,18 +203,53 @@ function Pusher-Apply($p, $a) {
   $v = Get-K $a 'gap_sec'; if ($null -ne $v) { $p.gap = [Math]::Max(10, [int]$v) }
   $v = Get-K $a 'next_min'; if ($v -and [int]$v -ge 1 -and [int]$v -ne $p.interval) { $p.interval = [int]$v; $p.next = [Math]::Min($p.next, (Mono) + $p.interval * 60) }
 }
-# 돌려줌: 'ok' · 'unknown'(사이트가 키를 모름 — 지운 기기) · 'fail'
-function Pusher-Push($o, $p) {
+function Pusher-Due($p) { return $p.values.Count -and (($null -ne $p.pending -and (Mono) -ge $p.pending) -or (Mono) -ge $p.next) }
+# 1.17.0 곧 보낼 차례 (주기의 절반 안 · 2분 안) — 다른 센서를 보낼 때 같이 실어 한 번에
+function Pusher-Soon($p) { return $p.values.Count -and ($p.next - (Mono)) -le [Math]::Min($p.interval * 30, 120) }
+function Pusher-Take($p) {
   $p.pending = $null; $p.last = Mono; $p.next = $p.last + $p.interval * 60
-  foreach ($k in @($p.values.Keys)) { $p.sent[$k] = $p.values[$k] }
-  try {
-    $r = Site-Req $o 'POST' "in/$($p.token)" $p.values
-    if ($r.status -eq 404 -and (Get-K $r.json 'message') -eq 'unknown') { return 'unknown' }
-    if ($r.status -ge 400) { Log "$($p.key): 사이트가 값을 받지 않았어요 ($($r.status))"; return 'fail' }
-    Pusher-Apply $p $r.json
-    Log "$($p.key): 보냄 온도 $(Get-K $p.values 'temperature') · 습도 $(Get-K $p.values 'humidity')"
-    return 'ok'
-  } catch { Log "$($p.key): 보내지 못했어요 — $($_.Exception.Message)"; return 'fail' }
+  $b = @{}; foreach ($k in @($p.values.Keys)) { $p.sent[$k] = $p.values[$k]; $b[$k] = $p.values[$k] }
+  return $b
+}
+# 돌려줌: 'ok' · 'unknown'(사이트가 키를 모름 — 지운 기기) · 'fail'
+function Pusher-Took($p, [int]$status, $j) {
+  if ($status -eq 404 -and (Get-K $j 'message') -eq 'unknown') { return 'unknown' }
+  if ($status -ge 400) { Log "$($p.key): 사이트가 값을 받지 않았어요 ($status)"; return 'fail' }
+  Pusher-Apply $p $j
+  Log "$($p.key): 보냄 온도 $(Get-K $p.values 'temperature') · 습도 $(Get-K $p.values 'humidity')"
+  return 'ok'
+}
+function Pusher-Push($o, $p) {
+  $b = Pusher-Take $p
+  try { $r = Site-Req $o 'POST' "in/$($p.token)" $b; return (Pusher-Took $p $r.status $r.json) }
+  catch { Log "$($p.key): 보내지 못했어요 — $($_.Exception.Message)"; return 'fail' }
+}
+# 1.17.0 📶 때가 된 센서(+ 곧 차례인 것)를 한 번에 — POST hub/{code}/in · 사이트가 모르면(옛 사이트 404) 예전처럼 하나씩 · 돌려줌 @{ 키 = 'ok' | 'unknown' | 'fail' }
+$script:BatchOff = $false
+function Push-All($o, $pushers) {
+  $out = @{}
+  $due = @(@($pushers.Values) | Where-Object { Pusher-Due $_ })
+  if (-not $due.Count) { return $out }
+  if ($script:BatchOff -or $pushers.Count -eq 1) { foreach ($p in $due) { $out[$p.key] = Pusher-Push $o $p }; return $out }
+  $go = @($due + @(@($pushers.Values) | Where-Object { $due -notcontains $_ -and (Pusher-Soon $_) }) | Select-Object -First 200)
+  $rows = New-Object Collections.ArrayList
+  foreach ($p in $go) { [void]$rows.Add(@{ t = $p.token; v = (Pusher-Take $p) }) }
+  try { $r = Site-Req $o 'POST' "hub/$($o.code)/in" @{ items = $rows } }
+  catch { Log "센서 $($go.Count)개를 보내지 못했어요 — $($_.Exception.Message)"; foreach ($p in $go) { $out[$p.key] = 'fail' }; return $out }
+  if (($r.status -eq 404 -or $r.status -eq 405) -and (Get-K $r.json 'ok') -ne $false) {
+    $script:BatchOff = $true   # 묶음을 모르는 옛 사이트 — 이제부터 하나씩
+    foreach ($p in $go) { $out[$p.key] = Pusher-Push $o $p }; return $out
+  }
+  $items = Get-K $r.json 'items'
+  if ($r.status -ge 400 -or $items -isnot [Collections.IDictionary]) { Log "사이트가 값을 받지 않았어요 ($($r.status))"; foreach ($p in $go) { $out[$p.key] = 'fail' }; return $out }
+  $n = 0
+  foreach ($p in $go) {
+    $a = Get-K $items $p.token
+    $out[$p.key] = if ((Get-K $a 'ok') -eq $true) { Pusher-Took $p 200 $a } else { Pusher-Took $p 404 $(if ($a) { $a } else { @{ message = 'fail' } }) }
+    if ($out[$p.key] -eq 'ok') { $n++ }
+  }
+  Log "센서 $($n)개를 한 번에 보냄"
+  return $out
 }
 
 # ── 1.16.0 📶 블루투스 온습도계 — 이 PC 의 블루투스로 주변 센서가 흘려보내는 값(광고)을 바로 들음 (짝짓기 · 앱 없이)
@@ -449,12 +484,8 @@ function Run-Once($o) {
         if ([string](Get-K $j 'rev') -ne $rev) { Log '사이트에서 브로커 설정이 바뀌었어요 — 다시 붙어요'; return }
         & $remap $j
       }
-      foreach ($k in @($pushers.Keys)) {
-        $pu = $pushers[$k]
-        if ($pu.values.Count -and (($null -ne $pu.pending -and (Mono) -ge $pu.pending) -or (Mono) -ge $pu.next)) {
-          if ((Pusher-Push $o $pu) -eq 'unknown') { $pushers.Remove($k) }
-        }
-      }
+      $res = Push-All $o $pushers   # 1.17.0 📶 한 바퀴에 때가 된 것을 모아 한 번에
+      foreach ($k in @($res.Keys)) { if ($res[$k] -eq 'unknown') { $pushers.Remove($k) } }
     }
   } finally { if ($m) { Mq-Close $m } }
 }

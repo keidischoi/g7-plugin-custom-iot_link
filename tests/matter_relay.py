@@ -66,7 +66,17 @@ async def main(kind: str) -> None:
     async def hub_post(request: web.Request) -> web.Response:
         body = await request.json()
         hub.append({"code": request.match_info["code"], "body": body, "via": request.headers.get("X-G7-Via"), "srv": request.headers.get("X-G7-Server", "")})
-        return web.json_response({"ok": True, "message": "ok", "device": {"id": 77, "name": body["name"], "token": tokens["4"]}})
+        return web.json_response({"ok": True, "message": "ok", "device": {"id": 79 if body["name"] == "서재 온습도" else 77, "name": body["name"], "token": tokens["6"] if body["name"] == "서재 온습도" else tokens["4"]}})
+
+    batches: list = []
+    bon = {"on": False}
+
+    async def hub_in(request: web.Request) -> web.Response:   # 1.17.0 📶 묶음 — 꺼져 있으면 옛 사이트(404 글)
+        if not bon["on"]:
+            return web.Response(status=404, text="404: Not Found")
+        b = await request.json()
+        batches.append((request.match_info["code"], b, dict(request.headers)))
+        return web.json_response({"ok": True, "items": {it["t"]: ({"ok": True, "message": "ok", "mode": "change", "change_hum": 2, "change_temp": 0.5, "gap_sec": 10, "next_min": 15} if it["t"] in tokens.values() else {"ok": False, "message": "unknown"}) for it in b["items"]}})
 
     async def ingest(request: web.Request) -> web.Response:
         t = request.match_info["t"]
@@ -80,6 +90,7 @@ async def main(kind: str) -> None:
     app.router.add_post("/api/plugins/custom-iot_link/hub/{code}/devices", hub_post)
     app.router.add_delete("/api/plugins/custom-iot_link/hub/{code}/devices/{id}", hub_delete)
     app.router.add_post("/api/plugins/custom-iot_link/in/{t}", ingest)
+    app.router.add_post("/api/plugins/custom-iot_link/hub/{code}/in", hub_in)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "127.0.0.1", 0)
@@ -150,6 +161,28 @@ async def main(kind: str) -> None:
         check("Matter 서버가 끊으면 다시 붙음", len(socks) > nws)
     finally:
         proc.kill()
+
+    # 1.17.0 📶 센서가 둘이면 때가 된 것(+ 곧 차례인 것)을 hub/{code}/in 한 번에
+    NODES.append({"node_id": 6, "available": True, "attributes": {"0/40/5": "서재 온습도", "1/1026/0": 2100, "2/1029/0": 5500}})
+    tokens.update({"4": "a" * 32, "6": "e" * 32})
+    bon["on"] = True
+    cfg = json.loads((d / "config.json").read_text(encoding="utf-8-sig"))
+    cfg["devices"], cfg["skip"] = {}, []
+    (d / "config.json").write_text(json.dumps(cfg), encoding="utf-8")
+    n_got = len(got)
+    proc = subprocess.Popen(ps, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+    try:
+        for _ in range(60):
+            await asyncio.sleep(0.5)
+            if batches:
+                break
+        it = {x["t"]: x["v"] for x in (batches[0][1]["items"] if batches else [])}
+        check("📶 센서 둘을 한 요청으로 (hub/{code}/in · 연결 코드 · X-G7-Via: matter)", it == {"a" * 32: {"temperature": 23.4, "humidity": 45.1}, "e" * 32: {"temperature": 21.0, "humidity": 55.0}} and batches[0][0] == CODE and batches[0][2].get("X-G7-Via") == "matter" and len(got) == n_got)
+        if not it:
+            print("   batches:", batches[:2])
+    finally:
+        proc.kill()
+    NODES.pop()
 
     # 1.13.0 센서 빼기 — Matter 서버 remove_node · 사이트 기기도 (묻지 않게 y) · config 에서 짝 지움
     cfg = json.loads((d / "config.json").read_text(encoding="utf-8-sig"))
