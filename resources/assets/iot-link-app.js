@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.16.3 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.16.4 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.3';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.4';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -92,7 +92,7 @@
     var stt = d.never ? '<span class="hal-dot wait"></span>값을 기다리는 중' : d.stale ? '<span class="hal-dot off" title="' + (mq ? '3ds MQTT 중계가 값을 안 보내요 — 그 PC 와 MQTT 브로커가 켜져 있는지 · 센서가 값을 올리는지 봐 주세요 (다시 보내면 저절로 풀려요)' : mt ? '3ds Matter 연결이 값을 안 보내요 — 그 PC · 라즈베리파이와 Matter 서버가 켜져 있는지 봐 주세요 (다시 보내면 저절로 풀려요)' : st || (d.sensors && d.sensors.length) ? 'SmartThings 가 값을 안 보냈어요 — 사이트가 15분마다 저절로 지금 값을 물어 다시 이어요 (바로 하려면 「🔄 다시 잇기」 · 기기가 꺼져 있으면 켜진 뒤 저절로)' : 'Home Assistant 가 값을 안 보내요 — HA 가 켜져 있고 인터넷에 이어져 있는지 봐 주세요 (다시 보내면 저절로 풀려요)') + '"></span>끊김 · ' + agoText(d.seen) : '<span class="hal-dot on"></span>' + agoText(d.seen);
     var rv = recvOf(d);   // 1.8.1 🎨
     return '<article class="hal-card' + (rv ? ' srv' : '') + (d.over ? ' over' : '') + (d.stale && !d.never ? ' stale' : '') + (S.sel && S.sel[d.id] ? ' picked' : '') + '"' + (rv ? ' style="--srv:' + rv.col + '"' : '') + '>' + recvTag(d) +
-      '<header>' + (S.sel ? '<label class="hal-pick" title="고르기"><input type="checkbox" data-sel="' + d.id + '"' + (S.sel[d.id] ? ' checked' : '') + ' aria-label="' + esc(d.name) + ' 고르기"></label>' : '') + '<span class="hal-ico">' + ICON[d.target] + '</span><div><b>' + esc(d.name) + '</b><small>' + (mq ? '<span class="hal-badge mq">' + mqLogo() + ' MQTT</span>' : mt ? '<span class="hal-badge mt">' + mtLogo() + ' Matter</span>' : st || (d.sensors && d.sensors.length) ? '<span class="hal-badge">' + stLogo() + ' SmartThings</span>' : '<span class="hal-badge ha">' + haLogo() + ' Home Assistant</span>') + '</small></div><button class="hal-icobtn" data-edit="' + d.id + '" title="고치기" aria-label="고치기">✏️</button></header>' + toRow(d) +
+      '<header>' + (S.sel ? '<label class="hal-pick" title="고르기"><input type="checkbox" data-sel="' + d.id + '"' + (S.sel[d.id] ? ' checked' : '') + ' aria-label="' + esc(d.name) + ' 고르기"></label>' : '') + '<span class="hal-ico">' + ICON[d.target] + '</span><div><b>' + esc(d.name) + '</b><small>' + (mq ? '<span class="hal-badge mq">' + mqLogo() + ' MQTT · BT</span>' : mt ? '<span class="hal-badge mt">' + mtLogo() + ' Matter</span>' : st || (d.sensors && d.sensors.length) ? '<span class="hal-badge">' + stLogo() + ' SmartThings</span>' : '<span class="hal-badge ha">' + haLogo() + ' Home Assistant</span>') + '</small></div><button class="hal-icobtn" data-edit="' + d.id + '" title="고치기" aria-label="고치기">✏️</button></header>' + toRow(d) +
       '<div class="hal-vals">' +
         (hasHum ? '<div class="' + (d.humidity_max != null && d.humidity != null && d.humidity > d.humidity_max ? 'hot' : '') + '"><i>💧</i><b>' + (d.humidity == null ? '–' : d.humidity) + '</b><u>%</u>' + (d.humidity_max != null ? '<small>기준 ' + d.humidity_max + '%</small>' : '') + '</div>' : '') +
         (hasTemp ? '<div class="' + (d.temp_max != null && d.temp != null && d.temp > d.temp_max ? 'hot' : '') + '"><i>🌡️</i><b>' + (d.temp == null ? '–' : d.temp) + '</b><u>°C</u>' + (d.temp_max != null ? '<small>기준 ' + d.temp_max + '°C</small>' : '') + '</div>' : '') +
@@ -279,7 +279,7 @@
     var out = haServers().map(function (v, i) { var nm = String(v.name || '').replace(/\s*(home\s*assistant|ha)\s*$/i, '').trim(); return { key: 'ha:' + v.id, col: SRV_COL[i % SRV_COL.length], short: v.id ? (nm ? nm.slice(0, 5) + (v.label !== v.name ? v.label.slice(v.name.length) : '') : 'HA' + (i + 1)) : '이름 없음', label: v.label }; });
     if (S.d.devices.some(function (x) { return srcOf(x) === 'st'; })) out.unshift({ key: 'st', col: '#1d4ed8', short: 'ST', label: 'SmartThings' });
     if (S.d.devices.some(function (x) { return srcOf(x) === 'mt'; })) out.push({ key: 'mt', col: '#0f766e', short: 'Matter', label: 'Matter (3ds 연결)' });   // 1.10.0 🧩
-    if (S.d.devices.some(function (x) { return srcOf(x) === 'mq'; })) out.push({ key: 'mq', col: '#7c3aed', short: 'MQTT', label: 'MQTT (3ds 중계)' });   // 1.15.0 📨
+    if (S.d.devices.some(function (x) { return srcOf(x) === 'mq'; })) out.push({ key: 'mq', col: '#7c3aed', short: 'MQTT·BT', label: 'MQTT · BT (3ds 중계)' });   // 1.15.0 📨
     return out;
   }
   function recvKey(x) { var s = srcOf(x); return s === 'ha' ? 'ha:' + (x.ha_server || '') : s; }
@@ -302,7 +302,7 @@
   function tools() {
     var d = S.d, gf = pref('gf', 'all'), vw = pref('view', 'card'), cnt = {}, sp = srcPick(), sc = { ha: 0, st: 0, mt: 0, mq: 0 };
     d.devices.forEach(function (x) { sc[srcOf(x)]++; });
-    var srcRow = (!!sc.ha + !!sc.st + !!sc.mt + !!sc.mq) > 1 || sp !== 'all' ? '<div class="hal-gf hal-src" role="tablist" aria-label="출처">' + [['all', '📡', '모든 출처', d.devices.length], ['ha', haLogo(), 'Home Assistant', sc.ha], ['st', stLogo(), 'SmartThings', sc.st], ['mt', mtLogo(), 'Matter', sc.mt], ['mq', mqLogo(), 'MQTT', sc.mq]].filter(function (c) { return (c[0] !== 'mt' && c[0] !== 'mq') || c[3] || sp === c[0]; }).map(function (c) { return '<button type="button" role="tab" data-src="' + c[0] + '" class="' + (sp === c[0] ? 'on' : '') + '" aria-selected="' + (sp === c[0]) + '"><i aria-hidden="true">' + c[1] + '</i>' + c[2] + '<em>' + c[3] + '</em></button>'; }).join('') + '</div>' : '';
+    var srcRow = (!!sc.ha + !!sc.st + !!sc.mt + !!sc.mq) > 1 || sp !== 'all' ? '<div class="hal-gf hal-src" role="tablist" aria-label="출처">' + [['all', '📡', '모든 출처', d.devices.length], ['ha', haLogo(), 'Home Assistant', sc.ha], ['st', stLogo(), 'SmartThings', sc.st], ['mt', mtLogo(), 'Matter', sc.mt], ['mq', mqLogo(), 'MQTT · BT', sc.mq]].filter(function (c) { return (c[0] !== 'mt' && c[0] !== 'mq') || c[3] || sp === c[0]; }).map(function (c) { return '<button type="button" role="tab" data-src="' + c[0] + '" class="' + (sp === c[0] ? 'on' : '') + '" aria-selected="' + (sp === c[0]) + '"><i aria-hidden="true">' + c[1] + '</i>' + c[2] + '<em>' + c[3] + '</em></button>'; }).join('') + '</div>' : '';
     shown().forEach(function (x) { cnt[x.group || 'none'] = (cnt[x.group || 'none'] || 0) + 1; });
     var chips = [['all', '📡', '전체', shown().length]].concat(groups().filter(function (g) { return cnt[g[0]]; }).map(function (g) { return [g[0], g[1], g[2], cnt[g[0]]]; }));
     var svs = haServers(), sv = srvPick();   // 1.8.0 🏠 HA 서버가 둘 이상이면 서버마다
@@ -453,7 +453,7 @@
       var g = {}, keys = [];
       xs.forEach(function (x) { var k = recvKey(x); if (!g[k]) { g[k] = []; keys.push(k); } g[k].push(x); });
       if (keys.length < 2) return xs.map(chip).join('');
-      return keys.map(function (k) { return '<div class="hal-freegrp" style="--srv:' + ((recvs().filter(function (v) { return v.key === k; })[0] || {}).col || 'transparent') + '"><small class="hal-freegrp-t">' + recvDot(k) + (k === 'st' ? stLogo() + ' SmartThings' : k === 'mt' ? mtLogo() + ' Matter' : k === 'mq' ? mqLogo() + ' MQTT' : '🏠 ' + esc(srvLabel(g[k][0]))) + ' · ' + g[k].length + '</small>' + g[k].map(chip).join('') + '</div>'; }).join('');
+      return keys.map(function (k) { return '<div class="hal-freegrp" style="--srv:' + ((recvs().filter(function (v) { return v.key === k; })[0] || {}).col || 'transparent') + '"><small class="hal-freegrp-t">' + recvDot(k) + (k === 'st' ? stLogo() + ' SmartThings' : k === 'mt' ? mtLogo() + ' Matter' : k === 'mq' ? mqLogo() + ' MQTT · BT' : '🏠 ' + esc(srvLabel(g[k][0]))) + ' · ' + g[k].length + '</small>' + g[k].map(chip).join('') + '</div>'; }).join('');
     };   // 1.7.18 대기 칸은 탭과 상관없이 모두 (어느 쪽으로든 끌어 붙이게)
     var at = function (fn) { return d.devices.filter(function (x) { return placed(x) && fn(x); }); };
     var cidOf = function (v) { return +(v || 0); };
@@ -686,7 +686,7 @@
       var s = srcOf(x) === 'st' ? stOf[x.id] : null, sn;
       if (srcOf(x) === 'ha') { sn = 'src:ha'; node(1, sn, haLogo() + '<span><b>Home Assistant</b><small>값을 보내는 집</small></span>', 'k-ha'); }
       else if (srcOf(x) === 'mt') { var mpc = pcNode(x.ha_server_name); sn = 'src:mt:' + (mpc || x.ha_server || ''); node(1, sn, mtLogo() + '<span><b>Matter</b><small>Matter 중계 — Matter 서버의 센서 → 사이트</small></span>', 'k-mt' + (mpc ? ' sub' : ''), '', pcK(x.ha_server_name).toLowerCase() + ' 2'); if (mpc) edge(mpc, sn, live); }   // 1.16.0 💻 PC → 🧩 Matter
-      else if (srcOf(x) === 'mq') { var qpc = pcNode(x.ha_server_name); sn = 'src:mq:' + (qpc || x.ha_server || ''); node(1, sn, mqLogo() + '<span><b>MQTT · 📶</b><small>MQTT 중계 — 브로커의 토픽 · 블루투스 온습도계 → 사이트</small></span>', 'k-mq' + (qpc ? ' sub' : ''), '', pcK(x.ha_server_name).toLowerCase() + ' 3'); if (qpc) edge(qpc, sn, live); }   // 1.16.0 💻 PC → 📨 MQTT · 📶
+      else if (srcOf(x) === 'mq') { var qpc = pcNode(x.ha_server_name); sn = 'src:mq:' + (qpc || x.ha_server || ''); node(1, sn, mqLogo() + '<span><b>MQTT · BT</b><small>MQTT 중계 — 브로커의 토픽 · 블루투스 온습도계 → 사이트</small></span>', 'k-mq' + (qpc ? ' sub' : ''), '', pcK(x.ha_server_name).toLowerCase() + ' 3'); if (qpc) edge(qpc, sn, live); }   // 1.16.0 💻 PC → 📨 MQTT · 📶
       else if (s) { sn = 'src:st' + s.id; node(1, sn, stLogo() + '<span><b>' + esc(s.location || 'SmartThings') + '</b><small>SmartThings' + (s.status === 'active' ? '' : ' · ⚠️ ' + esc(s.status)) + '</small></span>', 'k-st'); }
       else { sn = 'src:st'; node(1, sn, stLogo() + '<span><b>SmartThings</b><small>클라우드 센서</small></span>', 'k-st'); }
       // ② 기기
@@ -838,7 +838,7 @@
     var bar = '<div class="hal-srctabs" role="tablist" aria-label="받는 곳">' + (st ? '<button type="button" role="tab" data-srctab="st" class="' + (tab === 'st' ? 'on' : '') + '" aria-selected="' + (tab === 'st') + '">' + stLogo() + ' ' + (many ? recvDot('st') : '') + 'SmartThings <small>' + (ins.length ? '🟢 ' + stOn + ' / ' + ins.length : '–') + '</small></button>' : '') +
       (many ? svs.map(function (v) { return haTab('ha:' + v.id, v.label, ha.filter(function (x) { return (x.ha_server || '') === v.id; })); }).join('') : haTab('ha', 'Home Assistant', ha)) +
       '<button type="button" role="tab" data-srctab="mt" class="' + (tab === 'mt' ? 'on' : '') + '" aria-selected="' + (tab === 'mt') + '">' + mtLogo() + ' ' + recvDot('mt') + 'Matter <small>' + (mts.length ? '🟢 ' + mts.filter(function (x) { return !x.stale && !x.never; }).length + ' / ' + mts.length : '–') + '</small></button>' +
-      '<button type="button" role="tab" data-srctab="mq" class="' + (tab === 'mq' ? 'on' : '') + '" aria-selected="' + (tab === 'mq') + '">' + mqLogo() + ' ' + recvDot('mq') + 'MQTT <small>' + (mqs.length ? '🟢 ' + mqs.filter(function (x) { return !x.stale && !x.never; }).length + ' / ' + mqs.length : '–') + '</small></button></div>';
+      '<button type="button" role="tab" data-srctab="mq" class="' + (tab === 'mq' ? 'on' : '') + '" aria-selected="' + (tab === 'mq') + '">' + mqLogo() + ' ' + recvDot('mq') + 'MQTT · BT <small>' + (mqs.length ? '🟢 ' + mqs.filter(function (x) { return !x.stale && !x.never; }).length + ' / ' + mqs.length : '–') + '</small></button></div>';
     var cur = many && tab.indexOf('ha:') === 0 ? svs.filter(function (v) { return 'ha:' + v.id === tab; })[0] : null;
     return '<div class="hal-srcbox">' + bar + (tab === 'st' ? stCard() : tab === 'mt' ? mtCard(mts) : tab === 'mq' ? mqCard(mqs) : haCard(cur ? ha.filter(function (x) { return (x.ha_server || '') === cur.id; }) : ha, cur)) + '</div>';
   }
@@ -904,7 +904,7 @@
     var seen = M.seen || [];
     var list = seen.length ? '<h4 class="hal-mqh">🔎 찾은 센서 <small>' + seen.length + '개 · 누르면 받기 (📡 대기 칸) · ✅ 받는 중</small></h4><div class="hal-mqcs">' + seen.map(chip).join('') + '</div>'
       : '<p class="hal-hint">' + (R && live ? '🔎 중계가 브로커에서 온습도 토픽을 찾는 중이에요 — 센서가 값을 올리면 여기에 보여요 (토픽 칸이 맞는지도 봐 주세요).' : '아직 찾은 센서가 없어요 — 브로커 설정을 저장하고, 늘 켜 두는 PC 에 아래 한 줄로 중계를 설치하면 브로커의 온습도 토픽이 여기에 보여요.') + '</p>';
-    return '<section class="hal-stc mq"><header class="hal-stc-h"><span class="hal-stc-logo mq" aria-hidden="true">' + mqLogo() + '</span><div><h2>MQTT <small>3ds 중계 · 📶 블루투스</small></h2><p>Zigbee2MQTT · Tasmota · Shelly · ESPHome 처럼 집 안 MQTT 브로커에 올라오는 온습도 값을, 「3ds MQTT 중계」가 사이트로 보내요. 윈도우 중계 PC 는 주변 블루투스 온습도계(샤오미 · Govee · SwitchBot · BTHome)도 바로 들어요 (🧪 베타) (Home Assistant 없이 · 사이트가 집에 접속하지 않아요).</p></div>' + pill + '</header>' +
+    return '<section class="hal-stc mq"><header class="hal-stc-h"><span class="hal-stc-logo mq" aria-hidden="true">' + mqLogo() + '</span><div><h2>MQTT · BT <small>3ds 중계 · MQTT 브로커 · 📶 블루투스</small></h2><p>Zigbee2MQTT · Tasmota · Shelly · ESPHome 처럼 집 안 MQTT 브로커에 올라오는 온습도 값을, 「3ds MQTT 중계」가 사이트로 보내요. 윈도우 중계 PC 는 주변 블루투스 온습도계(샤오미 · Govee · SwitchBot · BTHome)도 바로 들어요 (🧪 베타) (Home Assistant 없이 · 사이트가 집에 접속하지 않아요).</p></div>' + pill + '</header>' +
       brk + list + (R ? '<details class="hal-mtmore"><summary>💻 다른 기기에 설치 (윈도우 · 리눅스 · 맥)</summary>' + mqWin() + '</details>' : mqWin()) +
       '<div class="hal-row hal-stc-more"><button type="button" class="hal-btn sm" data-guide-mq>❓ 연결 방법</button></div></section>';
   }
@@ -1222,7 +1222,7 @@
   function guideBox(tab) {
     var T = S.d.smartthings || {}, hasSt = !!(T.oauth || (T.installs || []).some(function (x) { return x.mode === 'oauth'; }));
     tab = tab === 'mt' || tab === 'mq' ? tab : (tab || srcTab()) === 'st' && hasSt ? 'st' : 'ha';   // 1.10.0 🧩 · 1.16.0 📨
-    var seg = '<div class="hal-seg" role="tablist"><button type="button" role="tab" data-gt="ha">' + haLogo() + ' Home Assistant</button>' + (hasSt ? '<button type="button" role="tab" data-gt="st">' + stLogo() + ' SmartThings</button>' : '') + '<button type="button" role="tab" data-gt="mt">' + mtLogo() + ' Matter</button><button type="button" role="tab" data-gt="mq">' + mqLogo() + ' MQTT · 📶</button></div>';
+    var seg = '<div class="hal-seg" role="tablist"><button type="button" role="tab" data-gt="ha">' + haLogo() + ' Home Assistant</button>' + (hasSt ? '<button type="button" role="tab" data-gt="st">' + stLogo() + ' SmartThings</button>' : '') + '<button type="button" role="tab" data-gt="mt">' + mtLogo() + ' Matter</button><button type="button" role="tab" data-gt="mq">' + mqLogo() + ' MQTT · BT</button></div>';
     var ov = modal('❓ 연결 방법', seg + '<div data-gp="ha">' + guideHa() + '</div>' + (hasSt ? '<div data-gp="st">' + guideSt() + '</div>' : '') + '<div data-gp="mt">' + guideMt() + '</div><div data-gp="mq">' + guideMq() + '</div>', { left: '<button type="button" class="hal-btn pri" data-start></button>' });
     ov.classList.add('wide');
     mtWinBind(ov); mtGuideBind(ov); mqWinBind(ov);   // 1.11.0 🪟 · 1.11.1 그림 단추 · 1.16.0 📨
