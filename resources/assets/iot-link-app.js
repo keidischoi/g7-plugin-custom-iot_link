@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.15.0 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.15.1 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.15.0';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.15.1';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -890,15 +890,14 @@
     var pill = !M.saved ? '<span class="hal-pill wait">⚙️ 브로커 설정 전</span>' : !R ? '<span class="hal-pill">연결 안 됨</span>' : !live ? '<span class="hal-pill bad">⚠️ 중계 꺼짐</span>' : bad ? '<span class="hal-pill bad">⚠️ 브로커 확인</span>' : '<span class="hal-pill on">🟢 연결됨' + (M.picked ? ' ' + M.picked : '') + '</span>';
     var brk = '<div class="hal-mqb"><div><b>📮 ' + esc(M.host || '브로커 주소 없음') + ':' + esc(M.port) + '</b><small>' + (M.user ? '👤 ' + esc(M.user) + (M.has_pass ? ' · 🔑 비밀번호' : '') : '계정 없음') + (M.tls ? ' · 🔒 TLS' : '') + ' · 토픽 <code>' + esc(M.topics.join('  ')) + '</code></small></div><button type="button" class="hal-btn sm' + (M.saved ? '' : ' pri') + '" data-mq-set>⚙️ 브로커 설정</button></div>' +
       (R ? '<p class="hal-hint hal-mqr">💻 <b>' + esc(R.name || '중계') + '</b> · ' + (live ? '🟢 ' : '⚪ ') + esc(agoText(R.at)) + (bad ? ' · <b class="hal-mqerr">⚠️ ' + esc(R.broker) + '</b>' : '') + '</p>' : '');
-    var row = function (s) {
+    // 1.15.1 찾은 센서는 단추(칩) — 누르면 받기 · 받는 것(✅)을 누르면 그만 받기. 토픽 · 언제는 단추에 올리면
+    var chip = function (s) {
       var on = s.device_id != null, dv = on ? find(s.device_id) : null, v = [];
-      if (s.temperature != null) v.push('🌡️ ' + s.temperature + '°'); if (s.humidity != null) v.push('💧 ' + s.humidity + '%');
-      return '<li class="hal-mqi' + (on ? ' on' : '') + '"><div><b>' + esc(dv ? dv.name : s.name) + '</b><small>' + esc(v.join(' · ') || '–') + ' · <code>' + esc(s.key) + '</code> · ' + esc(agoText(s.at)) + '</small></div>' +
-        (on ? '<button type="button" class="hal-btn sm" data-mq-off="' + esc(s.key) + '" title="그만 받기 (기기 · 기록은 그대로)">✅ 받는 중</button>' : '<button type="button" class="hal-btn sm pri" data-mq-on="' + esc(s.key) + '">➕ 받기</button>') + '</li>';
+      if (s.temperature != null) v.push(s.temperature + '°'); if (s.humidity != null) v.push(s.humidity + '%');
+      return '<button type="button" class="hal-mqc' + (on ? ' on' : '') + '" ' + (on ? 'data-mq-off' : 'data-mq-on') + '="' + esc(s.key) + '" aria-pressed="' + on + '" title="' + esc(s.key + ' · ' + agoText(s.at) + (on ? ' · 누르면 그만 받기 (기기 · 기록은 그대로)' : ' · 누르면 받기')) + '"><i aria-hidden="true">' + (on ? '✅' : '➕') + '</i>' + esc(dv ? dv.name : s.name) + (v.length ? '<small>' + esc(v.join(' · ')) + '</small>' : '') + '</button>';
     };
-    var seen = M.seen || [], top = seen.filter(function (s, i) { return s.device_id != null || i < 8; }), rest = seen.filter(function (s, i) { return s.device_id == null && i >= 8; });
-    var list = seen.length ? '<h4 class="hal-mqh">🔎 찾은 센서 <small>' + seen.length + '개 · 「➕ 받기」를 누른 것만 기기로 (📡 대기 칸)</small></h4><ul class="hal-mql">' + top.map(row).join('') + '</ul>' +
-        (rest.length ? '<details class="hal-mtmore"><summary>나머지 ' + rest.length + '개 보기</summary><ul class="hal-mql">' + rest.map(row).join('') + '</ul></details>' : '')
+    var seen = M.seen || [];
+    var list = seen.length ? '<h4 class="hal-mqh">🔎 찾은 센서 <small>' + seen.length + '개 · 누르면 받기 (📡 대기 칸) · ✅ 받는 중</small></h4><div class="hal-mqcs">' + seen.map(chip).join('') + '</div>'
       : '<p class="hal-hint">' + (R && live ? '🔎 중계가 브로커에서 온습도 토픽을 찾는 중이에요 — 센서가 값을 올리면 여기에 보여요 (토픽 칸이 맞는지도 봐 주세요).' : '아직 찾은 센서가 없어요 — 브로커 설정을 저장하고, 늘 켜 두는 PC 에 아래 한 줄로 중계를 설치하면 브로커의 온습도 토픽이 여기에 보여요.') + '</p>';
     return '<section class="hal-stc mq"><header class="hal-stc-h"><span class="hal-stc-logo mq" aria-hidden="true">' + mqLogo() + '</span><div><h2>MQTT <small>3ds 중계</small></h2><p>Zigbee2MQTT · Tasmota · Shelly · ESPHome 처럼 집 안 MQTT 브로커에 올라오는 온습도 값을, 「3ds MQTT 중계」가 사이트로 보내요 (Home Assistant 없이 · 사이트가 집에 접속하지 않아요).</p></div>' + pill + '</header>' +
       brk + list + (R ? '<details class="hal-mtmore"><summary>💻 다른 기기에 설치 (윈도우 · 리눅스 · 맥)</summary>' + mqWin() + '</details>' : mqWin()) + '</section>';

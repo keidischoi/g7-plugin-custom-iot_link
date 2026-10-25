@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.15.1 — 2026-10-25 📨 찾은 센서를 단추로
+
+- 🔎 MQTT 찾은 센서를 한 줄 카드 대신 단추(칩)로 — 누르면 받기 · ✅ 받는 중을 누르면 그만 받기 · 토픽과 언제는 단추에 올리면
+
 ## 1.15.0 — 2026-10-25 📨 MQTT 중계 — 집 안 MQTT 브로커의 온습도 토픽을 그대로
 
 - 📨 받는 곳에 **MQTT** 탭 — Zigbee2MQTT · Tasmota · Shelly · ESPHome · HA statestream 처럼 MQTT 브로커(Mosquitto · HA 의 Mosquitto 애드온)에 올라오는 온습도 값을 「3ds MQTT 중계」가 사이트로 (Home Assistant 없이 · 사이트가 집에 접속하지 않음)
