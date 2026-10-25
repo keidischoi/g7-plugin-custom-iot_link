@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.16.7 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.16.8 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.7';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.8';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -718,6 +718,8 @@
       var live = E.some(function (e) { return e[0] === k && e[2]; });
       edge(pcs[0], k, live);
     });
+    // 1.16.8 🌐 3DS 서버 — 중계 PC 들 위에 · 중계 PC 마다 선 (값이 모이는 곳)
+    if (pcs.length) { node(1, 'srv:3ds', lbl('🌐', '3DS 서버', '이 사이트 — 중계 PC 가 값을 보내는 곳'), 'k-srv', '', ' '); pcs.forEach(function (pc) { edge('srv:3ds', pc, E.some(function (e) { return e[0] === pc && e[2]; })); }); }
     S.mapE = E;
     var T = [['💻', '중계 PC'], ['📥', '받는 곳'], ['📡', '기기'], ['📌', '붙인 곳'], ['🔗', '이어지는 곳']];
     [0, 1].forEach(function (c) { cols[c] = cols[c].map(function (h, j) { return [K[c][j], j, h]; }).sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] - b[1]; }).map(function (x) { return x[2]; }); });   // 1.14.0 같은 PC 끼리 나란히
@@ -733,9 +735,9 @@
     svg.setAttribute('width', m.scrollWidth); svg.setAttribute('height', m.scrollHeight);
     svg.innerHTML = (S.mapE || []).map(function (e) {
       var a = pos[e[0]], b = pos[e[1]]; if (!a || !b) return '';
-      var left = String(e[0]).indexOf('pc:') === 0, x1 = left ? a.l : a.r, x2 = b.l, dx = Math.max(24, (x2 - x1) / 2);   // 1.16.2 💻 PC → 받는 곳: 같은 칸 — 왼쪽 가장자리끼리
+      var left = /^(pc|srv):/.test(String(e[0])), x1 = left ? a.l : a.r, x2 = b.l, dx = Math.max(24, (x2 - x1) / 2);   // 1.16.2 💻 PC → 받는 곳: 같은 칸 — 왼쪽 가장자리끼리
       var d = left ? 'M' + x1 + ' ' + a.y + ' C' + (x1 - 30) + ' ' + a.y + ' ' + (x2 - 30) + ' ' + b.y + ' ' + x2 + ' ' + b.y : 'M' + x1 + ' ' + a.y + ' C' + (x1 + dx) + ' ' + a.y + ' ' + (x2 - dx) + ' ' + b.y + ' ' + x2 + ' ' + b.y;
-      return '<path data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" d="' + d + '"/>' +
+      return '<path data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + (String(e[0]).indexOf('srv:') === 0 ? ' srvl' : '') + '" d="' + d + '"/>' +
         // 1.9.5 선이 붙는 곳 — 양 끝에 점
         '<circle data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" cx="' + x1 + '" cy="' + a.y + '" r="4"/><circle data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" cx="' + x2 + '" cy="' + b.y + '" r="4"/>';
     }).join('');
