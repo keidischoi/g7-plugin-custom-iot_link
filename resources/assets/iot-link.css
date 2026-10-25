@@ -1,4 +1,4 @@
-/* custom-iot_link 1.15.0 — 📡 IoT 연결 */
+/* custom-iot_link 1.15.1 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -665,4 +665,10 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
 .hal-mqi .hal-btn { flex:none; }
 .hal-mqwin h4 .hal-stl { width:18px; height:18px; vertical-align:-3px; }
 .hal-modal textarea[name=topics] { width:100%; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:13px; }
+/* 1.15.1 📨 찾은 센서 단추 */
+.hal-mqcs { display:flex; flex-wrap:wrap; gap:6px; }
+.hal-mqc { display:inline-flex; align-items:center; gap:5px; max-width:100%; padding:5px 10px; border:1px solid var(--line); border-radius:999px; background:var(--soft); color:inherit; font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+.hal-mqc i { font-style:normal; font-size:12px; } .hal-mqc small { font-weight:500; color:var(--mute); margin-left:2px; white-space:nowrap; }
+.hal-mqc:hover { border-color:#7c3aed; } .hal-mqc.on { border-color:#7c3aed; background:rgba(124,58,237,.14); }
+.hal-mqc:disabled { opacity:.5; cursor:wait; }
 
