@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.16.2 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.16.3 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.2';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.3';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -727,7 +727,7 @@
     svg.innerHTML = (S.mapE || []).map(function (e) {
       var a = pos[e[0]], b = pos[e[1]]; if (!a || !b) return '';
       var left = String(e[0]).indexOf('pc:') === 0, x1 = left ? a.l : a.r, x2 = b.l, dx = Math.max(24, (x2 - x1) / 2);   // 1.16.2 💻 PC → 받는 곳: 같은 칸 — 왼쪽 가장자리끼리
-      var d = left ? 'M' + x1 + ' ' + a.y + ' C' + (x1 - 16) + ' ' + a.y + ' ' + (x2 - 22) + ' ' + b.y + ' ' + x2 + ' ' + b.y : 'M' + x1 + ' ' + a.y + ' C' + (x1 + dx) + ' ' + a.y + ' ' + (x2 - dx) + ' ' + b.y + ' ' + x2 + ' ' + b.y;
+      var d = left ? 'M' + x1 + ' ' + a.y + ' C' + (x1 - 30) + ' ' + a.y + ' ' + (x2 - 30) + ' ' + b.y + ' ' + x2 + ' ' + b.y : 'M' + x1 + ' ' + a.y + ' C' + (x1 + dx) + ' ' + a.y + ' ' + (x2 - dx) + ' ' + b.y + ' ' + x2 + ' ' + b.y;
       return '<path data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" d="' + d + '"/>' +
         // 1.9.5 선이 붙는 곳 — 양 끝에 점
         '<circle data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" cx="' + x1 + '" cy="' + a.y + '" r="4"/><circle data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + '" cx="' + x2 + '" cy="' + b.y + '" r="4"/>';
