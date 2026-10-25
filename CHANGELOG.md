@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.16.0 — 2026-10-25 📶 블루투스 온습도계 (🧪 베타) · 연결 방법 그림 단추 · 🗺️ 중계 PC 칸
+
+- 📶 윈도우 MQTT 중계가 이 PC 의 블루투스로 주변 온습도계를 바로 들음 (짝짓기 · 앱 없이 · 브로커가 없어도) — BTHome v2 · 샤오미 pvvx/ATC 펌웨어 · 샤오미 MiBeacon(암호 없는 것) · Govee H5072/H5074/H5075 · SwitchBot 온습도계 · Inkbird IBS-TH. 찾은 센서에 📶 · 🧪 베타로 보이고 「받기」를 누른 것만 기기로
+- PowerShell 5.1 은 WinRT 이벤트를 못 받아 윈도우의 .NET csc.exe 로 작은 도우미(Ble3ds-<버전>.dll)를 중계 폴더에 한 번 만들어 씀 · 끄기 link.ps1 -NoBle · 리눅스 · 맥 판은 아직 MQTT 만
+- ❓ 연결 방법에 **MQTT · 📶** 탭 (한 줄 설치 · 브로커 설정 · 센서 고르기 · 블루투스 · 토픽 예 · 끄기) · MQTT 카드에 ❓ 연결 방법 단추
+- ❓ Home Assistant · SmartThings 연결 방법도 걸음마다 그림 단추로 — 스크롤 없이 한 걸음씩 (◀ 처음으로 · ◀ 이전 · 다음 ▶) · SmartThings 지원 표는 둘로
+- 그림 단추의 hidden 이 display:grid 에 덮여 단추가 안 숨던 것 고침 (Matter 연결 방법도)
+- 🗺️ 연결 지도 맨 앞에 **💻 중계 PC** 칸 — PC → 받는 곳(프린터 연결 · Matter · MQTT) → 기기. 같은 PC 는 한 번만 (「GBOOK (Windows)」 = 「GBOOK」)
+- 시험: mqtt_relay.py ps 19개 (블루투스 4개 — 기종마다 신호 · 암호 걸린 것 · 브로커 없이) · run 79 · sim 248
+
 ## 1.15.1 — 2026-10-25 📨 찾은 센서를 단추로
 
 - 🔎 MQTT 찾은 센서를 한 줄 카드 대신 단추(칩)로 — 누르면 받기 · ✅ 받는 중을 누르면 그만 받기 · 토픽과 언제는 단추에 올리면

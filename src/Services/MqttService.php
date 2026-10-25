@@ -182,7 +182,7 @@ final class MqttService
      * @param  array{id: string, name: string}|null  $srv
      * @return array<string, mixed>
      */
-    public function relay(int $uid, array $seen, string $broker, ?array $srv, string $ver = ''): array
+    public function relay(int $uid, array $seen, string $broker, ?array $srv, string $ver = '', string $ble = ''): array
     {
         $now = HaService::now();
         $all = $this->seen($uid);
@@ -207,7 +207,7 @@ final class MqttService
                 Cache::put('iotl:mq:seen:'.$uid, $all, now()->addDays(self::SEEN_DAYS));
             }
             $was = Cache::get('iotl:mq:relay:'.$uid);
-            Cache::put('iotl:mq:relay:'.$uid, ['name' => $srv['name'] ?? '', 'id' => $srv['id'] ?? '', 'at' => $now, 'broker' => $broker === 'start' ? (string) ($was['broker'] ?? 'start') : $broker, 'ver' => mb_substr($ver, 0, 12)], now()->addDays(30));   // start = 붙기 전 (지난 까닭을 그대로 둠)
+            Cache::put('iotl:mq:relay:'.$uid, ['name' => $srv['name'] ?? '', 'id' => $srv['id'] ?? '', 'at' => $now, 'broker' => $broker === 'start' ? (string) ($was['broker'] ?? 'start') : $broker, 'ver' => mb_substr($ver, 0, 12), 'ble' => mb_substr(trim((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $ble)), 0, 120)], now()->addDays(30));   // 1.16.0 📶 윈도우 중계의 블루투스 (on · off · 까닭)   // start = 붙기 전 (지난 까닭을 그대로 둠)
         } catch (\Throwable) {
         }
         $c = $this->get($uid);

@@ -34,11 +34,12 @@ $linkFile = Join-Path $dir 'link.ps1'
 [IO.File]::WriteAllText($linkFile, $LinkCode, (New-Object Text.UTF8Encoding($true)))
 . $linkFile -Lib
 $ErrorActionPreference = 'SilentlyContinue'
+$script:Ble = Ble-Init   # 1.16.0 📶 이 PC 의 블루투스 온습도계도 (없으면 off)
 
 $o = Load-Cfg
 $o.site = $Site; $o.code = $Code
 Save-Cfg $o
-Say '📨 MQTT 중계를 설치해요 — 집 안 MQTT 브로커의 온습도 값을 사이트 IoT 연결로 보내요.'
+Say '📨 MQTT 중계를 설치해요 — 집 안 MQTT 브로커의 온습도 값 · 이 PC 주변의 블루투스 온습도계를 사이트 IoT 연결로 보내요.'
 try {
   $n = Scan-Topics $o 15
   if (-not $n) { Warn '아직 온습도 토픽이 안 보여요 — 센서가 값을 올리는 데 몇 분 걸릴 수 있어요 (중계는 계속 찾아요). 토픽은 사이트 › MQTT › ⚙️ 브로커 설정에서.' }
@@ -47,6 +48,7 @@ try {
   if ($_.Exception.Message -like '*연결 코드*') { return }
   Warn '   사이트 IoT 연결 › MQTT › ⚙️ 브로커 설정(주소 · 포트 · 계정)을 고치면 중계가 30초 안에 다시 붙어요.'
 }
+try { [Ble3ds]::Stop() } catch {}   # 설치 창이 듣던 블루투스는 끄고 (중계가 이어서 들음)
 
 # 켤 때마다 저절로 — 「시작 프로그램」(관리자 권한 필요 없음) · 지금 바로 시작하고 정말 도는지 확인
 $vbs = Join-Path ([Environment]::GetFolderPath('Startup')) '3dsMqtt.vbs'
