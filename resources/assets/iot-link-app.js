@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.16.5 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.16.6 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.5';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.16.6';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -239,7 +239,7 @@
     return '<section class="hal-sec hal-mtwin" data-mtos="' + os + '"><h4>' + mtLogo() + ' 중계 설치 <small>한 줄 · 따로 깔 것 없음</small></h4>' +
       '<div class="hal-seg hal-mtos" role="tablist"><button type="button" role="tab" data-mt-os="win" class="' + (sh ? '' : 'on') + '" aria-selected="' + !sh + '">🪟 윈도우</button><button type="button" role="tab" data-mt-os="sh" class="' + (sh ? 'on' : '') + '" aria-selected="' + sh + '">🐧 리눅스 · 🍎 맥 · 🍓 라즈베리파이</button></div>' +
       '<label>Matter 서버 주소 <small>HA 의 Matter Server 애드온이면 HA 의 IP · 비우면 설치 때 물어봐요</small><input data-mt-addr value="' + esc(mtAddr()) + '" placeholder="예: 192.168.0.10" autocapitalize="off" autocomplete="off" spellcheck="false"></label>' +
-      '<div class="hal-copy"><span>' + (sh ? '터미널' : 'PowerShell') + '</span><code data-mt-line>' + esc(mtLine(null, os)) + '</code><button type="button" class="hal-btn sm pri" data-mt-cp>📋 복사</button></div>' +
+      '<div class="hal-copy"><span>' + (sh ? '터미널' : 'PowerShell') + '</span><code data-mt-line>' + esc(mtLine(null, os)) + '</code><button type="button" class="hal-btn sm pri" data-mt-cp>📋 복사</button><button type="button" class="hal-btn sm" data-rl-any title="이 한 줄(연결 코드)을 바꿔요 — 옛 한 줄은 바로 막혀요">🔑 새로</button></div>' +
       '<ol class="hal-stc-steps"><li><em>1</em>' + (sh ? '<b>터미널</b> 열기 (라즈베리파이는 SSH 도 돼요)' : '시작 › <b>PowerShell</b> 열기') + '</li><li><em>2</em>붙여 넣고 Enter</li><li><em>3</em>공유 코드 적기 (건너뛰어도 돼요)</li></ol>' +
       '<p class="hal-hint">늘 켜 두는 기기에 · 켤 때마다 저절로 시작해요' + (sh ? ' (python3 기본 기능만 · systemd · crontab · 맥은 launchd)' : '') + '. 🔒 한 줄에 내 연결 코드가 들어 있어요 (남에게 보이지 마세요).</p></section>';
   }
@@ -880,7 +880,7 @@
     var sh = os === 'sh';
     return '<section class="hal-sec hal-mtwin hal-mqwin" data-mqos="' + os + '"><h4>' + mqLogo() + ' 중계 설치 <small>한 줄 · 따로 깔 것 없음</small></h4>' +
       '<div class="hal-seg hal-mtos" role="tablist"><button type="button" role="tab" data-mq-os="win" class="' + (sh ? '' : 'on') + '" aria-selected="' + !sh + '">🪟 윈도우</button><button type="button" role="tab" data-mq-os="sh" class="' + (sh ? 'on' : '') + '" aria-selected="' + sh + '">🐧 리눅스 · 🍎 맥 · 🍓 라즈베리파이</button></div>' +
-      '<div class="hal-copy"><span>' + (sh ? '터미널' : 'PowerShell') + '</span><code data-mq-line>' + esc(mqLine(os)) + '</code><button type="button" class="hal-btn sm pri" data-mq-cp>📋 복사</button></div>' +
+      '<div class="hal-copy"><span>' + (sh ? '터미널' : 'PowerShell') + '</span><code data-mq-line>' + esc(mqLine(os)) + '</code><button type="button" class="hal-btn sm pri" data-mq-cp>📋 복사</button><button type="button" class="hal-btn sm" data-rl-any title="이 한 줄(연결 코드)을 바꿔요 — 옛 한 줄은 바로 막혀요">🔑 새로</button></div>' +
       '<ol class="hal-stc-steps"><li><em>1</em>' + (sh ? '<b>터미널</b> 열기 (SSH 도 돼요)' : '시작 › <b>PowerShell</b> 열기') + '</li><li><em>2</em>붙여 넣고 Enter</li><li><em>3</em>찾은 센서에서 <b>➕ 받기</b></li></ol>' +
       '<p class="hal-hint">' + (sh ? '🐧🍎 리눅스 · 맥은 MQTT 만 받아요 — 먼저 위 <b>⚙️ MQTT 브로커 설정</b>을 저장해 주세요 (python3 기본 기능만 · systemd · crontab · 맥은 launchd). ' : '📶 블루투스만 쓰면 이것만으로 끝 — 브로커 설정은 필요 없어요. MQTT 브로커도 쓰면 위 <b>⚙️ MQTT 브로커 설정</b>을 저장하세요. ') + '센서 · 브로커 가까이 늘 켜 두는 PC 에 · 켤 때마다 저절로 시작해요. 🔒 한 줄에 내 연결 코드가 들어 있어요 (남에게 보이지 마세요).</p></section>';
   }
@@ -888,6 +888,18 @@
     Array.prototype.forEach.call(root.querySelectorAll('[data-mq-cp]'), function (b) { b.onclick = function () { var box = b.closest('.hal-mqwin'); copy(mqLine(box && box.getAttribute('data-mqos')), b); }; });
     Array.prototype.forEach.call(root.querySelectorAll('[data-mq-os]'), function (b) { b.onclick = function () { var os = b.getAttribute('data-mq-os'), box = b.closest('.hal-mqwin'); setPref('mqos', os); if (!box) return; var t = document.createElement('div'); t.innerHTML = mqWin(os); var nb = t.firstChild; box.parentNode.replaceChild(nb, box); mqWinBind(nb.parentNode); }; });
   }
+  /* 1.16.6 🔑 연결 코드 새로 만들기 — 한 줄이 보이는 곳마다 (🧩 Matter · 📨 MQTT · BT 중계 · 🏠 HA 통합이 같은 코드를 씀) */
+  function rlAny(b) {
+    if (!confirm('연결 코드를 새로 만들까요?\n\n· 지금 쓰는 한 줄(🧩 Matter · 📨 MQTT · BT 중계 · 🏠 HA 통합)은 바로 막혀요 — 내 PC 의 중계는 새 한 줄로 다시 깔고, HA 통합에는 새 코드를 넣어 주세요.\n· 이미 만든 기기는 계속 값이 들어와요 (기기마다 받는 키는 따로).')) return;
+    b.disabled = true;
+    api('POST', '/link/rotate', {}).then(function (r) {
+      toast(r.message + ' 새 한 줄을 복사해 다시 깔아 주세요.'); S.d = r.data.overview; draw();
+      Array.prototype.forEach.call(document.querySelectorAll('[data-mq-line]'), function (c) { var w = c.closest('.hal-mqwin'); c.textContent = mqLine(w && w.getAttribute('data-mqos')); });
+      Array.prototype.forEach.call(document.querySelectorAll('[data-mt-line]'), function (c) { var w = c.closest('.hal-mtwin'), i = w && w.querySelector('[data-mt-addr]'); c.textContent = mtLine(i ? i.value : null, w && w.getAttribute('data-mtos')); });
+      b.disabled = false;
+    }).catch(function (e) { b.disabled = false; fail(e); });
+  }
+  if (!window.__halRl) { window.__halRl = true; document.addEventListener('click', function (e) { var b = e.target.closest('[data-rl-any]'); if (b) { e.preventDefault(); rlAny(b); } }); }
   function mqLive(r) { return !!(r && r.at && new Date(S.d.now.replace(' ', 'T')) - new Date(String(r.at).replace(' ', 'T')) < 180000); }   // 중계는 30초마다 알림 — 3분 넘게 없으면 꺼진 것
   function mqBad(r) { return !!(r && r.broker && r.broker !== 'ok' && r.broker !== 'start' && r.broker !== 'none'); }   // none = 브로커 없이 블루투스만 (1.16.0)
   function mqCard(xs) {
@@ -1407,11 +1419,15 @@
     var site = (S.d.link && S.d.link.site) || location.origin;
     var conf = 'site: ' + site + '\ndevices:\n  - node: 1            # link.py nodes 에 나오는 노드 번호\n    name: ' + String(d.name).replace(/[\r\n]+/g, ' ') + '\n    key: ' + d.token + '\n';
     var ov = modal(mtLogo() + ' ' + esc(d.name) + ' — 3ds Matter 연결에 넣기',
-      '<section class="hal-sec"><h4><em>1</em> 받는 키 <small>비밀번호와 같아요 — 남에게 보이지 마세요</small></h4><div class="hal-copy"><span>key</span><code>' + esc(d.token) + '</code><button type="button" class="hal-btn sm pri" data-mtcp="key">📋 복사</button></div></section>' +
+      '<section class="hal-sec"><h4><em>1</em> 받는 키 <small>비밀번호와 같아요 — 남에게 보이지 마세요</small></h4><div class="hal-copy"><span>key</span><code>' + esc(d.token) + '</code><button type="button" class="hal-btn sm pri" data-mtcp="key">📋 복사</button><button type="button" class="hal-btn sm" data-mt-rot title="이 기기의 받는 키만 바꿔요 — 옛 키로는 값이 안 들어와요">🔑 새로</button></div></section>' +
       '<section class="hal-sec"><h4><em>2</em> <code>config/config.yaml</code> 에 넣기 <small>devices 아래에 한 줄씩</small></h4><div class="hal-code"><pre>' + esc(conf) + '</pre><button type="button" class="hal-btn sm pri" data-mtcp="conf">📋 복사</button></div>' +
         '<p class="hal-hint"><code>node</code> 는 <code>link.py nodes</code> 에 나오는 번호로 바꿔요. 저장하면 30초 안에 보내기 시작하고, 이 화면의 기기가 🟢 로 바뀌어요.</p></section>' +
       '<section class="hal-sec"><h4>아직 3ds Matter 연결이 없으면</h4><p class="hal-hint"><a href="' + MT_REPO + '#readme" target="_blank" rel="noopener">📖 설치 안내</a> — 집에 Matter 서버가 있으면 그 주소만, 없으면 라즈베리파이 · 리눅스에 같이 켜요.</p></section>');
-    ov.addEventListener('click', function (ev) { var c = ev.target.closest('[data-mtcp]'); if (c) copy(c.getAttribute('data-mtcp') === 'key' ? d.token : conf, c); });
+    ov.addEventListener('click', function (ev) {
+      var c = ev.target.closest('[data-mtcp]'); if (c) { copy(c.getAttribute('data-mtcp') === 'key' ? d.token : conf, c); return; }
+      if (ev.target.closest('[data-mt-rot]') && confirm('「' + d.name + '」의 받는 키를 새로 만들까요? 옛 키로는 값이 더 들어오지 않아요 — 3ds Matter 연결 설정의 key 를 새 키로 바꿔 주세요. (한 줄로 설치한 중계는 다시 켜면 저절로 맞춰요)'))   // 1.16.6 🔑
+        api('POST', '/devices/' + d.id + '/rotate', {}).then(function (r) { toast(r.message); S.d = r.data.overview; draw(); ov.__close(); mtKeyBox(find(d.id)); }).catch(fail);
+    });
   }
   function yamlBox(d) {
     if (!d) return;

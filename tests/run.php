@@ -279,5 +279,7 @@ check(str_contains($app, 'function guideMq()') && str_contains($app, 'data-gt="m
     && str_contains($app, "if (g.parentNode) Array.prototype.forEach.call(g.parentNode.querySelectorAll('[data-mtg-top]')"), '1.16.0 ❓ 연결 방법 — MQTT · 📶 블루투스 탭 · HA · SmartThings 도 걸음마다 그림 단추 (스크롤 없이)');
 check(str_contains($app, "var pcNode = function (name)") && str_contains($app, "['💻', '중계 PC']") && str_contains($app, "if (qpc) edge(qpc, sn, live)") && str_contains($app, "edge(pc, pn, !!p.live); edge(pn, tn, !!p.live)"), '1.16.0 🗺️ 연결 지도 — 💻 중계 PC → 받는 곳(프린터 연결 · Matter · MQTT) → 기기');
 
+check(substr_count($app, 'data-rl-any') >= 3 && str_contains($app, 'function rlAny(b)') && str_contains($app, "api('POST', '/link/rotate', {})") && str_contains($app, 'data-mt-rot'), '1.16.6 🔑 코드가 보이는 곳마다 새로 만들기 (Matter · MQTT · BT 한 줄 · Matter 받는 키)');
+
 echo "\n".($fail === 0 ? "OK ({$pass} checks)" : "{$fail} FAILED / ".($pass + $fail))."\n";
 exit($fail === 0 ? 0 : 1);
