@@ -17,7 +17,8 @@ use Illuminate\Support\Facades\Schema as S;
  *  hal_st_installs  SmartThings 앱 설치 하나 (installedApp) — 회원 · 사이트 기기와 이음. 토큰은 Laravel Crypt 로 암호화해 둠
  *  hal_st_sensors   그 설치에서 고른 센서의 마지막 값 (capability · attribute 마다 한 줄)
  *  hal_st_codes     회원이 만든 일회용 연결 코드 (SmartThings 앱 설정 화면에 적음 · 30분 · 한 번)
- *  hal_devices.source  ha(Home Assistant · 기본) · smartthings · matter(1.10.0 3ds Matter 연결 — 받는 주소는 HA 와 같음)
+ *  hal_devices.source  ha(Home Assistant · 기본) · smartthings · matter(1.10.0 3ds Matter 연결 — 받는 주소는 HA 와 같음) · mqtt(1.15.0 3ds MQTT 중계)
+ *  hal_links.mqtt  1.15.0 📨 MQTT 중계 설정 JSON {host, port, user, pass(Laravel Crypt), tls, topics, pick{토픽 키: 기기 id}}
  *  1.1.0 SmartThings 로그인 연결 (API Access App · OAuth)
  *  hal_st_states    「SmartThings 연결하기」를 누른 회원의 일회용 state (15분 · 한 번) — 돌아온 요청이 그 회원 것인지 확인
  *  hal_st_installs.config  {mode: oauth, devices: [[칸, deviceId, componentId]], map: {deviceId: 사이트 기기 id}, power_on_w}
@@ -200,6 +201,11 @@ final class Schema
             S::table(self::DEVICES, function (Blueprint $t) {
                 $t->string('ha_server', 64)->nullable()->index()->comment('1.8.0 이 기기를 보낸 HA 서버 (HA instance id) — 비면 예전 통합');
                 $t->string('ha_server_name', 60)->nullable()->comment('1.8.0 그 HA 서버 이름 (HA 위치 이름)');
+            });
+        }
+        if (S::hasTable(self::LINKS) && ! S::hasColumn(self::LINKS, 'mqtt')) {   // 1.15.0 📨 MQTT 중계
+            S::table(self::LINKS, function (Blueprint $t) {
+                $t->text('mqtt')->nullable()->comment('1.15.0 MQTT 중계 설정 JSON {host, port, user, pass(암호화), tls, topics, pick}');
             });
         }
         if (S::hasTable(self::ST_INSTALLS) && ! S::hasColumn(self::ST_INSTALLS, 'polled_at')) {

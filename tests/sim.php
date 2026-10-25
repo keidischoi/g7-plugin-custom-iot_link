@@ -41,6 +41,8 @@ namespace {
     $app->instance('db', $capsule->getDatabaseManager());
     $app->bind('db.schema', fn () => $capsule->getConnection()->getSchemaBuilder());
     $app->instance('encrypter', new Illuminate\Encryption\Encrypter(random_bytes(32), 'AES-256-CBC'));   // 0.2.0 토큰 암호화
+    $app['config']->set('cache', ['default' => 'array', 'stores' => ['array' => ['driver' => 'array', 'serialize' => false]], 'prefix' => '']);   // 1.15.0 📨 MQTT 찾은 토픽 · 중계 상태
+    $app->singleton('cache', fn ($a) => new Illuminate\Cache\CacheManager($a));
     Illuminate\Support\Facades\Facade::setFacadeApplication($app);
     if (! function_exists('now')) {
         function now()
@@ -1315,6 +1317,45 @@ namespace {
     $hMt = array_column($svc->hub(1, ['id' => 'matter0123456789abcdef01', 'name' => '라즈베리파이'])['devices'], 'id');
     t(! in_array((int) $mt->id, $hHa, true) && in_array((int) $mt->id, $hMt, true) && ! in_array((int) $ha2->id, $hMt, true) && in_array((int) $ha2->id, $hHa, true), '허브 기기 목록: HA 통합엔 Matter 기기가 안 보이고 · 3ds Matter 연결엔 Matter 기기만');
     Settings::save(['max_devices' => 20]);
+
+    // 1.15.0 📨 MQTT 중계 — 브로커 설정(비밀번호 암호화) · 중계가 받아 가는 것 · 찾은 토픽 · 받기 / 그만 받기
+    $mq = new \Plugins\Custom\IotLink\Services\MqttService($svc);
+    $v0 = $mq->view(1);
+    t($v0['host'] === '192.168.0.54' && ! $v0['saved'] && $v0['port'] === 1883 && $v0['topics'] === ['#'] && isset($svc->overview(1)['mqtt']['seen']), 'MQTT: 처음엔 브로커 칸에 192.168.0.54 · 1883 · # (저장 전) · 화면 자료에 mqtt');
+    t(! $mq->save(1, ['host' => 'bad host!', 'port' => 1883])[0] && ! $mq->save(1, ['host' => 'h', 'port' => 70000])[0] && ! $mq->save(1, ['host' => 'h', 'topics' => 'a/#/b'])[0] && ! $mq->save(1, ['host' => 'h', 'topics' => 'a+/b'])[0], 'MQTT: 이상한 주소 · 포트 · 토픽은 거절');
+    t($mq->save(1, ['host' => 'mqtt://192.168.0.54', 'port' => '1883', 'user' => 'zig', 'pass' => 'pw1', 'tls' => false, 'topics' => "zigbee2mqtt/+\ntele/+/SENSOR"])[0], 'MQTT: 저장');
+    $raw = (string) DB::table('hal_links')->where('user_id', 1)->value('mqtt');
+    $v1 = $mq->view(1);
+    t(! str_contains($raw, 'pw1') && $v1['host'] === '192.168.0.54' && $v1['has_pass'] && ! isset($v1['pass']) && $v1['topics'] === ['zigbee2mqtt/+', 'tele/+/SENSOR'] && $v1['saved'], 'MQTT: 비밀번호는 암호화해 둠 · 화면엔 안 보냄 (적혀 있는지만)');
+    $mq->save(1, ['host' => '192.168.0.54', 'port' => 1883, 'user' => 'zig', 'pass' => '', 'topics' => "zigbee2mqtt/+\ntele/+/SENSOR"]);
+    t($mq->get(1)['pass'] === 'pw1', 'MQTT: 비밀번호 칸을 비우면 그대로');
+    $srv = ['id' => 'mqtt0123456789abcdef0123', 'name' => '시험 PC'];
+    $r1 = $mq->relay(1, [['key' => 'zigbee2mqtt/거실', 'name' => '거실', 'temperature' => 23.4, 'humidity' => 45.1], ['key' => 'tele/s/SENSOR', 'name' => 's', 'temperature' => 999], ['key' => '', 'name' => 'x']], 'ok', $srv, '1.15.0');
+    $v2 = $mq->view(1);
+    $sx = array_column($v2['seen'], null, 'key');
+    t($r1['config']['pass'] === 'pw1' && $r1['config']['host'] === '192.168.0.54' && (array) $r1['map'] === [] && count($v2['seen']) === 2 && ! isset($sx['tele/s/SENSOR']['temperature']) && $sx['zigbee2mqtt/거실']['humidity'] === 45.1 && $v2['relay']['name'] === '시험 PC' && $v2['relay']['broker'] === 'ok', 'MQTT 중계: 설정(비밀번호 포함)을 받아 가고 · 찾은 토픽을 쌓음 (이상한 값 · 빈 키는 뺌)');
+    $rev = $r1['rev'];
+    $pk = $mq->pick(1, 'zigbee2mqtt/거실', true);
+    $dv = DB::table('hal_devices')->where('id', $pk[2]['id'] ?? 0)->first();
+    t($pk[0] && $dv && $dv->source === 'mqtt' && $dv->name === '거실' && (float) $dv->temp === 23.4 && (float) $dv->humidity === 45.1, 'MQTT: 「받기」→ MQTT 기기 (아는 값은 바로)');
+    if (! $pk[0]) {
+        echo '   '.$pk[1]."\n";
+    }
+    $r2 = $mq->relay(1, [], 'ok', $srv);
+    t($dv && (((array) $r2['map'])['zigbee2mqtt/거실'] ?? '') === $dv->token && $r2['rev'] === $rev && DB::table('hal_devices')->where('id', $dv->id)->value('ha_server') === $srv['id'] && $mq->view(1)['seen'][0]['device_id'] === (int) $dv->id, 'MQTT 중계: 고른 토픽 → 받는 키 · 붙은 채로 (rev 같음) · 연결 지도에 중계 이름 · 화면은 받는 것 먼저');
+    $mq->save(1, ['host' => '192.168.0.54', 'port' => 8883, 'tls' => true, 'user' => 'zig', 'topics' => '#']);
+    t($mq->relay(1, [], 'start', $srv)['rev'] !== $rev && ($mq->view(1)['relay']['broker'] ?? '') === 'ok' && $mq->get(1)['tls'] === true, 'MQTT: 브로커 설정을 바꾸면 rev 가 바뀜 (중계가 다시 붙음) · start 는 지난 까닭을 그대로');
+    $mq->relay(1, [], '사용자 이름 · 비밀번호가 맞지 않아요', $srv);
+    t(str_contains((string) $mq->view(1)['relay']['broker'], '비밀번호'), 'MQTT: 브로커 오류 까닭이 화면에');
+    if ($dv) {
+        $svc->delete(1, (int) $dv->id);
+    }
+    t((array) $mq->relay(1, [], 'ok', $srv)['map'] === [] && $mq->get(1)['pick'] === [], 'MQTT: 사이트에서 기기를 지우면 그 토픽은 그만 받음');
+    $pk2 = $mq->pick(1, 'tele/s/SENSOR', true);
+    t($pk2[0] && $mq->pick(1, 'tele/s/SENSOR', false)[0] && $mq->get(1)['pick'] === [] && DB::table('hal_devices')->where('id', $pk2[2]['id'] ?? 0)->exists(), 'MQTT: 그만 받기 (기기 · 기록은 남음)');
+    t($mq->save(1, ['host' => '192.168.0.54', 'user' => '', 'pass' => 'x'])[0] && $mq->get(1)['pass'] === '' && \Plugins\Custom\IotLink\Services\MqttService::topicOk('shellies/+/sensor/#') && ! \Plugins\Custom\IotLink\Services\MqttService::topicOk('#/a'), 'MQTT: 사용자 이름이 없으면 비밀번호도 안 둠 · 토픽 필터 모양');
+    $mtRow = DB::table('hal_devices')->where('id', $pk2[2]['id'] ?? 0)->first();
+    t($mtRow && ! in_array((int) $mtRow->id, array_column($svc->hub(1, ['id' => 'aaaaaaaa1', 'name' => '본가 HA'])['devices'], 'id'), true), '허브 기기 목록: HA 통합엔 MQTT 기기가 안 보임');
 
     echo "\n통과 {$pass} · 실패 {$fail}\n";
     exit($fail ? 1 : 0);
