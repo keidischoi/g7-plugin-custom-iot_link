@@ -1,4 +1,4 @@
-/* custom-iot_link 1.17.5 — 📡 IoT 연결 */
+/* custom-iot_link 1.17.6 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:none; margin:0 auto; padding:16px 0; color:var(--ink); font-size:14px; line-height:1.55; }   /* 1.17.4 헤더 메뉴 줄과 같은 폭 (사이트 칸을 그대로 씀 — 예전 1200px · 좌우 16px) */
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -817,3 +817,12 @@ html.dark .hal-gfil.k-all.on, .dark .hal-gfil.k-all.on { background:rgba(59,130,
 .hal-grp .hal-gsort { width:auto; max-width:130px; min-width:0; height:26px; margin:0 0 0 4px; padding:0 22px 0 9px; line-height:24px; color:#475569; font-size:11.5px; box-shadow:none; }
 html.dark .hal-grp .hal-gsort, .dark .hal-grp .hal-gsort { color:#cbd5e1; }
 @media (max-width:640px) { .hal-grp > summary > small { display:none; } }
+/* 1.17.6 📥 AI 제안 상자 — 한 줄씩 · ✔ 붙이기 */
+.hal-aip { margin:0 0 14px; padding:10px 12px; border:1px solid #c7d2fe; border-radius:14px; background:#eef2ff; }
+.hal-aip > header { display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap; }
+.hal-aip > header span { flex:1; color:var(--mute); font-size:12px; }
+.hal-aip-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-top:1px dashed #c7d2fe; flex-wrap:wrap; font-size:13px; }
+.hal-aip-row .nm { font-weight:700; } .hal-aip-row .to { color:#3730a3; font-weight:700; }
+.hal-aip-row small { flex:1 1 160px; color:var(--mute); } .hal-aip-row em { font-style:normal; font-size:11px; color:var(--mute); }
+html.dark .hal-aip, .dark .hal-aip { background:rgba(99,102,241,.12); border-color:rgba(129,140,248,.35); }
+html.dark .hal-aip-row .to, .dark .hal-aip-row .to { color:#a5b4fc; }
