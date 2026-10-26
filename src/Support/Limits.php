@@ -58,7 +58,7 @@ final class Limits
             }
         }
 
-        return min(10000, ($n ?? (int) Settings::get('max_devices')) + self::bought($uid, null));   // 1.4.8 + 산 칸
+        return min(10000, ($n ?? (int) Settings::get('max_devices')) + self::bought($uid, null) + self::pack($uid, 'slot'));   // 1.4.8 + 산 칸 · 1.17.7 + 📦 코인 팩 칸
     }
 
     /** 1.4.8 💳 산 센서 칸 (쓰는 중 · 달마다는 기한 안) — $cid 없으면 회원 칸, 있으면 그 업체 칸 (누가 샀든) */
@@ -74,12 +74,41 @@ final class Limits
         }
     }
 
+    /** @var array<string, int> 한 요청 안 */
+    private static array $packCache = [];
+
+    /** 1.17.7 📦 코인 팩(custom-coin 2.0.2 · 🛍 상점)의 센서 칸 개수 — slot = 내 기기 · company_slot = 내가 대표 · 관리자인 업체 (없으면 0) */
+    public static function pack(int $uid, string $item): int
+    {
+        $k = $uid.'|'.$item;
+        if (isset(self::$packCache[$k])) {
+            return self::$packCache[$k];
+        }
+        $n = 0;
+        try {
+            if ($uid > 0 && class_exists(\App\Extension\HookManager::class)) {
+                $h = \App\Extension\HookManager::applyFilters('custom-coin.pack_has', null, $uid, 'custom-iot_link', $item);
+                $n = is_array($h) && ! empty($h['until']) ? max(1, (int) ($h['qty'] ?? 1)) : 0;
+            }
+        } catch (\Throwable) {
+        }
+
+        return self::$packCache[$k] = $n;
+    }
+
     /** 0 = 막지 않음 */
     public static function company(int $cid): int
     {
         $base = Settings::limitMap('max_devices_companies')[(string) $cid] ?? (int) Settings::get('max_devices_company');
 
-        return $base > 0 ? min(100000, $base + self::bought(0, $cid)) : 0;   // 1.4.8 + 산 칸 (0 = 막지 않음은 그대로)
+        $pk = 0;
+        if ($base > 0) {
+            foreach (Links::mastersOf($cid) as $mid) {
+                $pk += self::pack($mid, 'company_slot');   // 1.17.7 📦 대표 · 관리자의 코인 팩 「업체 센서 칸」
+            }
+        }
+
+        return $base > 0 ? min(100000, $base + self::bought(0, $cid) + $pk) : 0;   // 1.4.8 + 산 칸 (0 = 막지 않음은 그대로)
     }
 
     /** 업체에 든 기기 수 (회원 모두) — $except 는 빼고 셈 (고치는 기기) */
