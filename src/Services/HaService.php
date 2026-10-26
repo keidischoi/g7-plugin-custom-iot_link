@@ -195,6 +195,7 @@ class HaService
             'now' => self::now(),
             'devices' => $rows->map(fn ($d) => $this->device($d, $hist[(int) $d->id] ?? [], $pn, $equip) + ['perm' => (int) $d->user_id === $uid || in_array((int) $d->company_id, array_column($companies, 'id'), true) ? 'manage' : 'view', 'mine' => (int) $d->user_id === $uid] + ['sensors' => $byDev[(int) $d->id] ?? [], 'group' => self::group((string) ($d->grp ?? ''), (string) $d->target, $d->company_id ? (int) $d->company_id : null, $mcids ?: array_column($companies, 'id')), 'group_auto' => self::group('', (string) $d->target, $d->company_id ? (int) $d->company_id : null, $mcids ?: array_column($companies, 'id'))])->all(),
             'smartthings' => $st,
+            'proposals' => (new AiPlaceService($this))->list($uid),   // 1.17.6 📥 AI 연결의 「붙일 곳」 제안 — 맨 위 🤖 상자
             'mqtt' => (new MqttService($this))->view($uid),   // 1.15.0 📨 MQTT 중계 — 브로커 설정(비밀번호 빼고) · 찾은 토픽 · 중계 상태
             'printers' => $printers, 'companies' => $companies, 'member_companies' => $mcos, 'equipment' => array_values($equip), 'locations' => $this->locations($uid),
             'boxes' => Links::boxes($uid),   // 1.6.0 📦 보관함 보드 (재고 관리의 보관함 · 색 · 롤 수)
@@ -478,6 +479,12 @@ class HaService
         }
         if (! $left['state'] && ! $left['temp'] && ! $left['hum']) {
             return [false, $where.'에는 상태 센서가 챔버 온도 · 습도까지 재고 있어요 — 일반 센서는 붙이지 않아도 돼요.'];
+        }
+        // 1.17.6 💳 업체 기기 한도 — 개인 기기를 업체 보관함 · 업체 프린터 · 업체 장비에 붙이면 그 업체 기기가 됨 → 분류를 업체로 바꿀 때와 같이 한도를 봄 (붙이기 · 📍 · AI 제안으로 넘기지 못하게)
+        $ncid = (int) ($row['company_id'] ?? 0);
+        $counted = (string) ($d->grp ?? '') === 'c'.$ncid || ((int) ($d->company_id ?? 0) === $ncid && ! str_starts_with((string) ($d->grp ?? ''), 'c'));
+        if ($ncid > 0 && ! $counted && ($full = Limits::companyFull($ncid, 1, [$id], (string) (collect($this->companies($uid))->firstWhere('id', $ncid)['name'] ?? ''), $uid))) {
+            return [false, $full.' 💳 센서 칸을 사거나 다른 기기를 빼 주세요.'];
         }
         $bounce = [];
         foreach ($same as $o) {

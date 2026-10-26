@@ -53,6 +53,17 @@ class HaController extends Controller
         return $this->off() ?? $this->result($this->svc->place($this->uid($r), $id, (string) $r->input('target', $r->filled('location') ? 'location' : ''), (string) $r->input('location', ''), (int) $r->input('ref', 0)), $r);
     }
 
+    /** 1.17.6 📥 AI 제안 — ✔ 붙이기 (화면 📍 와 같은 길) · ✕ 버리기 (pid 'all' 이면 모두) */
+    public function proposalApply(Request $r, string $pid): JsonResponse
+    {
+        return $this->off() ?? $this->result((new \Plugins\Custom\IotLink\Services\AiPlaceService($this->svc))->apply($this->uid($r), $pid), $r);
+    }
+
+    public function proposalDrop(Request $r, string $pid): JsonResponse
+    {
+        return $this->off() ?? $this->result((new \Plugins\Custom\IotLink\Services\AiPlaceService($this->svc))->drop($this->uid($r), $pid === 'all' ? '' : $pid), $r);
+    }
+
     public function delete(Request $r, int $id): JsonResponse
     {
         return $this->off() ?? $this->result($this->svc->delete($this->uid($r), $id), $r);

@@ -1416,6 +1416,57 @@ namespace {
     t(substr_count($rel17, "hub/%s/in") === 2 && substr_count($rel17, 'hub/$($o.code)/in') === 2 && substr_count($rel17, "BATCH['off'] = True") === 2 && substr_count($rel17, '$script:BatchOff = $true') === 2,
         '1.17.0 중계 넷(MQTT · BT 파이썬 · 윈도우 · Matter 파이썬 · 윈도우) — 묶음 · 옛 사이트면 하나씩 (실제 흐름은 tests/mqtt_relay.py · matter_relay.py)');
     DB::table('hal_devices')->where('id', $other17)->delete();
+    // 1.17.6 💳 업체 기기 한도 — 개인 기기를 업체 보관함에 붙여도(보드 · 📍 · AI 제안) 한도를 넘기지 못함
+    echo "■ 1.17.6 붙이기도 업체 한도\n";
+    $L17 = \Plugins\Custom\IotLink\Support\Limits::class;
+    Settings::save(['limit_admin_free' => false, 'max_devices' => 50]);
+    [$pk17, , $px17] = $svc->save(1, null, ['target' => 'other', 'name' => '한도 시험 센서', 'ent_hum' => 'sensor.lim17']);
+    $id17 = (int) ($px17['id'] ?? 0);
+    $used17 = $L17::companyUsed(10, [$id17]);
+    Settings::save(['max_devices_companies' => '10:1']);
+    $extra17 = $L17::company(10) - 1;   // 산 업체 칸
+    Settings::save(['max_devices_companies' => '10:'.max(0, $used17 - $extra17)]);
+    $full17 = $L17::company(10) === $used17;
+    [$p17a, $m17a] = $svc->place(1, $id17, 'location', '업체 선반', 10);
+    $d17a = DB::table('hal_devices')->find($id17);
+    Settings::save(['max_devices_companies' => '10:'.($used17 - $extra17 + 1)]);
+    [$p17b] = $svc->place(1, $id17, 'location', '업체 선반', 10);
+    [$p17c] = $svc->place(1, $id17, 'location', '업체 선반 2', 10);   // 이미 그 업체 것 — 같은 업체 안에서 옮기기는 됨
+    t($pk17 && $full17 && ! $p17a && str_contains((string) $m17a, '센서 칸') && empty($d17a->company_id) && $p17b && $p17c && (int) DB::table('hal_devices')->find($id17)->company_id === 10,
+        '1.17.6 업체 한도가 꽉 차면 개인 기기를 업체 보관함에 붙이지 못함 (💳 센서 칸 안내) · 칸이 생기면 됨 · 이미 그 업체 것은 업체 안에서 옮김');
+    DB::table('hal_devices')->where('id', $id17)->delete();
+    Settings::save(['limit_admin_free' => true, 'max_devices' => 20, 'max_devices_companies' => '']);
+    // 1.17.6 🤖 AI 연결 도구 — 상태 거르기 · 📡 연결 길 · 📥 붙일 곳 제안 (⏳ 대기 → ✔ 붙이기는 📍 와 같은 길)
+    echo "■ 1.17.6 AI 도구 — 연결 길 · 붙일 곳 제안\n";
+    $ai6 = collect((new \Plugins\Custom\IotLink\Listeners\AiLinkListener())->tools([], 1))->keyBy('name');
+    [, , $pa6] = $svc->save(1, null, ['target' => 'location', 'location' => 'AI 선반', 'name' => 'AI 선반 센서', 'ent_hum' => 'sensor.ai6a']);
+    [, , $pb6] = $svc->save(1, null, ['target' => 'other', 'name' => 'AI 대기 센서', 'ent_hum' => 'sensor.ai6b']);
+    $ida6 = (int) ($pa6['id'] ?? 0);
+    $idb6 = (int) ($pb6['id'] ?? 0);
+    $dv6 = $ai6['iot_devices']['call'](1, []);
+    $wait6 = $ai6['iot_devices']['call'](1, ['status' => 'wait']);
+    $off6 = $ai6['iot_devices']['call'](1, ['status' => 'off']);
+    $rl6 = $ai6['iot_relays']['call'](1, []);
+    t(isset($ai6['iot_relays'], $ai6['iot_propose_place']) && ($ai6['iot_relays']['read_only'] ?? false) === true && ($ai6['iot_propose_place']['propose'] ?? false) === true && empty($ai6['iot_propose_place']['read_only'])
+        && collect($wait6['devices'])->every(fn ($d) => in_array($d['target'], ['other', ''], true)) && collect($wait6['devices'])->contains('id', $idb6) && ! collect($wait6['devices'])->contains('id', $ida6)
+        && collect($off6['devices'])->every(fn ($d) => ! empty($d['stale'])) && array_key_exists('never', $dv6['devices'][0] ?? []) && ! empty($dv6['devices'][0]['via'])
+        && collect($dv6['places'])->contains(fn ($p) => $p['target'] === 'location' && $p['location'] === 'AI 선반' && $p['ref'] === 0)
+        && $rl6['relays'] !== [] && collect($rl6['relays'])->sum('devices') === $dv6['count'] && ! str_contains(json_encode($rl6, JSON_UNESCAPED_UNICODE), 'token'),
+        '1.17.6 iot_devices status(wait · off) · never · via · places / iot_relays 길마다 수 (토큰 없음) / iot_propose_place 는 propose');
+    $pr6 = $ai6['iot_propose_place']['call'](1, ['items' => [['device_id' => $idb6, 'target' => 'location', 'location' => 'AI 선반', 'ref' => 0, 'why' => '습도 센서는 보관함에'], ['device_id' => 999999, 'target' => 'none'], ['device_id' => $ida6, 'target' => 'printer', 'ref' => 987654]], '_from' => '🤖 시험']);
+    $stay6 = DB::table('hal_devices')->find($idb6)->target === 'other';
+    $pl6 = $svc->overview(1)['proposals'] ?? [];
+    $aps6 = new \Plugins\Custom\IotLink\Services\AiPlaceService($svc);
+    [$ok6] = $aps6->apply(1, (string) ($pl6[0]['pid'] ?? ''));
+    $b6 = DB::table('hal_devices')->find($idb6);
+    [$no6] = $aps6->apply(2, (string) ($pl6[0]['pid'] ?? ''));   // 남의 제안 줄은 없음
+    $ai6['iot_propose_place']['call'](1, ['items' => [['device_id' => $ida6, 'target' => 'none']]]);
+    $left6 = count($svc->overview(1)['proposals'] ?? []);
+    $aps6->drop(1, '');
+    t(($pr6['proposed'] ?? 0) === 1 && count($pr6['skipped'] ?? []) === 2 && $stay6 && count($pl6) === 1 && $pl6[0]['from'] === '🤖 시험' && str_contains($pl6[0]['where'], 'AI 선반')
+        && $ok6 && $b6->target === 'location' && $b6->location === 'AI 선반' && ! $no6 && $left6 === 1 && ($svc->overview(1)['proposals'] ?? null) === [],
+        '1.17.6 📥 붙일 곳 제안 — 바로 안 붙음 · 없는 기기 · 없는 곳은 뺌 · ✔ 붙이기 = 📍 와 같은 길 · 남의 제안 없음 · 버리기');
+    DB::table('hal_devices')->whereIn('id', [$ida6, $idb6])->delete();
 
     echo "\n통과 {$pass} · 실패 {$fail}\n";
     exit($fail ? 1 : 0);

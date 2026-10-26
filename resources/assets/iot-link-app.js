@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.17.5 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.17.6 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.17.5';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.17.6';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -851,12 +851,24 @@
       api('POST', '/devices/delete', { ids: ids }).then(function (r) { toast(r.message); S.sel = null; S.d = r.data.overview; redraw(); }).catch(function (e) { fail(e); redraw(); });
     }; });
   }
+  /* 1.17.6 📥 AI 연결이 보낸 「붙일 곳」 제안 — ✔ 붙이기는 📍 와 같은 길 (권한 · 💳 센서 칸 한도를 그때 다시 봄) */
+  function aiBox() {
+    var l = S.d.proposals || []; if (!l.length) return '';
+    return '<section class="hal-aip"><header><b>🤖 AI 제안 <small>' + l.length + '</small></b><span>눌러야 붙어요</span>' + (l.length > 1 ? '<button type="button" class="hal-btn sm" data-aip-all>✔ 모두 붙이기</button>' : '') + '<button type="button" class="hal-btn sm ghost" data-aip-x="all">✕ 모두 버리기</button></header>' +
+      l.map(function (p) { return '<div class="hal-aip-row"><span class="nm">📡 ' + esc(p.device) + '</span><span class="to">→ ' + esc(p.where) + '</span>' + (p.why ? '<small>' + esc(p.why) + '</small>' : '') + '<em>' + esc(p.from || '🤖 AI') + '</em><button type="button" class="hal-btn sm" data-aip-ok="' + esc(p.pid) + '">✔ 붙이기</button><button type="button" class="hal-btn sm ghost" data-aip-x="' + esc(p.pid) + '" aria-label="버리기">✕</button></div>'; }).join('') + '</section>';
+  }
+  function aiBind() {
+    var go = function (pids, kind) { return pids.reduce(function (p, id) { return p.then(function () { return api('POST', '/proposals/' + id + '/' + kind).then(function (r) { toast(r.message); S.d = r.data.overview; }); }); }, Promise.resolve()).then(redraw).catch(function (e) { fail(e); reload(); }); };
+    qa('[data-aip-ok]').forEach(function (b) { b.onclick = function () { b.disabled = true; go([b.getAttribute('data-aip-ok')], 'apply'); }; });
+    qa('[data-aip-x]').forEach(function (b) { b.onclick = function () { b.disabled = true; go([b.getAttribute('data-aip-x')], 'drop'); }; });
+    qa('[data-aip-all]').forEach(function (b) { b.onclick = function () { b.disabled = true; go((S.d.proposals || []).map(function (p) { return p.pid; }), 'apply'); }; });
+  }
   function draw() {
     if (S.sel) { var have = {}; S.d.devices.forEach(function (x) { have[x.id] = 1; }); Object.keys(S.sel).forEach(function (k) { if (!have[k]) delete S.sel[k]; }); if (!S.d.devices.length) S.sel = null; }
     var d = S.d, live = d.devices.filter(function (x) { return !x.stale; }).length, over = d.devices.filter(function (x) { return x.over; }).length;
     wrap('<section class="hal-hero"><div><h1>📡 IoT 연결</h1><p>Home Assistant · SmartThings · Matter 의 온습도 센서 · 프린터 · 장비 상태를 받아 재고 관리 · 정비 수첩 · 내 프린터에 이어요.</p></div>' +
       '<div class="hal-stats"><span title="연결할 수 있는 기기 (관리자가 정함)">기기 <b>' + d.devices.length + '</b>' + (d.limits ? (d.limits.admin ? ' <small title="관리자는 기기 수 한도가 없어요">· 관리자 무제한</small>' : ' / ' + d.limits.member) : '') + '</span><span>🟢 연결됨 <b>' + live + '</b></span>' + (over ? '<span class="hot">⚠️ 기준 넘음 <b>' + over + '</b></span>' : '') + '<button class="hal-btn ghost" data-guide title="연결 방법 보기" aria-label="연결 방법 보기">❓ 연결 방법</button>' + (d.devices.length > 1 && !S.sel ? '<button class="hal-btn ghost" data-sel-on title="체크 박스로 골라 한 번에 분류 옮기기 · 지우기">☑️ 여러 개 고르기</button>' : '') + (d.slots && d.slots.enabled ? ' <button class="hal-btn ghost" data-slot title="' + (d.slots.selling ? '코인 · 마일리지로 센서 칸 사기 · 구매한 칸 보기' : '구매한 센서 칸 보기 · 취소') + '">💳 ' + (d.slots.selling ? '칸 늘리기' : '구매한 칸') + '</button>' : '') + ' <button class="hal-btn light" data-new>➕ 기기 연결</button></div></section>' +
-      srcCard() +
+      srcCard() + aiBox() +
       (d.devices.length ? scopeBar() + (scope() === 'map' ? mapView() : (S.sel ? selBar() : '') + tools() + (pref('view', 'card') === 'board' ? board() : grouped())) +
         '<p class="hal-note">' + (liveSec() ? '🔄 이 화면은 ' + (liveSec() >= 60 && liveSec() % 60 === 0 ? liveSec() / 60 + '분' : liveSec() + '초') + '마다 스스로 새 값을 받아 와요' : '🔄 새 값을 보려면 화면을 새로 고쳐 주세요') + ' (Home Assistant 는 ' + (d.config.send_mode === 'change' ? '값이 변하면' : (d.config.interval_min || 10) + '분마다') + ' · 상태가 바뀌면 바로 보내요).</p><p class="hal-note">🔒 받는 주소는 비밀번호와 같아요 — 남에게 보이지 마세요. 사이트가 내 집으로 접속하지 않고, 내 Home Assistant 가 보내는 값만 받아요.' + (d.config.inventory ? ' · <a href="/inventory?tab=drawer" data-go>🧵 필라멘트 서랍 보기 (재고 관리)</a>' : '') + '</p>'
         : '<section class="hal-start"><h2>' + haLogo() + ' Home Assistant 는 세 걸음이면 돼요</h2><ol><li><b>① HACS 에서 「3ds」 설치</b><span>단추 한 번으로 저장소가 들어가요</span></li><li><b>② 사이트 주소 · 연결 코드 붙여 넣기</b><span>복사 단추 두 번</span></li><li><b>③ 「⚡ 알아서 찾아 연결」 → 확인</b><span>내 프린터 · 필라멘트 보관 위치와 이름이 맞는 것을 찾아 줘요</span></li></ol><div class="hal-row center"><button class="hal-btn pri big" data-new>➕ 첫 기기 연결하기</button><button class="hal-btn big" data-guide>❓ 그림으로 보는 연결 방법</button></div></section>'));
@@ -873,6 +885,7 @@
     qa('[data-view]').forEach(function (b) { b.onclick = function () { setPref('view', b.getAttribute('data-view')); redraw(); }; });
     qa('details[data-grp]').forEach(function (g) { g.addEventListener('toggle', function () { var was = grpFold(g.getAttribute('data-grp')); try { localStorage.setItem('hal:grp:' + g.getAttribute('data-grp'), g.open ? '1' : '0'); } catch (e) {} if (g.open && was) redraw(); }); });   // 1.4.7 접혀 있던 묶음을 펴면 그 카드를 그림   // 1.4.6 접은 분류 기억
     stBind();
+    aiBind();
     boardBind();
     stripBind();
     mapBind();

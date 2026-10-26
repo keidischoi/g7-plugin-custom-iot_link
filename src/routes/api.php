@@ -56,6 +56,8 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () {
     Route::put('devices/{id}', [HaController::class, 'save'])->whereNumber('id')->name('devices.update');
     Route::post('devices/{id}/range', [HaController::class, 'range'])->whereNumber('id')->middleware('throttle:60,1')->name('devices.range');   // 1.9.0 🔔 알림 구간
     Route::post('devices/{id}/place', [HaController::class, 'place'])->whereNumber('id')->middleware('throttle:60,1')->name('devices.place');   // 1.6.0 📦 보관함 보드
+    Route::post('proposals/{pid}/apply', [HaController::class, 'proposalApply'])->where('pid', '[0-9a-f]{10}')->middleware('throttle:60,1')->name('proposals.apply');   // 1.17.6 📥 AI 제안
+    Route::post('proposals/{pid}/drop', [HaController::class, 'proposalDrop'])->where('pid', '[0-9a-f]{10}|all')->name('proposals.drop');
     Route::post('devices/{id}/rotate', [HaController::class, 'rotate'])->whereNumber('id')->name('devices.rotate');
     Route::post('slots/buy', [HaController::class, 'slotBuy'])->middleware('throttle:10,1')->name('slots.buy');   // 1.4.8 💳 센서 칸
     Route::post('slots/{id}/cancel', [HaController::class, 'slotCancel'])->whereNumber('id')->middleware('throttle:10,1')->name('slots.cancel');   // 1.8.3
