@@ -199,7 +199,7 @@ check($roles === ['p_bed', 'p_nozzle', 'p_online', 'p_progress', 'p_state'] && (
 $haSrc = (string) file_get_contents($root.'/src/Services/HaService.php');
 $lsSrc = (string) file_get_contents($root.'/src/Listeners/IntegrationListener.php');
 check(str_contains($app, "value=\"p:' + p.id + '\"") && str_contains($app, "printer_id: v.charAt(0) === 'p' ? +v.slice(2) : null") && str_contains($app, 'function stDeep()') && str_contains($app, 'function stDeepOpen()')
-    && str_contains($app, 'function toRow(d)') && str_contains($app, 'toRow(d) +') && str_contains($app, 'class="hal-to to-printer" href="/my-printer" data-go') && str_contains((string) file_get_contents($root.'/resources/assets/iot-link.css'), '.hal-to.to-other {')
+    && str_contains($app, 'function toRow(d)') && str_contains($app, 'toRow(d) +') && str_contains($app, 'data-place="') && str_contains($app, 'href="/my-printer" data-go>🖨️ 프린터 라운지 →') && str_contains((string) file_get_contents($root.'/resources/assets/iot-link.css'), '.hal-to.to-other {')
     && str_contains($haSrc, "public function ingest(string \$token, array \$payload, string \$via = 'ha'): array") && str_contains($haSrc, "\$this->forwardPrinter((int) \$d->printer_id, (int) \$d->user_id, \$v, \$via, ")
     && str_contains($svcSrc, "\$this->ha->ingest((string) \$tokens[\$site], \$payload, 'smartthings');") && str_contains($haSrc, "::IOT_CAPS'") && str_contains($lsSrc, "'custom-iot_link.printer_env'") && str_contains($lsSrc, "'custom-iot_link.sources'"),
     '1.2.0 프린터 라운지: 센서 고르기의 「내 프린터에 붙이기」 · 바로 오기(?st=pick&printer=) · 붙인 곳 띠 · 값을 보낸 곳(via)으로 가림 · 필터 printer_env · sources');

@@ -1,4 +1,4 @@
-/* custom-iot_link 1.17.0 — 📡 IoT 연결 */
+/* custom-iot_link 1.17.1 — 📡 IoT 연결 */
 .hal { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --card:#fff; --soft:#eff6ff; --a:#2563eb; --a2:#06b6d4; --hot:#dc2626; --ok:#16a34a;
   max-width:1200px; margin:0 auto; padding:16px; color:var(--ink); font-size:14px; line-height:1.55; }
 html.dark .hal, .dark .hal { --ink:#e2e8f0; --mute:#94a3b8; --line:#334155; --card:#1e293b; --soft:#172554; }
@@ -711,3 +711,83 @@ html.dark .hal-sup-st span.ok, .dark .hal-sup-st span.ok { background:#14532d; c
 
 .hal-map-svg path.srvl { stroke-dasharray:6 5; }   /* 1.16.8 🌐 3DS 서버 ↔ 중계 PC 는 점선 */
 
+
+/* ───────── 1.17.1 목록 정리 — 낮은 카드(넓으면 한 줄에 4개) · ☰ 한 줄 · ▬ 배너 3칸 · 📍 놓을 곳 고르기 ───────── */
+.hal-grid { grid-template-columns:repeat(auto-fill,minmax(235px,1fr)); gap:10px; }
+.hal-card { gap:8px; padding:11px 12px; border-radius:16px; }
+.hal-card header { gap:9px; align-items:flex-start; }
+.hal-card header > div { gap:2px; }
+.hal-card header b { font-size:14.5px; line-height:1.3; }
+.hal-card header small { display:flex; flex-wrap:wrap; align-items:center; gap:3px 8px; white-space:normal; overflow:visible; }
+.hal-card .hal-st { display:inline-flex; align-items:center; gap:4px; font-size:11.5px; color:var(--mute); white-space:nowrap; }
+.hal-card .hal-ico { width:34px; height:34px; border-radius:10px; font-size:17px; }
+.hal-acts { flex:none; display:flex; gap:0; margin:-3px -4px 0 auto; }
+.hal-acts .hal-icobtn { width:28px; height:28px; font-size:13.5px; }
+.hal-acts .hal-icobtn.pri { background:rgba(37,99,235,.12); }
+.hal-card.srv > .hal-srvtag { top:-8px; right:12px; box-shadow:0 0 0 2px var(--card); }
+.hal-card .hal-to { min-height:34px; padding:6px 10px; gap:8px; border-radius:11px; }
+.hal-card .hal-to > i { font-size:16px; }
+.hal-card .hal-to > span { flex-direction:row; align-items:baseline; gap:6px; }
+.hal-card .hal-to small { flex:none; }
+.hal-card .hal-to b { min-width:0; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; overflow-wrap:normal; }
+.hal-card .hal-vals { gap:6px; align-items:center; flex-wrap:nowrap; }
+.hal-card .hal-vals > div { flex:1 1 0; min-width:0; flex-wrap:nowrap; align-items:baseline; gap:3px; padding:6px 10px; border-radius:11px; }
+.hal-card .hal-vals b { font-size:19px; } .hal-card .hal-vals > div.st b { font-size:14px; white-space:nowrap; }
+.hal-hot { flex:none; padding:4px 9px; border-radius:999px; background:#fee2e2; color:var(--hot); font-size:11.5px; font-weight:800; white-space:nowrap; cursor:help; }
+html.dark .hal-hot, .dark .hal-hot { background:#450a0a; }
+.hal-card .hal-spark { height:30px; }
+.hal-card .hal-snap { aspect-ratio:16/7; }
+.hal-card .hal-sens li { padding:5px 10px; }
+/* ☰ 한 줄 — 머리를 풀어 [고르기 · 아이콘 · 이름 · 상태] [붙인 곳] [값] [단추] 를 한 줄에 */
+.hal-v-row .hal-card { flex-direction:row; flex-wrap:nowrap; align-items:center; gap:10px; padding:7px 10px; border-radius:12px; }
+.hal-v-row .hal-card > header { display:contents; }
+.hal-v-row .hal-card > header > div { flex:1 1 200px; min-width:0; }
+.hal-v-row .hal-card .hal-ico { width:30px; height:30px; font-size:15px; }
+.hal-v-row .hal-card .hal-to { flex:0 1 230px; width:auto; min-height:30px; padding:4px 9px; } .hal-v-row .hal-to em { display:none; }
+.hal-v-row .hal-card .hal-vals { flex:0 0 auto; } .hal-v-row .hal-card .hal-vals > div { flex:none; padding:3px 9px; } .hal-v-row .hal-card .hal-vals b { font-size:16px; }
+.hal-v-row .hal-acts { order:9; margin:0 0 0 2px; }
+.hal-v-row .hal-card.srv > .hal-srvtag { top:-7px; }
+@media (max-width:640px) {
+  .hal-v-row .hal-card { flex-wrap:wrap; }
+  .hal-v-row .hal-card > header > div { flex:1 1 calc(100% - 120px); }
+  .hal-v-row .hal-card .hal-to { flex:1 1 100%; order:10; }
+  .hal-v-row .hal-card .hal-vals { order:11; }
+}
+/* ▬ 배너 — 넓게 한 장: [이름 · 상태 / 붙인 곳] [값] [넓은 흐름 그래프 · 사진 · 센서] */
+@media (min-width:760px) {
+  .hal-v-banner .hal-card { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,.9fr) minmax(0,1.35fr); grid-template-rows:auto auto; grid-auto-flow:row; align-items:center; gap:6px 20px; padding:12px 16px; }
+  .hal-v-banner .hal-card > header { grid-column:1; grid-row:1; }
+  .hal-v-banner .hal-card > .hal-to { grid-column:1; grid-row:2; }
+  .hal-v-banner .hal-card > .hal-vals { grid-column:2; grid-row:1 / 3; }
+  .hal-v-banner .hal-card > .hal-spark, .hal-v-banner .hal-card > .hal-snap, .hal-v-banner .hal-card > .hal-sens { grid-column:3; grid-row:1 / 3; }
+  .hal-v-banner .hal-card > .hal-spark { height:58px; }
+  .hal-v-banner .hal-card > .hal-snap { aspect-ratio:auto; height:72px; }
+  .hal-v-banner .hal-card .hal-vals > div { padding:9px 12px; } .hal-v-banner .hal-card .hal-vals b { font-size:22px; }
+}
+/* 📍 놓을 곳 고르기 (팝업 · 스크롤 없이 탭 · 12개씩) */
+.hal-pp-tabs { margin:0 0 10px; }
+.hal-pp-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(128px,1fr)); gap:8px; }
+.hal-pp { display:flex; flex-direction:column; align-items:center; gap:3px; min-height:92px; padding:12px 8px 10px; border:1px solid var(--line); border-radius:14px; background:var(--card); color:inherit; font:inherit; text-align:center; cursor:pointer; transition:transform .12s ease, border-color .12s ease, box-shadow .12s ease; }
+.hal-pp:hover { border-color:var(--a); transform:translateY(-2px); box-shadow:0 6px 16px -8px rgba(37,99,235,.45); }
+.hal-pp i { font-style:normal; font-size:24px; line-height:1.1; }
+.hal-pp b { font-size:13px; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:keep-all; }
+.hal-pp small { color:var(--mute); font-size:11px; }
+.hal-pp.on { border-color:var(--ok); box-shadow:0 0 0 2px rgba(22,163,74,.22); } .hal-pp.on small { color:var(--ok); font-weight:700; }
+.hal-pp-foot { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:8px; margin-top:12px; }
+.hal-pp-foot span { color:var(--mute); font-size:12.5px; }
+@media (max-width:520px) { .hal-pp-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } .hal-pp { min-height:84px; padding:10px 6px 8px; } }
+/* 1.17.1 접은 사진 · 센서 목록 */
+.hal-xtra { border:1px solid var(--line); border-radius:11px; }
+.hal-xtra > summary { list-style:none; cursor:pointer; padding:6px 10px; font-size:12px; font-weight:700; color:var(--mute); display:flex; align-items:center; gap:6px; }
+.hal-xtra > summary::-webkit-details-marker { display:none; }
+.hal-xtra > summary::before { content:'▸'; transition:transform .15s ease; } .hal-xtra[open] > summary::before { transform:rotate(90deg); }
+.hal-xtra[open] { padding:0 8px 8px; } .hal-xtra[open] > summary { padding:6px 2px; }
+.hal-xtra .hal-snap { margin-bottom:6px; } .hal-xtra .hal-sens { border-radius:9px; }
+.hal-v-row .hal-xtra { display:none; }
+@media (min-width:760px) { .hal-v-banner .hal-card > .hal-xtra { grid-column:3; } }
+/* 1.17.1 접기 — 연결 탭 상자 · 대기 칸 */
+.hal-fold { flex:none; margin-left:auto; padding:4px 10px; border:1px solid var(--line); border-radius:999px; background:var(--card); color:var(--mute); font:inherit; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; }
+.hal-fold:hover { color:var(--a); border-color:var(--a); }
+.hal-srctabs .hal-fold { align-self:center; margin:0 2px 4px auto; padding:4px 10px; border:1px solid var(--line); border-radius:999px; background:var(--card); font-size:12px; font-weight:700; }
+.hal-srcbox.folded .hal-srctabs { margin-bottom:0; }
+.hal-bd.free.folded { padding-bottom:10px; } .hal-bd.free > header .hal-fold { margin-left:auto; }
