@@ -55,6 +55,20 @@ final class Links
         return $out;
     }
 
+    /** 1.17.7 📦 그 업체의 대표 · 관리자 회원 번호 (코인 팩 업체 센서 칸) @return list<int> */
+    public static function mastersOf(int $cid): array
+    {
+        $out = [];
+        foreach (self::call('companies', self::COMPANIES, 'members', [], $cid) as $m) {
+            $m = (array) $m;
+            if (in_array($m['role'] ?? '', ['owner', 'manager'], true) && (int) ($m['user_id'] ?? 0) > 0) {
+                $out[] = (int) $m['user_id'];
+            }
+        }
+
+        return $out;
+    }
+
     /** 1.5.0 🏢 회원이 속한 업체 — 직원도 (업체 기기 보기) @return list<array{id: int, name: string, role: string}> */
     public static function memberCompaniesOf(int $uid): array
     {
