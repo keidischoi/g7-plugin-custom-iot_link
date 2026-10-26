@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.17.2 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.17.3 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.17.2';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.17.3';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -367,17 +367,41 @@
     var c = (S.d.limits.companies || []).filter(function (x) { return 'c' + x.id === k; })[0];
     return c && c.max > 0 ? '<small class="hal-lim' + (c.used >= c.max ? ' full' : '') + '" title="업체 하나에 둘 수 있는 기기 (회원 모두 합쳐 ' + c.used + '개)">업체 ' + c.used + ' / ' + c.max + '</small>' : '';
   }
+  /* 1.17.3 묶음 거르기 — [단추 글, 뜻, 거르는 함수] · 고른 것은 S.gfil[묶음] (새로 그려도 그대로) */
+  var GFIL = {
+    all: ['전체', '모두', function () { return true; }],
+    live: ['🟢 연결', '연결된 것', function (x) { return !x.stale && !x.never; }],
+    off: ['📴 끊김', '끊긴 것', function (x) { return x.stale && !x.never; }],
+    hot: ['⚠️ 넘음', '기준을 넘은 것', function (x) { return !!x.over; }],
+    wait: ['⏳ 대기', '값을 기다리는 것', function (x) { return !!x.never; }]
+  };
+  /* 1.17.3 정렬 — [이름, 비교] · 이 브라우저에 기억 (hal:sort) · 값이 없는 것은 뒤로 */
+  var nameCmp = function (a, b) { return String(a.name).localeCompare(String(b.name), 'ko', { numeric: true }); };
+  var num = function (v) { return v == null ? -Infinity : +v; };
+  var GSORT = {
+    name: ['가나다순', nameCmp],
+    recent: ['최근 소식순', function (a, b) { return String(b.seen || '').localeCompare(String(a.seen || '')) || nameCmp(a, b); }],
+    hum: ['습도 높은순', function (a, b) { return num(b.humidity) - num(a.humidity) || nameCmp(a, b); }],
+    temp: ['온도 높은순', function (a, b) { return num(b.temp) - num(a.temp) || nameCmp(a, b); }],
+    issue: ['문제 먼저', function (a, b) { var r = function (x) { return x.over ? 0 : x.stale && !x.never ? 1 : x.never ? 2 : 3; }; return r(a) - r(b) || nameCmp(a, b); }],
+    added: ['넣은 순', function (a, b) { return a.id - b.id; }]
+  };
+  function sortSel() { var cur = GSORT[pref('sort', 'added')] ? pref('sort', 'added') : 'added'; return '<select class="hal-gsort" data-gsort aria-label="정렬">' + Object.keys(GSORT).map(function (k) { return '<option value="' + k + '"' + (cur === k ? ' selected' : '') + '>↕ ' + GSORT[k][0] + '</option>'; }).join('') + '</select>'; }
   function grouped() {
     var d = S.d, gf = pref('gf', 'all'), vw = pref('view', 'card'), devs = shown(), left = S.lim || PAGE;   // 1.4.7 출처로 거름 · 스크롤하면 더 (PAGE 개씩)
     if (gf !== 'all' && !devs.some(function (x) { return (x.group || 'none') === gf; })) gf = 'all';   // 고른 분류가 비면 전체
     var cut = false, html = groups().filter(function (g) { return gf === 'all' || g[0] === gf; }).map(function (g) {
-      var list = devs.filter(function (x) { return (x.group || 'none') === g[0]; });
-      if (!list.length || left <= 0) { if (list.length) cut = true; return ''; }
+      var all = devs.filter(function (x) { return (x.group || 'none') === g[0]; });
+      if (!all.length || left <= 0) { if (all.length) cut = true; return ''; }
+      // 1.17.3 묶음마다 거르기 — 제목 옆 빈자리에 「전체 · 🟢 연결됨 · 📴 끊김 · ⚠️ 기준 넘음 · ⏳ 기다림」 (있는 것만 · 다시 누르면 전체)
+      var fk = (S.gfil && S.gfil[g[0]]) || 'all', cnt = {}; Object.keys(GFIL).forEach(function (k) { cnt[k] = all.filter(GFIL[k][2]).length; });
+      if (!cnt[fk]) fk = 'all';
+      var list = all.filter(GFIL[fk][2]).sort((GSORT[pref('sort', 'added')] || GSORT.added)[1]);
       var open = gf !== 'all' || !grpFold(g[0]), part = open ? list.slice(0, left) : [];   // 접힌 묶음은 카드를 그리지 않음
       if (open) { left -= part.length; if (part.length < list.length) cut = true; }
-      var live = list.filter(function (x) { return !x.stale; }).length, over = list.filter(function (x) { return x.over; }).length;
+      var chips = Object.keys(GFIL).filter(function (k) { return k === 'all' || cnt[k]; }).map(function (k) { return '<button type="button" class="hal-gfil k-' + k + (fk === k ? ' on' : '') + '" data-gfil="' + g[0] + '|' + k + '" aria-pressed="' + (fk === k) + '" title="' + GFIL[k][1] + '만 보기">' + GFIL[k][0] + '<em>' + cnt[k] + '</em></button>'; }).join('');
       return '<details class="hal-grp g-' + (g[0].charAt(0) === 'c' ? 'co' : g[0]) + '" data-grp="' + g[0] + '"' + (gf !== 'all' || !grpFold(g[0]) ? ' open' : '') + '><summary><i aria-hidden="true">' + g[1] + '</i><b>' + esc(g[2]) + '</b><small>' + esc(g[3]) + '</small>' +
-        '<span class="hal-grp-n">' + list.length + coLimit(g[0]) + '<em>🟢 ' + live + '</em>' + (over ? '<em class="hot">⚠️ ' + over + '</em>' : '') + '</span></summary><div class="hal-grid hal-v-' + vw + '">' + part.map(card).join('') + '</div></details>';
+        '<span class="hal-gfils" role="group" aria-label="' + esc(g[2]) + ' 거르기">' + chips + coLimit(g[0]) + '</span>' + sortSel() + '</summary><div class="hal-grid hal-v-' + vw + '">' + (part.length ? part.map(card).join('') : '<p class="hal-hint">이 조건에 맞는 기기가 없어요.</p>') + '</div></details>';
     }).join('');
     return html + (cut ? '<div class="hal-more" data-more aria-label="더 불러오는 중"><span></span><span></span><span></span></div>' : '');
   }
@@ -861,6 +885,8 @@
     qa('[data-slot]').forEach(function (b) { b.onclick = function () { slotBox(); }; });   // 1.4.8 💳
     qa('[data-edit]').forEach(function (b) { b.onclick = function () { var dv = find(b.getAttribute('data-edit')); if (dv && dv.perm === 'view') { toast('🏢 업체 기기는 그 업체 대표 · 관리자만 고칠 수 있어요.'); return; } form(dv); }; });   // 1.5.0
     qa('[data-place]').forEach(function (b) { b.onclick = function () { placePick(+b.getAttribute('data-place')); }; });   // 1.17.1 📍 보드처럼 눌러서 붙이기
+    qa('[data-gfil]').forEach(function (b) { b.onclick = function (e) { e.preventDefault(); e.stopPropagation(); var p = b.getAttribute('data-gfil').split('|'), cur = (S.gfil = S.gfil || {})[p[0]] || 'all'; S.gfil[p[0]] = cur === p[1] ? 'all' : p[1]; redraw(); }; });   // 1.17.3 묶음 거르기 (제목 줄 안이라 접기 · 펼치기는 하지 않음)
+    qa('[data-gsort]').forEach(function (s) { s.onclick = function (e) { e.stopPropagation(); }; s.onchange = function () { setPref('sort', s.value); redraw(); }; });   // 1.17.3 정렬 (이 브라우저에 기억)
     qa('[data-xtra]').forEach(function (x) { x.addEventListener('toggle', function () { S.xo = S.xo || {}; S.xo[x.getAttribute('data-xtra')] = x.open; }); });   // 1.17.1 접은 사진 · 센서 목록
     qa('[data-yaml]').forEach(function (b) { b.onclick = function () { yamlBox(find(b.getAttribute('data-yaml'))); }; });
     qa('[data-revive]').forEach(function (b) { b.onclick = function () { revive(b); }; });
