@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.17.4 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.17.5 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.17.4';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.17.5';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -399,7 +399,7 @@
       var list = all.filter(GFIL[fk][2]).sort((GSORT[pref('sort', 'added')] || GSORT.added)[1]);
       var open = gf !== 'all' || !grpFold(g[0]), part = open ? list.slice(0, left) : [];   // 접힌 묶음은 카드를 그리지 않음
       if (open) { left -= part.length; if (part.length < list.length) cut = true; }
-      var chips = Object.keys(GFIL).filter(function (k) { return k === 'all' || cnt[k]; }).map(function (k) { return '<button type="button" class="hal-gfil k-' + k + (fk === k ? ' on' : '') + '" data-gfil="' + g[0] + '|' + k + '" aria-pressed="' + (fk === k) + '" title="' + GFIL[k][1] + '만 보기">' + GFIL[k][0] + '<em>' + cnt[k] + '</em></button>'; }).join('');
+      var chips = Object.keys(GFIL).map(function (k) { var z = k !== 'all' && !cnt[k]; return '<button type="button" class="hal-gfil k-' + k + (fk === k ? ' on' : '') + (z ? ' zero' : '') + '" data-gfil="' + g[0] + '|' + k + '" aria-pressed="' + (fk === k) + '"' + (z ? ' disabled' : '') + ' title="' + (z ? GFIL[k][1] + '이 없어요' : GFIL[k][1] + '만 보기') + '">' + GFIL[k][0] + '<em>' + cnt[k] + '</em></button>'; }).join('');   // 1.17.5 늘 다섯 개 (0개는 흐리게 · 안 눌림)
       return '<details class="hal-grp g-' + (g[0].charAt(0) === 'c' ? 'co' : g[0]) + '" data-grp="' + g[0] + '"' + (gf !== 'all' || !grpFold(g[0]) ? ' open' : '') + '><summary><i aria-hidden="true">' + g[1] + '</i><b>' + esc(g[2]) + '</b><small>' + esc(g[3]) + '</small>' +
         '<span class="hal-gfils" role="group" aria-label="' + esc(g[2]) + ' 거르기">' + chips + coLimit(g[0]) + '</span>' + sortSel() + '</summary><div class="hal-grid hal-v-' + vw + '">' + (part.length ? part.map(card).join('') : '<p class="hal-hint">이 조건에 맞는 기기가 없어요.</p>') + '</div></details>';
     }).join('');
