@@ -1,8 +1,8 @@
-/*! custom-iot_link 1.17.1 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.17.2 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.17.1';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.17.2';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -164,7 +164,7 @@
   /* 1.4.6 보기 — 고른 분류(전체 · 분류 하나) · 모양(▦ 카드 · ☰ 한 줄 · ▬ 배너) 기억 */
   function pref(k, def) { try { return localStorage.getItem('hal:' + k) || def; } catch (e) { return def; } }
   function setPref(k, v) { try { localStorage.setItem('hal:' + k, v); } catch (e) {} }
-  var VIEWS = [['card', '▦', '카드'], ['row', '☰', '한 줄'], ['banner', '▬', '배너'], ['board', '📦', '보드']];   // 1.6.0 📦 보관함 보드
+  var VIEWS = [['card', '▦', '카드'], ['banner', '▬', '배너'], ['row', '☰', '한 줄'], ['board', '📦', '보드']];   // 1.6.0 📦 보관함 보드 · 1.17.2 배너 ↔ 한 줄 자리 바꿈
   /* 1.4.8 💳 센서 칸 사기 — 1개 · 10개 묶음 · 코인 · 마일리지 · 나 또는 내 업체 */
   /* 1.8.3 💳 개수를 정해 살 때 값 — 서버(Points::total)와 같은 셈: 10개마다 묶음 값(있으면) + 나머지는 1개 값 */
   function slotTotal(c, q) { var one = +c.unit || 0, ten = +c.pack || 0, packs = ten > 0 ? Math.floor(q / 10) : 0, rest = q - packs * 10; return rest > 0 && one <= 0 ? 0 : packs * ten + rest * one; }
