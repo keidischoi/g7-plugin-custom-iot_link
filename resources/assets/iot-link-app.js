@@ -1,4 +1,4 @@
-/*! custom-iot_link 1.17.9 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.18.0 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   // 🌐 화면 글자 사전 — en 에 없으면 ko
@@ -146,6 +146,14 @@
     no_server_name_older: "서버 이름 없음 (예전 통합)",
     no_name: "이름 없음",
     matter_3ds_link: "Matter (3ds 연결)",
+    app_relay_tab: "앱 중계",   // 1.18.0 📱
+    app_relay_card: '</span><div><h2>📱 앱 중계 <small>3D SUEÑO 안드로이드 앱 · PC 없이</small></h2><p>집 와이파이에 둔 안드로이드 폰이 PC 연결 프로그램 대신 <b>프린터 상태</b>와 <b>📨 MQTT 센서 값</b>을 이 사이트로 보내요. 충전기에 꽂아 둔 남는 폰이면 좋아요.</p></div>',
+    app_relay_how: '<div class="hal-mtg-apps"><div><b>① 앱 › 내 프린터 › 📡 중계 모드</b><span>3D SUEÑO 앱에 로그인한 폰</span></div><div><b>② 프린터 · 📨 IoT 센서 켜기</b><span>프린터는 「이 폰으로 중계」 · 센서는 「같이 중계」 (브로커 · 토픽은 MQTT · BT 탭 설정 그대로)</span></div><div><b>③ ▶ 켜기 · 📶 절전 막기</b><span>알림이 떠 있는 동안 보내요 · 배터리 최적화에서 빼 주세요</span></div><div><b>💾 백업</b><span>설정은 사이트에 암호화해 맡겨요 — 폰을 바꾸면 저절로 불러와요</span></div></div><p class="hal-hint">🏠 폰이 집 밖이면 쉬고, 돌아오면 저절로 이어요 · 🔀 PC 가 보내는 프린터는 PC 가 먼저 · 📶 블루투스 · 🧩 Matter · 📤 출력 파일 보내기는 PC 만 · 🏠 홈어시스턴트 · 🔷 SmartThings 는 중계가 필요 없어요</p>',
+    app_relay_none: '<p class="hal-hint">아직 앱으로 중계하는 폰이 없어요.</p>',
+    app_relay_phones: "중계하는 폰",
+    app_relay_away: "🏠 집 밖이라 쉬는 중",
+    app_relay_sensors: "📨 MQTT 센서",
+    app_relay_printers: "🖨️ 프린터",
     mqtt_bt_3ds_relay: "MQTT · BT (3ds 중계)",
     source: ' 에서 옴">',
     title_source_device_attached: '" title="받는 곳 → 기기 → 붙인 곳 → 이어지는 확장">🗺️ 연결 지도</button>',
@@ -1053,6 +1061,14 @@
     no_server_name_older: "No server name (older integration)",
     no_name: "No name",
     matter_3ds_link: "Matter (3ds link)",
+    app_relay_tab: "App relay",   // 1.18.0 📱
+    app_relay_card: '</span><div><h2>📱 App relay <small>3D SUEÑO Android app · no PC</small></h2><p>An Android phone on your home Wi-Fi sends <b>printer status</b> and <b>📨 MQTT sensor values</b> to this site instead of the PC link program. A spare phone on a charger works well.</p></div>',
+    app_relay_how: '<div class="hal-mtg-apps"><div><b>① App › My printers › 📡 Relay mode</b><span>A phone signed in to the 3D SUEÑO app</span></div><div><b>② Turn on printers · 📨 IoT sensors</b><span>Printers: 「Relay with this phone」 · sensors: 「relay too」 (broker · topics come from the MQTT · BT tab)</span></div><div><b>③ ▶ Turn on · 📶 stop power saving</b><span>It sends while the notification stays · remove it from battery optimization</span></div><div><b>💾 Backup</b><span>Settings are kept on the site, encrypted — they load on a new phone</span></div></div><p class="hal-hint">🏠 Pauses when the phone leaves home and resumes when back · 🔀 printers sent by a PC: the PC wins · 📶 Bluetooth · 🧩 Matter · 📤 sending print files need the PC · 🏠 Home Assistant · 🔷 SmartThings need no relay</p>',
+    app_relay_none: '<p class="hal-hint">No phone is relaying with the app yet.</p>',
+    app_relay_phones: "Relaying phones",
+    app_relay_away: "🏠 Away from home",
+    app_relay_sensors: "📨 MQTT sensors",
+    app_relay_printers: "🖨️ Printers",
     mqtt_bt_3ds_relay: "MQTT · BT (3ds relay)",
     source: ' source">',
     title_source_device_attached: '" title="Source → device → attached place → linked extension">🗺️ Connection map</button>',
@@ -1822,7 +1838,7 @@
   function tx(k, v) { var d = T[__loc()] || T.ko; var s = d[k] != null ? d[k] : (T.ko[k] != null ? T.ko[k] : k); return v ? s.replace(/\{(\w+)\}/g, function (m, x) { return v[x] != null ? String(v[x]) : m; }) : s; }
 
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.17.9';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.18.0';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -2755,7 +2771,8 @@
     var svs = haServers(), many = svs.length > 1;   // 1.8.0 🏠 HA 서버마다 탭 (하나면 예전처럼 「Home Assistant」 하나)
     var mts = d.devices.filter(function (x) { return srcOf(x) === 'mt'; });   // 1.10.0 🧩
     var mqs = d.devices.filter(function (x) { return srcOf(x) === 'mq'; });   // 1.15.0 📨
-    var tab = pref('srctab', ''), ok = tab === 'st' || tab === 'mt' || tab === 'mq' || (!many && tab === 'ha') || (many && tab.indexOf('ha:') === 0 && svs.some(function (v) { return 'ha:' + v.id === tab; }));
+    var aps = d.app_relay || [];   // 1.18.0 📱
+    var tab = pref('srctab', ''), ok = tab === 'st' || tab === 'mt' || tab === 'mq' || tab === 'ap' || (!many && tab === 'ha') || (many && tab.indexOf('ha:') === 0 && svs.some(function (v) { return 'ha:' + v.id === tab; }));
     if (!ok) tab = ins.length || !ha.length ? 'st' : many ? 'ha:' + svs[0].id : 'ha';
     if (!st && tab === 'st') tab = many ? 'ha:' + svs[0].id : 'ha';
     var stOn = ins.filter(function (x) { return x.status === 'active'; }).length;
@@ -2763,11 +2780,27 @@
     var bar = tx('s_21') + (st ? '<button type="button" role="tab" data-srctab="st" class="' + (tab === 'st' ? 'on' : '') + '" aria-selected="' + (tab === 'st') + '">' + stLogo() + ' ' + (many ? recvDot('st') : '') + 'SmartThings <small>' + (ins.length ? '🟢 ' + stOn + ' / ' + ins.length : '–') + '</small></button>' : '') +
       (many ? svs.map(function (v) { return haTab('ha:' + v.id, v.label, ha.filter(function (x) { return (x.ha_server || '') === v.id; })); }).join('') : haTab('ha', 'Home Assistant', ha)) +
       '<button type="button" role="tab" data-srctab="mt" class="' + (tab === 'mt' ? 'on' : '') + '" aria-selected="' + (tab === 'mt') + '">' + mtLogo() + ' ' + recvDot('mt') + 'Matter <small>' + (mts.length ? '🟢 ' + mts.filter(function (x) { return !x.stale && !x.never; }).length + ' / ' + mts.length : '–') + '</small></button>' +
-      '<button type="button" role="tab" data-srctab="mq" class="' + (tab === 'mq' ? 'on' : '') + '" aria-selected="' + (tab === 'mq') + '">' + mqLogo() + ' ' + recvDot('mq') + 'MQTT · BT <small>' + (mqs.length ? '🟢 ' + mqs.filter(function (x) { return !x.stale && !x.never; }).length + ' / ' + mqs.length : '–') + '</small></button>' + foldBtn('src') + '</div>';
+      '<button type="button" role="tab" data-srctab="mq" class="' + (tab === 'mq' ? 'on' : '') + '" aria-selected="' + (tab === 'mq') + '">' + mqLogo() + ' ' + recvDot('mq') + 'MQTT · BT <small>' + (mqs.length ? '🟢 ' + mqs.filter(function (x) { return !x.stale && !x.never; }).length + ' / ' + mqs.length : '–') + '</small></button>' + '<button type="button" role="tab" data-srctab="ap" class="' + (tab === 'ap' ? 'on' : '') + '" aria-selected="' + (tab === 'ap') + '">📱 ' + tx('app_relay_tab') + ' <small>' + (aps.length ? '🟢 ' + aps.length : '–') + '</small></button>' + foldBtn('src') + '</div>';   // 1.18.0 📱
     var cur = many && tab.indexOf('ha:') === 0 ? svs.filter(function (v) { return 'ha:' + v.id === tab; })[0] : null;
     if (folded('src')) return '<div class="hal-srcbox folded">' + bar + '</div>';   // 1.17.1 접으면 탭 줄만
-    return '<div class="hal-srcbox">' + bar + (tab === 'st' ? stCard() : tab === 'mt' ? mtCard(mts) : tab === 'mq' ? mqCard(mqs) : haCard(cur ? ha.filter(function (x) { return (x.ha_server || '') === cur.id; }) : ha, cur)) + '</div>';
+    return '<div class="hal-srcbox">' + bar + (tab === 'ap' ? apCard(aps) : tab === 'st' ? stCard() : tab === 'mt' ? mtCard(mts) : tab === 'mq' ? mqCard(mqs) : haCard(cur ? ha.filter(function (x) { return (x.ha_server || '') === cur.id; }) : ha, cur)) + '</div>';
   }
+  /** 1.18.0 📱 앱 중계 — 설명 · 중계하는 폰 (프린터 · MQTT 센서 · 집 밖) */
+  function apCard(aps) {
+    var live = aps.filter(function (p) { return !p.away && p.at && agoMin(p.at) < 15; }).length;
+    var pill = aps.length ? (live ? tx('connected_5') + (live > 1 ? ' ' + live : '') + '</span>' : tx('disconnected_4') + (aps.length - live) + '</span>') : tx('not_connected');
+    var list = aps.map(function (p) {
+      var on = !p.away && p.at && agoMin(p.at) < 15;
+      return '<div class="hal-hachip' + (on ? '' : ' off') + '" style="cursor:default;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center"><span class="hal-dot ' + (on ? 'on' : 'off') + '"></span><b>' + esc(p.name) + '</b><small>' +
+        (p.away ? tx('app_relay_away') : p.at ? agoText(p.at) : '') + '</small>' +
+        (p.printers.length ? '<small>' + tx('app_relay_printers') + ' ' + p.printers.map(esc).join(' · ') + '</small>' : '') +
+        (p.iot ? '<small>' + tx('app_relay_sensors') + '</small>' : '') + '</div>';
+    }).join('');
+    return '<section class="hal-stc mq"><header class="hal-stc-h"><span class="hal-stc-logo mq" aria-hidden="true" style="font-size:22px;display:grid;place-items:center">📱' + tx('app_relay_card') + pill + '</header>' +
+      (aps.length ? '<h4 style="margin:8px 0 6px">' + tx('app_relay_phones') + '</h4><div class="hal-stc-devs ha" style="display:grid;gap:6px">' + list + '</div>' : tx('app_relay_none')) +
+      tx('app_relay_how') + '</section>';
+  }
+  function agoMin(at) { var t = new Date(String(at).replace(' ', 'T')), n = new Date(String(S.d.now || '').replace(' ', 'T')); return isNaN(t) || isNaN(n) ? 9999 : (n - t) / 60000; }
   /** 🏠 Home Assistant 로 이은 센서 — HA 의 「3ds」 통합이 고른 것 (누르면 고치기) */
   function haCard(ha, srv) {   // 1.8.0 srv = 탭으로 고른 HA 서버
     var on = ha.filter(function (x) { return !x.stale && !x.never; }).length, off = ha.filter(function (x) { return x.stale && !x.never; }).length;
