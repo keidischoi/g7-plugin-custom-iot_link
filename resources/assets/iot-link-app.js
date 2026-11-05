@@ -1,4 +1,4 @@
-/*! custom-iot_link 1.17.8 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.17.9 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   // 🌐 화면 글자 사전 — en 에 없으면 ko
@@ -433,6 +433,9 @@
     pill_buttons: "알약 단추",
     bluetooth_thermo_hygrometers: "블루투스 온습도계",
     beta_via_windows_relay: "🧪 베타 · 윈도우 중계 PC 로",
+    phone_app_relay: "폰으로 중계",   // 1.17.9 📱 3D SUEÑO 앱 중계 모드
+    android_no_pc: "안드로이드 앱 · PC 없이",
+    app_relay_guide: '<section class="hal-sec"><h4>📱 폰으로 중계 <small>3D SUEÑO 안드로이드 앱 · PC 대신</small></h4><div class="hal-mtg-apps"><div><b>① 앱 › 내 프린터 › 📡 중계 모드</b><span>집 와이파이에 둔 폰(충전기에 꽂은 남는 폰이면 좋아요)</span></div><div><b>② 📨 IoT 센서 「같이 중계」 켜기</b><span>연결 코드는 저절로 · 브로커 · 받을 토픽은 이 화면 ⚙️ 브로커 설정 그대로</span></div><div><b>③ ▶ 켜기</b><span>알림이 떠 있는 동안 보내요 · 받는 곳에 「📱 기기 이름 (앱)」 으로 보여요 · 📶 절전 막기에서 배터리 최적화를 빼 주세요</span></div><div><b>💾 백업</b><span>설정은 사이트에 암호화해 저절로 맡겨요 — 폰을 바꾸면 중계 화면을 열 때 불러와요</span></div></div><p class="hal-hint">📶 블루투스 온습도계는 아직 PC 중계만 돼요. 🏠 홈어시스턴트 · 🔷 SmartThings · 🧩 Matter 는 중계가 필요 없거나 따로예요.</p></section>',
     topic_examples: "토픽 예",
     turn_off: "끄기",
     relay_sensors: "중계 · 센서",
@@ -1337,6 +1340,9 @@
     pill_buttons: "Pill buttons",
     bluetooth_thermo_hygrometers: "Bluetooth thermo-hygrometers",
     beta_via_windows_relay: "🧪 Beta · via Windows relay PC",
+    phone_app_relay: "Relay with a phone",   // 1.17.9 📱 3D SUEÑO app relay mode
+    android_no_pc: "Android app · no PC",
+    app_relay_guide: '<section class="hal-sec"><h4>📱 Relay with a phone <small>3D SUEÑO Android app · instead of a PC</small></h4><div class="hal-mtg-apps"><div><b>① App › My printers › 📡 Relay mode</b><span>A phone on your home Wi-Fi (a spare phone on a charger works well)</span></div><div><b>② Turn on 📨 IoT sensors 「relay too」</b><span>The link code is filled in automatically · broker and topics come from ⚙️ Broker settings here</span></div><div><b>③ ▶ Turn on</b><span>It sends while the notification stays · shows in Receivers as 「📱 device name (app)」 · remove battery optimization in 📶 Power saving</span></div><div><b>💾 Backup</b><span>Settings are backed up to the site, encrypted — on a new phone they load when you open the relay screen</span></div></div><p class="hal-hint">📶 Bluetooth thermo-hygrometers still need the PC relay. 🏠 Home Assistant · 🔷 SmartThings · 🧩 Matter need no relay or have their own.</p></section>',
     topic_examples: "Topic examples",
     turn_off: "Turn off",
     relay_sensors: "Relay · sensors",
@@ -1816,7 +1822,7 @@
   function tx(k, v) { var d = T[__loc()] || T.ko; var s = d[k] != null ? d[k] : (T.ko[k] != null ? T.ko[k] : k); return v ? s.replace(/\{(\w+)\}/g, function (m, x) { return v[x] != null ? String(v[x]) : m; }) : s; }
 
   if (window.__halApp) { window.__halApp.tick(); return; }
-  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.17.8';
+  var API = '/api/plugins/custom-iot_link', BASE = '/iot-link', V = '1.17.9';
   var S = { root: null, key: '', d: null, ret: null, deep: false, pickPrinter: 0 };
 
   // ── 공통 ──
@@ -2844,9 +2850,10 @@
   }
   /** 1.16.0 ❓ 연결 방법 › MQTT · 📶 블루투스 — 그림 단추 (스크롤 없이) */
   function guideMq() {
-    var T = [['win', '💻', tx('one_line_install'), tx('windows_linux_mac')], ['broker', '⚙️', tx('broker_settings_2'), tx('address_account_topics')], ['pick', '🔎', tx('choose_sensors'), tx('pill_buttons')], ['ble', '📶', tx('bluetooth_thermo_hygrometers'), tx('beta_via_windows_relay')], ['topic', '🧾', tx('topic_examples'), 'Zigbee2MQTT · Tasmota …'], ['off', '🔌', tx('turn_off'), tx('relay_sensors')]];
+    var T = [['win', '💻', tx('one_line_install'), tx('windows_linux_mac')], ['app', '📱', tx('phone_app_relay'), tx('android_no_pc')], ['broker', '⚙️', tx('broker_settings_2'), tx('address_account_topics')], ['pick', '🔎', tx('choose_sensors'), tx('pill_buttons')], ['ble', '📶', tx('bluetooth_thermo_hygrometers'), tx('beta_via_windows_relay')], ['topic', '🧾', tx('topic_examples'), 'Zigbee2MQTT · Tasmota …'], ['off', '🔌', tx('turn_off'), tx('relay_sensors')]];
     var P = {
       win: mqWin(),
+      app: tx('app_relay_guide'),   // 1.17.9
       broker: tx('broker_settings_mqtt_card') +
         tx('address_port_ip_of') +
         tx('account_same_as_what') +
