@@ -1468,6 +1468,20 @@ namespace {
         '1.17.6 📥 붙일 곳 제안 — 바로 안 붙음 · 없는 기기 · 없는 곳은 뺌 · ✔ 붙이기 = 📍 와 같은 길 · 남의 제안 없음 · 버리기');
     DB::table('hal_devices')->whereIn('id', [$ida6, $idb6])->delete();
 
+    // 1.18.0 📱 앱 중계 — 📱 로 시작하는 link_host 프린터 · MQTT 중계 이름 → overview.app_relay
+    if (! \Illuminate\Support\Facades\Schema::hasColumn('mpr_printers', 'link_host')) {
+        \Illuminate\Support\Facades\Schema::table('mpr_printers', function ($t) { $t->string('link_host')->nullable(); });
+    }
+    DB::table('mpr_printers')->where('id', 5)->update(['link_host' => '📱 SM-F956N (앱)', 'last_seen_at' => now()]);
+    \Illuminate\Support\Facades\Cache::put('iotl:mq:relay:1', ['name' => '📱 SM-F956N (앱)', 'id' => 'appx', 'at' => HaService::now()], 600);
+    $ap = $svc->overview(1)['app_relay'] ?? null;
+    $js18 = (string) file_get_contents(dirname(__DIR__).'/resources/assets/iot-link-app.js');
+    t(is_array($ap) && count($ap) === 1 && $ap[0]['name'] === '📱 SM-F956N (앱)' && $ap[0]['iot'] === true && count($ap[0]['printers']) === 1 && str_contains($ap[0]['printers'][0], 'P1S')
+        && $svc->appRelay(2) === [] && str_contains($js18, 'data-srctab="ap"') && str_contains($js18, 'function apCard(aps)'),
+        '1.18.0 📱 앱 중계 — 폰 하나로 묶음 (프린터 + MQTT 센서) · 다른 회원은 없음 · 받는 곳 탭');
+    DB::table('mpr_printers')->where('id', 5)->update(['link_host' => null]);
+    \Illuminate\Support\Facades\Cache::forget('iotl:mq:relay:1');
+
     echo "\n통과 {$pass} · 실패 {$fail}\n";
     exit($fail ? 1 : 0);
 }

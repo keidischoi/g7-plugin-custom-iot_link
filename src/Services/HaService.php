@@ -196,7 +196,8 @@ class HaService
             'devices' => $rows->map(fn ($d) => $this->device($d, $hist[(int) $d->id] ?? [], $pn, $equip) + ['perm' => (int) $d->user_id === $uid || in_array((int) $d->company_id, array_column($companies, 'id'), true) ? 'manage' : 'view', 'mine' => (int) $d->user_id === $uid] + ['sensors' => $byDev[(int) $d->id] ?? [], 'group' => self::group((string) ($d->grp ?? ''), (string) $d->target, $d->company_id ? (int) $d->company_id : null, $mcids ?: array_column($companies, 'id')), 'group_auto' => self::group('', (string) $d->target, $d->company_id ? (int) $d->company_id : null, $mcids ?: array_column($companies, 'id'))])->all(),
             'smartthings' => $st,
             'proposals' => (new AiPlaceService($this))->list($uid),   // 1.17.6 📥 AI 연결의 「붙일 곳」 제안 — 맨 위 🤖 상자
-            'mqtt' => (new MqttService($this))->view($uid),   // 1.15.0 📨 MQTT 중계 — 브로커 설정(비밀번호 빼고) · 찾은 토픽 · 중계 상태
+            'mqtt' => (new MqttService($this))->view($uid),
+            'app_relay' => $this->appRelay($uid),   // 1.18.0 📱 앱 중계 — 3D SUEÑO 앱으로 보내는 폰들   // 1.15.0 📨 MQTT 중계 — 브로커 설정(비밀번호 빼고) · 찾은 토픽 · 중계 상태
             'printers' => $printers, 'companies' => $companies, 'member_companies' => $mcos, 'equipment' => array_values($equip), 'locations' => $this->locations($uid),
             'boxes' => Links::boxes($uid),   // 1.6.0 📦 보관함 보드 (재고 관리의 보관함 · 색 · 롤 수)
             'targets' => Rules::TARGETS,
@@ -1070,6 +1071,44 @@ class HaService
     /* ───────── 다른 확장 (읽기만) ───────── */
 
     /** 내 프린터 @return list<array{id: int, name: string}> */
+    /**
+     * 1.18.0 📱 앱 중계 — 3D SUEÑO 안드로이드 앱의 중계 모드로 보내는 폰 (이름이 📱 로 시작)
+     *  프린터: my_printer 가 적은 link_host · MQTT 센서: 마지막 MQTT 중계 이름 · 🏠 집 밖: my_printer 의 away 표시
+     *
+     * @return list<array{name: string, at: ?string, printers: list<string>, iot: bool, away: bool}>
+     */
+    public function appRelay(int $uid): array
+    {
+        $ph = [];
+        $add = static function (string $name, ?string $at, ?string $printer = null, bool $iot = false, bool $away = false) use (&$ph): void {
+            $ph[$name] ??= ['name' => $name, 'at' => null, 'printers' => [], 'iot' => false, 'away' => false];
+            if ($at !== null && ($ph[$name]['at'] === null || $at > $ph[$name]['at'])) {
+                $ph[$name]['at'] = $at;
+            }
+            if ($printer !== null && $printer !== '') {
+                $ph[$name]['printers'][] = $printer;
+            }
+            $ph[$name]['iot'] = $ph[$name]['iot'] || $iot;
+            $ph[$name]['away'] = $ph[$name]['away'] || $away;
+        };
+        try {
+            if ($this->hasTable('mpr_printers') && $this->hasCol('mpr_printers', 'link_host')) {
+                $ar = 'Plugins\\Custom\\MyPrinter\\Support\\AppRelay';
+                foreach (DB::table('mpr_printers')->where('user_id', $uid)->where('link_host', 'like', '📱%')->where('last_seen_at', '>=', self::ago(30 * 86400))->get() as $p) {
+                    $away = class_exists($ar) && method_exists($ar, 'awayAt') && $ar::awayAt((int) $p->id, $p->last_seen_at) !== null;
+                    $add((string) $p->link_host, $p->last_seen_at ? (string) $p->last_seen_at : null, trim(($p->nickname ? $p->nickname.' · ' : '').$p->brand.' '.$p->model), false, $away);
+                }
+            }
+            $r = \Illuminate\Support\Facades\Cache::get('iotl:mq:relay:'.$uid);
+            if (is_array($r) && str_starts_with(ltrim((string) ($r['name'] ?? '')), '📱')) {
+                $add((string) $r['name'], (string) ($r['at'] ?? '') ?: null, null, true);
+            }
+        } catch (\Throwable) {
+        }
+
+        return array_values($ph);
+    }
+
     public function printers(int $uid): array
     {
         if (! Settings::get('printer_link') || ! $this->hasTable('mpr_printers')) {
