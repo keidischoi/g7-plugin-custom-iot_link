@@ -152,15 +152,16 @@ class HaController extends Controller
             $this->svc->tagServer($dev, null, $this->server($r), $uid);   // 1.8.2 통합 0.4.1+ 가 켤 때 이 기기 번호도 — 값을 아직 안 보낸 기기도 서버가 적힘
         }
 
-        return $uid ? $this->hubJson(true, 'ok', $this->svc->hub($uid, $this->server($r))) : $this->hubJson(false, '연결 코드가 맞지 않아요.', [], 404);
+        return $uid ? $this->hubJson(true, 'ok', $this->svc->hub($uid, $this->server($r)) + ['scopes' => (new HaStatus())->scopes($uid)]) : $this->hubJson(false, '연결 코드가 맞지 않아요.', [], 404);   // 1.19.11 🏢 3DSSync 등록 때 범위 고르기
     }
 
     /** 1.19.0 🔁 GET hub/{code}/status — 3DSSync 통합이 HA 센서로 (그 회원 것만 · 1분 기억) */
-    public function hubStatus(string $code, HaStatus $st): JsonResponse
+    public function hubStatus(Request $r, string $code, HaStatus $st): JsonResponse
     {
         $uid = $this->svc->linkUser($code);
 
-        return $uid ? $this->hubJson(true, 'ok', ['status' => $st->status($uid)]) : $this->hubJson(false, '연결 코드가 맞지 않아요.', [], 404);
+        // 1.19.11 ?scope=me | c:{업체} | all (없으면 all — 예전 3DSSync) · scopes = 고를 수 있는 범위
+        return $uid ? $this->hubJson(true, 'ok', ['status' => $st->status($uid, (string) $r->query('scope', 'all')), 'scopes' => $st->scopes($uid)]) : $this->hubJson(false, '연결 코드가 맞지 않아요.', [], 404);
     }
 
     public function hubSave(Request $r, string $code, ?int $id = null): JsonResponse
