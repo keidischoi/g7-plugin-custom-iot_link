@@ -224,6 +224,7 @@ class HaStatus
         $out = [];
         foreach (array_slice($o['devices'] ?? [], 0, 40) as $d) {
             $out[] = [
+                'id' => (int) ($d['id'] ?? 0),   // 1.19.10 HA 가 센서마다 엔티티로 (기기 화면 센서 목록)
                 'name' => (string) ($d['name'] ?? ''), 'source' => (string) ($d['source'] ?? ''), 'server' => (string) ($d['ha_server_name'] ?? ''),
                 'target' => (string) ($d['target'] ?? ''), 'where' => (string) ($d['where'] ?? ''),
                 'temp' => $d['temp'] ?? null, 'humidity' => $d['humidity'] ?? null, 'state' => (string) ($d['state'] ?? ''), 'is_on' => (bool) ($d['is_on'] ?? false),
