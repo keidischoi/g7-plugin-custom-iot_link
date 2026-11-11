@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.19.3 — 2026-11-11
+
+- 🗺️ 연결 지도: 🏠 Home Assistant · 🔷 SmartThings · 🔗 SimplyPrint 는 중계 PC 없이 🌐 3DS 서버와 바로 선 (전에는 중계 PC 가 하나면 그 밑에 그림) · 📱 폰 앱 밑에는 MprLink 를 잇지 않음
+
 ## 1.19.2 — 2026-11-11
 
 - 📖 「📱 앱 중계」 탭 → 「앱 · 프로그램 중계」 — 🏢 회사 PC 프로그램(3DS Trader Edition)으로 MQTT 온습도 센서 · 회사 프린터를 보내는 방법 설명 더함
