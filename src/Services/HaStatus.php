@@ -65,7 +65,7 @@ class HaStatus
         }
         $personal = $this->only === null || $this->only === [];   // 알림 · 주문 · 의뢰 · 내 프린터는 개인 것 — 업체 범위엔 없음
 
-        return Cache::remember('iotl:hastatus4:'.$uid.':'.$scope, 60, fn () => [
+        return Cache::remember('iotl:hastatus5:'.$uid.':'.$scope, 60, fn () => [
             'at' => now()->toIso8601String(),
             'scope' => $scope,
             'notices' => $personal ? $this->safe(fn () => $this->notices($uid)) : null,
@@ -308,7 +308,7 @@ class HaStatus
         $cids = $this->companies($uid);
         $mine = $this->only === null || $this->only === [];
         $boxes = DB::table('inv_boxes')->where(fn ($w) => $w->where(fn ($a) => $mine ? $a->where('company_id', 0)->where('user_id', $uid) : $a->whereRaw('1 = 0'))->orWhereIn('company_id', $cids ?: [-1]))
-            ->orderBy('id')->limit(50)->get(['id', 'loc_key', 'name']);
+            ->orderBy('id')->limit(50)->get(array_merge(['id', 'loc_key', 'name'], DbSchema::hasColumn('inv_boxes', 'color') ? ['color'] : []));
         if ($boxes->isEmpty()) {
             return [];
         }
@@ -325,7 +325,7 @@ class HaStatus
             $hum = $sen && $sen->humidity !== null ? (float) $sen->humidity : null;
             $max = $sen && $sen->humidity_max ? (int) $sen->humidity_max : null;
             $out[] = [
-                'key' => $b->loc_key, 'name' => (string) $b->name,
+                'key' => $b->loc_key, 'name' => (string) $b->name, 'color' => self::boxColor($b),   // 1.19.13 🎨 사이트 보관함 색 그대로 (HA 카드)
                 'spools' => $in->count(), 'low' => $in->filter(fn ($s) => self::isLow($s))->count(),
                 'humidity' => $hum, 'temp' => $sen && $sen->temp !== null ? (float) $sen->temp : null,
                 'humidity_max' => $max, 'over' => $hum !== null && $max !== null && $hum > $max,
@@ -334,5 +334,26 @@ class HaStatus
         }
 
         return $out;
+    }
+
+    /** 1.19.13 🎨 보관함 색 — 고른 색 (#rrggbb) · 없으면 재고관리 화면과 같은 「이름으로 정한 색」(loc_key 해시 → 10색) */
+    private const BOX_COL = ['#d97706', '#0d9488', '#65a30d', '#e11d48', '#0284c7', '#c026d3', '#ea580c', '#059669', '#4338ca', '#a16207'];
+
+    public static function boxColor(object $b): string
+    {
+        $c = (string) ($b->color ?? '');
+        if (preg_match('/^#[0-9a-fA-F]{6}$/', $c)) {
+            return strtolower($c);
+        }
+        // JS: h = (h * 31 + charCodeAt(i)) | 0 over UTF-16 code units, then BOX_COL[abs(h) % 10]
+        $h = 0;
+        foreach (unpack('n*', mb_convert_encoding((string) $b->loc_key, 'UTF-16BE', 'UTF-8')) ?: [] as $u) {
+            $h = ($h * 31 + $u) & 0xFFFFFFFF;
+        }
+        if ($h >= 0x80000000) {
+            $h -= 0x100000000;
+        }
+
+        return self::BOX_COL[abs($h) % 10];
     }
 }
