@@ -29,7 +29,8 @@ class HaStatus
             'filament' => $this->safe(fn () => $this->filament($uid)),
             'boxes' => $this->safe(fn () => $this->boxes($uid)),
             'spools' => $this->safe(fn () => $this->spoolList($uid)),     // 1.19.1 🎨 HA 카드 그림 (롤 색 · 남은 양)
-            'printers' => $this->safe(fn () => $this->printers($uid)),    // 1.19.1 🖨️ HA 카드 그림 (상태 · 진행률 · 온도)
+            'printers' => $this->safe(fn () => $this->printers($uid)),
+            'devices' => $this->safe(fn () => $this->devices($uid)),      // 1.19.9 📡 연결된 센서 목록 (HA 에서 보기 · 통신 중 / 끊김)    // 1.19.1 🖨️ HA 카드 그림 (상태 · 진행률 · 온도)
         ]);
     }
 
@@ -214,6 +215,24 @@ class HaStatus
                 'image' => $img ?: null, 'seen_at' => $p->last_seen_at ?? null,
             ];
         })->values()->all();
+    }
+
+    /** 1.19.9 📡 IoT 연결 센서 — 이름 · 연결 길 · 붙인 곳 · 온습도 · 상태 · 통신 중(live) / 끊김(stale) / 안 옴(never) · 마지막 소식 · 40개까지 */
+    private function devices(int $uid): ?array
+    {
+        $o = (new HaService())->aiDevices($uid);
+        $out = [];
+        foreach (array_slice($o['devices'] ?? [], 0, 40) as $d) {
+            $out[] = [
+                'name' => (string) ($d['name'] ?? ''), 'source' => (string) ($d['source'] ?? ''), 'server' => (string) ($d['ha_server_name'] ?? ''),
+                'target' => (string) ($d['target'] ?? ''), 'where' => (string) ($d['where'] ?? ''),
+                'temp' => $d['temp'] ?? null, 'humidity' => $d['humidity'] ?? null, 'state' => (string) ($d['state'] ?? ''), 'is_on' => (bool) ($d['is_on'] ?? false),
+                'over' => (bool) ($d['over'] ?? false), 'live' => empty($d['stale']) && empty($d['never']), 'never' => (bool) ($d['never'] ?? false),
+                'company' => ! empty($d['company_id']), 'seen' => $d['seen'] ?? null,
+            ];
+        }
+
+        return $out;
     }
 
     /** 📦 보관함마다 — 롤 수 · 조금 남은 롤 · 연결된 센서 습도 · 온도 · 습도 넘음 */
