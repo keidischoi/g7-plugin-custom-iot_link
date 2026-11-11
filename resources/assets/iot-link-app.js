@@ -1,4 +1,4 @@
-/*! custom-iot_link 1.19.2 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.19.3 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   // 🌐 화면 글자 사전 — en 에 없으면 ko
@@ -2622,15 +2622,15 @@
       if (x.target === 'equipment' && d.config.inventory) { node(4, 'x:eq', lbl('🏭', tx('company_equipment_2'), tx('equipment_status_temp_humidity')), 'k-ext', go2('/inventory?tab=equipment')); edge(tn, 'x:eq', live); }
       if (c.state && x.target !== 'location') { node(4, 'x:mnt', lbl('🛠', tx('maintenance_log'), tx('runtime_maintenance')), 'k-ext', go2('/maintenance')); edge(tn, 'x:mnt', live); }
     });
-    // 1.16.7 🏠 HA · 💻 PC 연결 프로그램 · 🔷 SmartThings 도 중계 PC 와 선으로 — 중계 PC 가 하나뿐일 때만 (같은 집으로 봄 · 여럿이면 어느 PC 인지 몰라 잇지 않음)
+    // 1.19.3 🏠 HA · 🔷 SmartThings · 🔗 SimplyPrint 는 중계 PC 없이 사이트로 바로 → 🌐 3DS 서버와 바로 선 (1.16.7 은 중계 PC 밑에 그렸음)
+    //        💻 PC 이름 없는 MprLink 만 중계 PC 가 하나일 때 그 PC 밑에 — 📱 폰 앱(「(앱)」)은 MprLink 를 안 돌리니 빼고
     var pcs = Object.keys(N).filter(function (k) { return k.indexOf('pc:') === 0; });
-    if (pcs.length === 1) Object.keys(N).forEach(function (k) {
-      if (!/^src:(ha|st|pc$|simply)/.test(k)) return;
-      var live = E.some(function (e) { return e[0] === k && e[2]; });
-      edge(pcs[0], k, live);
-    });
-    // 1.16.8 🌐 3DS 서버 — 중계 PC 들 위에 · 중계 PC 마다 선 (값이 모이는 곳)
-    if (pcs.length) { node(1, 'srv:3ds', lbl('🌐', tx('s_3ds_server'), tx('this_site_where_the')), 'k-srv', '', ' '); pcs.forEach(function (pc) { edge('srv:3ds', pc, E.some(function (e) { return e[0] === pc && e[2]; })); }); }
+    var realPc = pcs.filter(function (k) { return !/\((앱|app)\)$/i.test(k); });
+    var liveOf = function (k) { return E.some(function (e) { return e[0] === k && e[2]; }); };
+    if (pcs.length === 1 && realPc.length === 1 && N['src:pc']) edge(realPc[0], 'src:pc', liveOf('src:pc'));
+    var direct = Object.keys(N).filter(function (k) { return /^src:(ha|st|simply)/.test(k) || (k === 'src:pc' && !E.some(function (e) { return e[1] === 'src:pc' && /^pc:/.test(e[0]); })); });
+    // 1.16.8 🌐 3DS 서버 — 맨 위 · 중계 PC 마다 · 바로 보내는 받는 곳마다 선 (값이 모이는 곳)
+    if (pcs.length || direct.length) { node(1, 'srv:3ds', lbl('🌐', tx('s_3ds_server'), tx('this_site_where_the')), 'k-srv', '', ' '); pcs.concat(direct).forEach(function (k) { edge('srv:3ds', k, liveOf(k)); }); }
     S.mapE = E;
     var T = [['💻', tx('relay_pc')], ['📥', tx('source_2')], ['📡', tx('device')], ['📌', tx('attached_to')], ['🔗', tx('linked_to')]];
     [0, 1].forEach(function (c) { cols[c] = cols[c].map(function (h, j) { return [K[c][j], j, h]; }).sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] - b[1]; }).map(function (x) { return x[2]; }); });   // 1.14.0 같은 PC 끼리 나란히
@@ -2647,7 +2647,7 @@
     svg.innerHTML = (S.mapE || []).map(function (e) {
       var a = pos[e[0]], b = pos[e[1]]; if (!a || !b) return '';
       var left = /^(pc|srv):/.test(String(e[0])), x1 = left ? a.l : a.r, x2 = b.l, dx = Math.max(24, (x2 - x1) / 2);   // 1.16.2 💻 PC → 받는 곳: 같은 칸 — 왼쪽 가장자리끼리
-      var mid = String(e[0]).indexOf('srv:') === 0, y1 = a.y, y2 = b.y;   // 1.16.9 🌐 3DS 서버 → 중계 PC: 상자 가운데끼리 (아래 가운데 → 위 가운데)
+      var mid = String(e[0]).indexOf('srv:') === 0 && String(e[1]).indexOf('pc:') === 0, y1 = a.y, y2 = b.y;   // 1.16.9 🌐 3DS 서버 → 중계 PC: 상자 가운데끼리 (아래 가운데 → 위 가운데) · 1.19.3 바로 보내는 받는 곳은 왼쪽 가장자리로
       if (mid) { x1 = (a.l + a.r) / 2; y1 = a.b; x2 = (b.l + b.r) / 2; y2 = b.t; }
       var d = mid ? 'M' + x1 + ' ' + y1 + ' C' + x1 + ' ' + (y1 + 18) + ' ' + x2 + ' ' + (y2 - 18) + ' ' + x2 + ' ' + y2 : left ? 'M' + x1 + ' ' + a.y + ' C' + (x1 - 30) + ' ' + a.y + ' ' + (x2 - 30) + ' ' + b.y + ' ' + x2 + ' ' + b.y : 'M' + x1 + ' ' + a.y + ' C' + (x1 + dx) + ' ' + a.y + ' ' + (x2 - dx) + ' ' + b.y + ' ' + x2 + ' ' + b.y;
       return '<path data-a="' + esc(e[0]) + '" data-b="' + esc(e[1]) + '" class="' + (e[2] ? 'on' : 'off') + (String(e[0]).indexOf('srv:') === 0 ? ' srvl' : '') + '" d="' + d + '"/>' +
