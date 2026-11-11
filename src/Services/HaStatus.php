@@ -65,12 +65,12 @@ class HaStatus
         }
         $personal = $this->only === null || $this->only === [];   // 알림 · 주문 · 의뢰 · 내 프린터는 개인 것 — 업체 범위엔 없음
 
-        return Cache::remember('iotl:hastatus3:'.$uid.':'.$scope, 60, fn () => [
+        return Cache::remember('iotl:hastatus4:'.$uid.':'.$scope, 60, fn () => [
             'at' => now()->toIso8601String(),
             'scope' => $scope,
             'notices' => $personal ? $this->safe(fn () => $this->notices($uid)) : null,
             'orders' => $personal ? $this->safe(fn () => $this->orders($uid)) : null,
-            'jobs' => $personal ? $this->safe(fn () => $this->jobs($uid)) : null,
+            'jobs' => $this->safe(fn () => $this->jobs($uid)),   // 1.19.12 업체 범위도 (업체 입찰 · 추천 의뢰)
             'filament' => $this->safe(fn () => $this->filament($uid)),
             'boxes' => $this->safe(fn () => $this->boxes($uid)),
             'spools' => $this->safe(fn () => $this->spoolList($uid)),     // 1.19.1 🎨 HA 카드 그림 (롤 색 · 남은 양)
