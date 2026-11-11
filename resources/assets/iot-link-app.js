@@ -1,4 +1,4 @@
-/*! custom-iot_link 1.19.5 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.19.6 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   // 🌐 화면 글자 사전 — en 에 없으면 ko
@@ -444,6 +444,9 @@
     beta_via_windows_relay: "🧪 베타 · 윈도우 중계 PC 로",
     phone_app_relay: "폰으로 중계",   // 1.17.9 📱 3D SUEÑO 앱 중계 모드
     android_no_pc: "안드로이드 앱 · PC 없이",
+    trader_tile: "회사 PC 프로그램",   // 1.19.6 🏢 3DS Trader Edition
+    trader_tile_sub: "3DS Trader Edition · 업체",
+    ha_direct: '<p class="hal-guide-top" data-mtg-top>🏠 Home Assistant 는 <b>3DSSync</b> 통합이 이 사이트로 <b>바로</b> 보내요 — 중계 PC · 폰 앱 · 회사 프로그램이 필요 없어요.</p>',
     app_relay_guide: '<section class="hal-sec"><h4>📱 폰으로 중계 <small>3D SUEÑO 안드로이드 앱 · PC 대신</small></h4><div class="hal-mtg-apps"><div><b>① 앱 › 내 프린터 › 📡 중계 모드</b><span>집 와이파이에 둔 폰(충전기에 꽂은 남는 폰이면 좋아요)</span></div><div><b>② 📨 IoT 센서 「같이 중계」 켜기</b><span>연결 코드는 저절로 · 브로커 · 받을 토픽은 이 화면 ⚙️ 브로커 설정 그대로</span></div><div><b>③ ▶ 켜기</b><span>알림이 떠 있는 동안 보내요 · 받는 곳에 「📱 기기 이름 (앱)」 으로 보여요 · 📶 절전 막기에서 배터리 최적화를 빼 주세요</span></div><div><b>💾 백업</b><span>설정은 사이트에 암호화해 저절로 맡겨요 — 폰을 바꾸면 중계 화면을 열 때 불러와요</span></div></div><p class="hal-hint">📶 블루투스 온습도계는 아직 PC 중계만 돼요. 🏠 홈어시스턴트 · 🔷 SmartThings · 🧩 Matter 는 중계가 필요 없거나 따로예요.</p></section>',
     topic_examples: "토픽 예",
     turn_off: "끄기",
@@ -470,7 +473,7 @@
     turn_off_the_relay: '<div><b>① 중계 끄기</b><span>그 PC 에서 보내기를 멈추고 지워요 · 사이트 기기는 「끊김」으로 남아요</span><code>🪟 powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\\3dsMqtt\\uninstall.ps1"</code><code>🐧🍎 bash ~/.3ds-mqtt/uninstall.sh</code></div>',
     stop_receiving_one_sensor: "<div><b>② 센서 하나 그만 받기</b><span>MQTT 카드의 ✅ 받는 중 단추를 눌러요</span></div>",
     delete_a_site_device: "<div><b>③ 사이트 기기 지우기</b><span>기기 ✏️ 고치기 › 🗑 지우기</span></div></div></section>",
-    sensor_mqtt_broker_bluetooth: '<div class="hal-mtg"><p class="hal-mtg-flow">🌡️ 센서 → MQTT 브로커 · 📶 블루투스 → 중계 PC → 이 사이트 <small>HA 없이 · 센서는 원래 앱에 그대로</small></p>',
+    sensor_mqtt_broker_bluetooth: '<div class="hal-mtg"><p class="hal-mtg-flow">🌡️ 센서 → MQTT 브로커 · 📶 블루투스 → 💻 중계 PC · 📱 폰 앱 · 🏢 회사 프로그램 → 이 사이트 <small>HA 없이 · 센서는 원래 앱에 그대로</small></p>',
     hidden_back_to_start: '" hidden><button type="button" class="hal-btn sm hal-mtg-back" data-mtg-back>◀ 처음으로</button>',
     broker_address_ip_or: '<section class="hal-sec"><div class="hal-two"><label>브로커 주소 <small>IP 또는 이름</small><input name="host" value="',
     placeholder_e_g_192_2: '" placeholder="예: 192.168.0.54" autocapitalize="off" autocomplete="off" spellcheck="false"></label>',
@@ -1360,6 +1363,9 @@
     beta_via_windows_relay: "🧪 Beta · via Windows relay PC",
     phone_app_relay: "Relay with a phone",   // 1.17.9 📱 3D SUEÑO app relay mode
     android_no_pc: "Android app · no PC",
+    trader_tile: "Business PC program",   // 1.19.6 🏢 3DS Trader Edition
+    trader_tile_sub: "3DS Trader Edition · business",
+    ha_direct: '<p class="hal-guide-top" data-mtg-top>🏠 Home Assistant sends to this site <b>directly</b> through the <b>3DSSync</b> integration — no relay PC · phone app · business program needed.</p>',
     app_relay_guide: '<section class="hal-sec"><h4>📱 Relay with a phone <small>3D SUEÑO Android app · instead of a PC</small></h4><div class="hal-mtg-apps"><div><b>① App › My printers › 📡 Relay mode</b><span>A phone on your home Wi-Fi (a spare phone on a charger works well)</span></div><div><b>② Turn on 📨 IoT sensors 「relay too」</b><span>The link code is filled in automatically · broker and topics come from ⚙️ Broker settings here</span></div><div><b>③ ▶ Turn on</b><span>It sends while the notification stays · shows in Receivers as 「📱 device name (app)」 · remove battery optimization in 📶 Power saving</span></div><div><b>💾 Backup</b><span>Settings are backed up to the site, encrypted — on a new phone they load when you open the relay screen</span></div></div><p class="hal-hint">📶 Bluetooth thermo-hygrometers still need the PC relay. 🏠 Home Assistant · 🔷 SmartThings · 🧩 Matter need no relay or have their own.</p></section>',
     topic_examples: "Topic examples",
     turn_off: "Turn off",
@@ -1386,7 +1392,7 @@
     turn_off_the_relay: '<div><b>① Turn off the relay</b><span>Stops sending from that PC and removes it · site devices remain as 「Disconnected」</span><code>🪟 powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\\3dsMqtt\\uninstall.ps1"</code><code>🐧🍎 bash ~/.3ds-mqtt/uninstall.sh</code></div>',
     stop_receiving_one_sensor: "<div><b>② Stop receiving one sensor</b><span>Click the ✅ Receiving button on the MQTT card</span></div>",
     delete_a_site_device: "<div><b>③ Delete a site device</b><span>Device ✏️ Edit › 🗑 Delete</span></div></div></section>",
-    sensor_mqtt_broker_bluetooth: '<div class="hal-mtg"><p class="hal-mtg-flow">🌡️ Sensor → MQTT broker · 📶 Bluetooth → relay PC → this site <small>no HA · sensors stay in their original app</small></p>',
+    sensor_mqtt_broker_bluetooth: '<div class="hal-mtg"><p class="hal-mtg-flow">🌡️ Sensor → MQTT broker · 📶 Bluetooth → 💻 relay PC · 📱 phone app · 🏢 business program → this site <small>no HA · sensors stay in their original app</small></p>',
     hidden_back_to_start: '" hidden><button type="button" class="hal-btn sm hal-mtg-back" data-mtg-back>◀ Back to start</button>',
     broker_address_ip_or: '<section class="hal-sec"><div class="hal-two"><label>Broker address <small>IP or hostname</small><input name="host" value="',
     placeholder_e_g_192_2: '" placeholder="e.g. 192.168.0.54" autocapitalize="off" autocomplete="off" spellcheck="false"></label>',
@@ -2885,10 +2891,11 @@
   }
   /** 1.16.0 ❓ 연결 방법 › MQTT · 📶 블루투스 — 그림 단추 (스크롤 없이) */
   function guideMq() {
-    var T = [['win', '💻', tx('one_line_install'), tx('windows_linux_mac')], ['app', '📱', tx('phone_app_relay'), tx('android_no_pc')], ['broker', '⚙️', tx('broker_settings_2'), tx('address_account_topics')], ['pick', '🔎', tx('choose_sensors'), tx('pill_buttons')], ['ble', '📶', tx('bluetooth_thermo_hygrometers'), tx('beta_via_windows_relay')], ['topic', '🧾', tx('topic_examples'), 'Zigbee2MQTT · Tasmota …'], ['off', '🔌', tx('turn_off'), tx('relay_sensors')]];
+    var T = [['win', '💻', tx('one_line_install'), tx('windows_linux_mac')], ['app', '📱', tx('phone_app_relay'), tx('android_no_pc')], ['trader', '🏢', tx('trader_tile'), tx('trader_tile_sub')], ['broker', '⚙️', tx('broker_settings_2'), tx('address_account_topics')], ['pick', '🔎', tx('choose_sensors'), tx('pill_buttons')], ['ble', '📶', tx('bluetooth_thermo_hygrometers'), tx('beta_via_windows_relay')], ['topic', '🧾', tx('topic_examples'), 'Zigbee2MQTT · Tasmota …'], ['off', '🔌', tx('turn_off'), tx('relay_sensors')]];
     var P = {
       win: mqWin(),
       app: tx('app_relay_guide'),   // 1.17.9
+      trader: '<section class="hal-sec">' + tx('trader_how') + '</section>',   // 1.19.6 🏢
       broker: tx('broker_settings_mqtt_card') +
         tx('address_port_ip_of') +
         tx('account_same_as_what') +
@@ -3117,7 +3124,7 @@
       tx('if_it_doesn_t') +
       tx('if_you_don_t') +
       tx('illustrations_are_mock_ups');
-    return tx('it_takes_about_5') + guideSteps(steps, [['more', '💡', tx('good_to_know_2'), '', more]]);
+    return tx('ha_direct') + tx('it_takes_about_5') + guideSteps(steps, [['more', '💡', tx('good_to_know_2'), '', more]]);
   }
   /* 1.1.0 📡 SmartThings 연결 방법 — 로그인 연결 (연결하기 → 삼성 계정 로그인 → 허용 → 센서 고르기 → 카드) */
   function guideSt() {
