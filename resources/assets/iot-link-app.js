@@ -1,4 +1,4 @@
-/*! custom-iot_link 1.19.6 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.19.7 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   // 🌐 화면 글자 사전 — en 에 없으면 ko
@@ -446,6 +446,10 @@
     android_no_pc: "안드로이드 앱 · PC 없이",
     trader_tile: "회사 PC 프로그램",   // 1.19.6 🏢 3DS Trader Edition
     trader_tile_sub: "3DS Trader Edition · 업체",
+    gt_app: "📱 폰 앱",   // 1.19.7 ❓ 연결 방법 탭
+    gt_trader: "🏢 회사 프로그램",
+    app_guide_top: '<p class="hal-guide-top">📱 집 와이파이에 둔 안드로이드 폰(<b>3D SUEÑO 앱</b>)이 PC 대신 보내요 — MQTT 브로커의 온습도 센서 · 🖨️ 프린터(Bambu · OctoPrint · Klipper)를 같이. 브로커 · 토픽은 <b>MQTT · BT</b> 탭 ⚙️ 브로커 설정 그대로예요.</p>',
+    trader_guide_top: '<p class="hal-guide-top">🏢 업체 PC 에 <b>3DS Trader Edition</b>(회사 PC 프로그램)이 켜져 있으면 그 PC 가 보내요 — 대표 · 매니저 계정만 · 연결 프로그램을 따로 깔 필요 없어요. 브로커 · 토픽은 <b>MQTT · BT</b> 탭 ⚙️ 브로커 설정 그대로예요.</p>',
     ha_direct: '<p class="hal-guide-top" data-mtg-top>🏠 Home Assistant 는 <b>3DSSync</b> 통합이 이 사이트로 <b>바로</b> 보내요 — 중계 PC · 폰 앱 · 회사 프로그램이 필요 없어요.</p>',
     app_relay_guide: '<section class="hal-sec"><h4>📱 폰으로 중계 <small>3D SUEÑO 안드로이드 앱 · PC 대신</small></h4><div class="hal-mtg-apps"><div><b>① 앱 › 내 프린터 › 📡 중계 모드</b><span>집 와이파이에 둔 폰(충전기에 꽂은 남는 폰이면 좋아요)</span></div><div><b>② 📨 IoT 센서 「같이 중계」 켜기</b><span>연결 코드는 저절로 · 브로커 · 받을 토픽은 이 화면 ⚙️ 브로커 설정 그대로</span></div><div><b>③ ▶ 켜기</b><span>알림이 떠 있는 동안 보내요 · 받는 곳에 「📱 기기 이름 (앱)」 으로 보여요 · 📶 절전 막기에서 배터리 최적화를 빼 주세요</span></div><div><b>💾 백업</b><span>설정은 사이트에 암호화해 저절로 맡겨요 — 폰을 바꾸면 중계 화면을 열 때 불러와요</span></div></div><p class="hal-hint">📶 블루투스 온습도계는 아직 PC 중계만 돼요. 🏠 홈어시스턴트 · 🔷 SmartThings · 🧩 Matter 는 중계가 필요 없거나 따로예요.</p></section>',
     topic_examples: "토픽 예",
@@ -1365,6 +1369,10 @@
     android_no_pc: "Android app · no PC",
     trader_tile: "Business PC program",   // 1.19.6 🏢 3DS Trader Edition
     trader_tile_sub: "3DS Trader Edition · business",
+    gt_app: "📱 Phone app",   // 1.19.7 ❓ how-to tabs
+    gt_trader: "🏢 Business program",
+    app_guide_top: '<p class="hal-guide-top">📱 An Android phone on your home Wi-Fi (<b>3D SUEÑO app</b>) sends instead of a PC — temp/humidity sensors on the MQTT broker · 🖨️ printers (Bambu · OctoPrint · Klipper) together. Broker · topics follow ⚙️ Broker settings in the <b>MQTT · BT</b> tab.</p>',
+    trader_guide_top: '<p class="hal-guide-top">🏢 If <b>3DS Trader Edition</b> (the business PC program) runs on a shop PC, that PC sends — owner · manager accounts only · no separate link program needed. Broker · topics follow ⚙️ Broker settings in the <b>MQTT · BT</b> tab.</p>',
     ha_direct: '<p class="hal-guide-top" data-mtg-top>🏠 Home Assistant sends to this site <b>directly</b> through the <b>3DSSync</b> integration — no relay PC · phone app · business program needed.</p>',
     app_relay_guide: '<section class="hal-sec"><h4>📱 Relay with a phone <small>3D SUEÑO Android app · instead of a PC</small></h4><div class="hal-mtg-apps"><div><b>① App › My printers › 📡 Relay mode</b><span>A phone on your home Wi-Fi (a spare phone on a charger works well)</span></div><div><b>② Turn on 📨 IoT sensors 「relay too」</b><span>The link code is filled in automatically · broker and topics come from ⚙️ Broker settings here</span></div><div><b>③ ▶ Turn on</b><span>It sends while the notification stays · shows in Receivers as 「📱 device name (app)」 · remove battery optimization in 📶 Power saving</span></div><div><b>💾 Backup</b><span>Settings are backed up to the site, encrypted — on a new phone they load when you open the relay screen</span></div></div><p class="hal-hint">📶 Bluetooth thermo-hygrometers still need the PC relay. 🏠 Home Assistant · 🔷 SmartThings · 🧩 Matter need no relay or have their own.</p></section>',
     topic_examples: "Topic examples",
@@ -3204,16 +3212,17 @@
   }
   function guideBox(tab) {
     var T = S.d.smartthings || {}, hasSt = !!(T.oauth || (T.installs || []).some(function (x) { return x.mode === 'oauth'; }));
-    tab = tab === 'mt' || tab === 'mq' ? tab : (tab || srcTab()) === 'st' && hasSt ? 'st' : 'ha';   // 1.10.0 🧩 · 1.16.0 📨
-    var seg = '<div class="hal-seg" role="tablist"><button type="button" role="tab" data-gt="ha">' + haLogo() + ' Home Assistant</button>' + (hasSt ? '<button type="button" role="tab" data-gt="st">' + stLogo() + ' SmartThings</button>' : '') + '<button type="button" role="tab" data-gt="mt">' + mtLogo() + ' Matter</button><button type="button" role="tab" data-gt="mq">' + mqLogo() + ' MQTT · BT</button></div>';
-    var ov = modal(tx('how_to_connect_4'), seg + '<div data-gp="ha">' + guideHa() + '</div>' + (hasSt ? '<div data-gp="st">' + guideSt() + '</div>' : '') + '<div data-gp="mt">' + guideMt() + '</div><div data-gp="mq">' + guideMq() + '</div>', { left: '<button type="button" class="hal-btn pri" data-start></button>' });
+    tab = tab === 'mt' || tab === 'mq' || tab === 'app' || tab === 'trader' ? tab : (tab || srcTab()) === 'st' && hasSt ? 'st' : 'ha';   // 1.10.0 🧩 · 1.16.0 📨 · 1.19.7 📱 🏢
+    var seg = '<div class="hal-seg" role="tablist"><button type="button" role="tab" data-gt="ha">' + haLogo() + ' Home Assistant</button>' + (hasSt ? '<button type="button" role="tab" data-gt="st">' + stLogo() + ' SmartThings</button>' : '') + '<button type="button" role="tab" data-gt="mt">' + mtLogo() + ' Matter</button><button type="button" role="tab" data-gt="mq">' + mqLogo() + ' MQTT · BT</button><button type="button" role="tab" data-gt="app">' + tx('gt_app') + '</button><button type="button" role="tab" data-gt="trader">' + tx('gt_trader') + '</button></div>';
+    var ov = modal(tx('how_to_connect_4'), seg + '<div data-gp="ha">' + guideHa() + '</div>' + (hasSt ? '<div data-gp="st">' + guideSt() + '</div>' : '') + '<div data-gp="mt">' + guideMt() + '</div><div data-gp="mq">' + guideMq() + '</div>' +
+      '<div data-gp="app">' + tx('app_guide_top') + tx('app_relay_guide') + '</div><div data-gp="trader">' + tx('trader_guide_top') + '<section class="hal-sec">' + tx('trader_how') + '</section></div>', { left: '<button type="button" class="hal-btn pri" data-start></button>' });
     ov.classList.add('wide');
     mtWinBind(ov); mtGuideBind(ov); mqWinBind(ov);   // 1.11.0 🪟 · 1.11.1 그림 단추 · 1.16.0 📨
     var show = function (t) {
       tab = t;
       Array.prototype.forEach.call(ov.querySelectorAll('[data-gp]'), function (p) { p.hidden = p.getAttribute('data-gp') !== t; });
       Array.prototype.forEach.call(ov.querySelectorAll('[data-gt]'), function (b) { var on = b.getAttribute('data-gt') === t; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
-      var st = ov.querySelector('[data-start]'); st.textContent = t === 'st' ? tx('connect_smartthings') : t === 'mt' ? tx('create_a_device_to') : t === 'mq' ? tx('broker_settings_3') : tx('connect_now'); st.hidden = t === 'st' && !T.oauth;
+      var st = ov.querySelector('[data-start]'); st.textContent = t === 'st' ? tx('connect_smartthings') : t === 'mt' ? tx('create_a_device_to') : t === 'mq' ? tx('broker_settings_3') : tx('connect_now'); st.hidden = (t === 'st' && !T.oauth) || t === 'app' || t === 'trader';   // 📱 🏢 는 앱 · 프로그램에서 함
       ov.querySelector('.hal-modal-c').scrollTop = 0;
     };
     show(tab);
