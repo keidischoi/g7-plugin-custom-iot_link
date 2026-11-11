@@ -21,13 +21,15 @@ class HaStatus
     /** @return array<string, mixed> */
     public function status(int $uid): array
     {
-        return Cache::remember('iotl:hastatus:'.$uid, 60, fn () => [
+        return Cache::remember('iotl:hastatus2:'.$uid, 60, fn () => [
             'at' => now()->toIso8601String(),
             'notices' => $this->safe(fn () => $this->notices($uid)),
             'orders' => $this->safe(fn () => $this->orders($uid)),
             'jobs' => $this->safe(fn () => $this->jobs($uid)),
             'filament' => $this->safe(fn () => $this->filament($uid)),
             'boxes' => $this->safe(fn () => $this->boxes($uid)),
+            'spools' => $this->safe(fn () => $this->spoolList($uid)),     // 1.19.1 🎨 HA 카드 그림 (롤 색 · 남은 양)
+            'printers' => $this->safe(fn () => $this->printers($uid)),    // 1.19.1 🖨️ HA 카드 그림 (상태 · 진행률 · 온도)
         ]);
     }
 
@@ -121,6 +123,16 @@ class HaStatus
             ->where(fn ($w) => $w->where(fn ($a) => $a->where('company_id', 0)->where('created_by', $uid))->orWhereIn('company_id', $cids ?: [0]));
     }
 
+    /** 남은 g (적어 둔 g · 없으면 한 롤 무게 × %) */
+    private static function grams(object $s): ?int
+    {
+        if (($s->weight_left ?? null) !== null) {
+            return (int) $s->weight_left;
+        }
+
+        return ($s->weight_g ?? null) ? (int) round($s->weight_g * (int) $s->remain_pct / 100) : null;
+    }
+
     private static function isLow(object $s): bool
     {
         return $s->status === 'low' || ($s->status !== 'empty' && (int) $s->remain_pct <= 20);
@@ -132,16 +144,76 @@ class HaStatus
         if (! DbSchema::hasTable('inv_spools')) {
             return null;
         }
-        $rows = $this->spools($uid)->limit(2000)->get(['id', 'kind', 'material', 'color', 'brand', 'remain_pct', 'status']);
+        $rows = $this->spools($uid)->limit(2000)->get(['id', 'kind', 'material', 'color', 'brand', 'remain_pct', 'status', 'weight_g', 'weight_left']);
         $low = $rows->filter(fn ($s) => self::isLow($s));
 
         return [
             'total' => $rows->where('status', '!=', 'empty')->count(),
             'low' => $low->count(),
             'empty' => $rows->where('status', 'empty')->count(),
+            'grams' => (int) $rows->where('status', '!=', 'empty')->sum(fn ($s) => self::grams($s) ?? 0),   // 1.19.1 남은 무게 합 (g)
             'resin' => $rows->where('kind', 'resin')->where('status', '!=', 'empty')->count(),
             'low_list' => $low->sortBy('remain_pct')->take(5)->map(fn ($s) => trim($s->material.' '.($s->color ?? '')).' '.(int) $s->remain_pct.'%')->values()->all(),
         ];
+    }
+
+    /** 1.19.1 🎨 롤 하나하나 (HA 카드 그림) — 재료 · 색 · 색 코드 · 남은 % · 보관함 · 60개까지 */
+    private function spoolList(int $uid): ?array
+    {
+        if (! DbSchema::hasTable('inv_spools')) {
+            return null;
+        }
+        $hasBoxId = DbSchema::hasColumn('inv_spools', 'box_id');
+        $rows = $this->spools($uid)->where('status', '!=', 'empty')->orderBy('remain_pct')->limit(60)
+            ->get(array_merge(['kind', 'material', 'color', 'color_hex', 'brand', 'remain_pct', 'status', 'location', 'weight_g', 'weight_left'], $hasBoxId ? ['box_id'] : []));
+        $names = [];
+        if ($hasBoxId && DbSchema::hasTable('inv_boxes')) {
+            $ids = $rows->pluck('box_id')->filter()->unique()->all();
+            $names = $ids ? DB::table('inv_boxes')->whereIn('id', $ids)->pluck('name', 'id')->all() : [];
+        }
+
+        return $rows->map(function ($s) use ($names) {
+            preg_match('/#[0-9a-fA-F]{6}/', (string) ($s->color_hex ?? ''), $m);
+
+            return [
+                'kind' => (string) $s->kind, 'material' => (string) $s->material, 'color' => (string) ($s->color ?? ''),
+                'hex' => $m[0] ?? null, 'brand' => (string) ($s->brand ?? ''), 'pct' => (int) $s->remain_pct,
+                'grams' => self::grams($s), 'low' => self::isLow($s), 'box' => (string) ($names[(int) ($s->box_id ?? 0)] ?? ($s->location ?? '')),
+            ];
+        })->values()->all();
+    }
+
+    /** 1.19.1 🖨️ 내 프린터 (내 프린터 플러그인) — 이름 · 상태 · 작업 · 진행률 · 남은 분 · 노즐/베드 온도 · 그림 */
+    private function printers(int $uid): ?array
+    {
+        $t = 'mpr_printers';
+        if (! DbSchema::hasTable($t)) {
+            return null;
+        }
+        $cols = array_values(array_filter(['id', 'brand', 'model', 'nickname', 'image_url', 'state', 'job_name', 'job_started_at', 'job_eta_at', 'job_progress', 'last_seen_at', 'temps'], fn ($c) => DbSchema::hasColumn($t, $c)));
+        $q = DB::table($t)->where('user_id', $uid)->orderBy('sort')->orderBy('id')->limit(12);
+
+        return $q->get($cols)->map(function ($p) {
+            $p = (object) array_merge(array_fill_keys(['brand', 'model', 'nickname', 'image_url', 'state', 'job_name', 'job_started_at', 'job_eta_at', 'job_progress', 'last_seen_at', 'temps'], null), (array) $p);   // 예전 판엔 없는 칸
+            $temps = json_decode((string) ($p->temps ?? ''), true) ?: [];
+            $start = $p->job_started_at ? strtotime((string) $p->job_started_at) : null;
+            $eta = $p->job_eta_at ? strtotime((string) $p->job_eta_at) : null;
+            $busy = in_array($p->state, ['printing', 'paused'], true);
+            $prog = $p->job_progress !== null ? (float) $p->job_progress
+                : ($busy && $start && $eta && $eta > $start ? max(0, min(99, round((time() - $start) * 100 / ($eta - $start), 1))) : null);
+            $img = (string) ($p->image_url ?? '');
+            if ($img !== '' && ! preg_match('#^https?://#', $img)) {
+                $img = url($img);
+            }
+
+            return [
+                'name' => (string) ($p->nickname ?: trim($p->brand.' '.$p->model)), 'model' => trim($p->brand.' '.$p->model),
+                'state' => (string) $p->state, 'job' => $busy ? (string) ($p->job_name ?? '') : '',
+                'progress' => $busy ? $prog : null, 'left_min' => $busy && $eta ? max(0, (int) round(($eta - time()) / 60)) : null,
+                'nozzle' => isset($temps['nozzle']) ? (float) $temps['nozzle'] : null, 'bed' => isset($temps['bed']) ? (float) $temps['bed'] : null,
+                'image' => $img ?: null, 'seen_at' => $p->last_seen_at ?? null,
+            ];
+        })->values()->all();
     }
 
     /** 📦 보관함마다 — 롤 수 · 조금 남은 롤 · 연결된 센서 습도 · 온도 · 습도 넘음 */
