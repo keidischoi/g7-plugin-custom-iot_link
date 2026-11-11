@@ -1,4 +1,4 @@
-/*! custom-iot_link 1.19.0 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.19.2 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   // 🌐 화면 글자 사전 — en 에 없으면 ko
@@ -146,7 +146,8 @@
     no_server_name_older: "서버 이름 없음 (예전 통합)",
     no_name: "이름 없음",
     matter_3ds_link: "Matter (3ds 연결)",
-    app_relay_tab: "앱 중계",   // 1.18.0 📱
+    app_relay_tab: "앱 · 프로그램 중계",   // 1.18.0 📱 · 1.19.2 🏢
+    trader_how: '<div class="hal-mtg-apps" style="margin-top:10px"><div><b>🏢 회사 PC 프로그램 (3DS Trader Edition)</b><span>폰 대신 회사 PC 가 보내요 — 연결 프로그램(MQTT 중계)을 따로 깔 필요 없어요</span></div><div><b>① ⚙ 도구 › 옵션 › 📡 중계</b><span>프로그램에 로그인한 계정의 IoT 연결 코드를 저절로 받아 와요</span></div><div><b>② 📨 「매장 안 MQTT 브로커의 온습도 센서도 사이트로 보내기」 켜기</b><span>브로커 · 토픽은 이 화면 MQTT · BT 탭 설정 그대로 · 🏢 회사 프린터 상태도 같이</span></div><div><b>③ 💾 저장 · 켜 두기</b><span>옵션 › 🖥️ 일반의 「윈도우 시작할 때 켜기」 · 「알림 영역에 숨기기」를 켜 두면 늘 보내요</span></div></div>',   // 1.19.2 🏢
     app_relay_card: '</span><div><h2>📱 앱 중계 <small>3D SUEÑO 안드로이드 앱 · PC 없이</small></h2><p>집 와이파이에 둔 안드로이드 폰이 PC 연결 프로그램 대신 <b>프린터 상태</b>와 <b>📨 MQTT 센서 값</b>을 이 사이트로 보내요. 충전기에 꽂아 둔 남는 폰이면 좋아요.</p></div>',
     app_relay_how: '<div class="hal-mtg-apps"><div><b>① 앱 › 내 프린터 › 📡 중계 모드</b><span>3D SUEÑO 앱에 로그인한 폰</span></div><div><b>② 프린터 · 📨 IoT 센서 켜기</b><span>프린터는 「이 폰으로 중계」 · 센서는 「같이 중계」 (브로커 · 토픽은 MQTT · BT 탭 설정 그대로)</span></div><div><b>③ ▶ 켜기 · 📶 절전 막기</b><span>알림이 떠 있는 동안 보내요 · 배터리 최적화에서 빼 주세요</span></div><div><b>💾 백업</b><span>설정은 사이트에 암호화해 맡겨요 — 폰을 바꾸면 저절로 불러와요</span></div></div><p class="hal-hint">🏠 폰이 집 밖이면 쉬고, 돌아오면 저절로 이어요 · 🔀 PC 가 보내는 프린터는 PC 가 먼저 · 📶 블루투스 · 🧩 Matter · 📤 출력 파일 보내기는 PC 만 · 🏠 홈어시스턴트 · 🔷 SmartThings 는 중계가 필요 없어요</p>',
     app_relay_none: '<p class="hal-hint">아직 앱으로 중계하는 폰이 없어요.</p>',
@@ -1061,7 +1062,8 @@
     no_server_name_older: "No server name (older integration)",
     no_name: "No name",
     matter_3ds_link: "Matter (3ds link)",
-    app_relay_tab: "App relay",   // 1.18.0 📱
+    app_relay_tab: "App · program relay",   // 1.18.0 📱 · 1.19.2 🏢
+    trader_how: '<div class="hal-mtg-apps" style="margin-top:10px"><div><b>🏢 Business PC program (3DS Trader Edition)</b><span>A shop PC sends instead of a phone — no separate link program (MQTT relay) needed</span></div><div><b>① ⚙ Tools › Options › 📡 Relay</b><span>It fetches the IoT link code of the signed-in account by itself</span></div><div><b>② Turn on 📨 「Also send temp/humidity sensors on the shop MQTT broker」</b><span>Broker · topics follow the MQTT · BT tab here · 🏢 business printer status too</span></div><div><b>③ 💾 Save · keep it running</b><span>Turn on 「start with Windows」 · 「hide in the tray」 in Options › 🖥️ General to keep it sending</span></div></div>',   // 1.19.2 🏢
     app_relay_card: '</span><div><h2>📱 App relay <small>3D SUEÑO Android app · no PC</small></h2><p>An Android phone on your home Wi-Fi sends <b>printer status</b> and <b>📨 MQTT sensor values</b> to this site instead of the PC link program. A spare phone on a charger works well.</p></div>',
     app_relay_how: '<div class="hal-mtg-apps"><div><b>① App › My printers › 📡 Relay mode</b><span>A phone signed in to the 3D SUEÑO app</span></div><div><b>② Turn on printers · 📨 IoT sensors</b><span>Printers: 「Relay with this phone」 · sensors: 「relay too」 (broker · topics come from the MQTT · BT tab)</span></div><div><b>③ ▶ Turn on · 📶 stop power saving</b><span>It sends while the notification stays · remove it from battery optimization</span></div><div><b>💾 Backup</b><span>Settings are kept on the site, encrypted — they load on a new phone</span></div></div><p class="hal-hint">🏠 Pauses when the phone leaves home and resumes when back · 🔀 printers sent by a PC: the PC wins · 📶 Bluetooth · 🧩 Matter · 📤 sending print files need the PC · 🏠 Home Assistant · 🔷 SmartThings need no relay</p>',
     app_relay_none: '<p class="hal-hint">No phone is relaying with the app yet.</p>',
@@ -2798,7 +2800,7 @@
     }).join('');
     return '<section class="hal-stc mq"><header class="hal-stc-h"><span class="hal-stc-logo mq" aria-hidden="true" style="font-size:22px;display:grid;place-items:center">📱' + tx('app_relay_card') + pill + '</header>' +
       (aps.length ? '<h4 style="margin:8px 0 6px">' + tx('app_relay_phones') + '</h4><div class="hal-stc-devs ha" style="display:grid;gap:6px">' + list + '</div>' : tx('app_relay_none')) +
-      tx('app_relay_how') + '</section>';
+      tx('app_relay_how') + tx('trader_how') + '</section>';
   }
   function agoMin(at) { var t = new Date(String(at).replace(' ', 'T')), n = new Date(String(S.d.now || '').replace(' ', 'T')); return isNaN(t) || isNaN(n) ? 9999 : (n - t) / 60000; }
   /** 🏠 Home Assistant 로 이은 센서 — HA 의 「3ds」 통합이 고른 것 (누르면 고치기) */
