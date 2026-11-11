@@ -18,18 +18,63 @@ class HaStatus
     /** 끝난 주문 상태 (그 밖 = 진행 중) */
     private const ORDER_DONE = ['cancelled', 'canceled', 'refunded', 'completed', 'delivered', 'confirmed', 'purchase_confirmed', 'returned', 'exchanged', 'failed', 'pending', 'pending_payment', 'payment_pending', 'expired', 'deleted'];
 
-    /** @return array<string, mixed> */
-    public function status(int $uid): array
+    /** 1.19.11 범위 — null = 모두 (개인 + 속한 업체 · 예전 그대로) · [] = 개인만 · [N] = 업체 N 만 */
+    private ?array $only = null;
+
+    /**
+     * 1.19.11 🏢 고를 수 있는 범위 — 개인 + 속한 업체마다 (3DSSync 등록 때 고름)
+     *
+     * @return list<array{key: string, name: string}>
+     */
+    public function scopes(int $uid): array
     {
-        return Cache::remember('iotl:hastatus2:'.$uid, 60, fn () => [
+        $svc = new HaService();
+        $out = [['key' => 'me', 'name' => '👤 개인']];
+        $seen = [];
+        foreach (array_merge($this->safe(fn () => $svc->companies($uid)) ?? [], $this->safe(fn () => $svc->memberCompanies($uid)) ?? []) as $c) {
+            $id = (int) ($c['id'] ?? 0);
+            if ($id > 0 && ! isset($seen[$id])) {
+                $seen[$id] = true;
+                $out[] = ['key' => 'c:'.$id, 'name' => '🏢 '.(string) ($c['name'] ?? ('#'.$id))];
+            }
+        }
+        foreach ($this->companies($uid) as $id) {   // 재고 관리만 아는 업체 (직원)
+            if (! isset($seen[$id])) {
+                $seen[$id] = true;
+                $out[] = ['key' => 'c:'.$id, 'name' => '🏢 #'.$id];
+            }
+        }
+
+        return $out;
+    }
+
+    /** @return array<string, mixed> */
+    public function status(int $uid, string $scope = 'all'): array
+    {
+        $this->only = null;
+        if ($scope === 'me') {
+            $this->only = [];
+        } elseif (preg_match('/^c:(\d+)$/', $scope, $m)) {
+            $cid = (int) $m[1];
+            if (! in_array('c:'.$cid, array_column($this->scopes($uid), 'key'), true)) {
+                return ['at' => now()->toIso8601String(), 'scope' => $scope, 'error' => 'not_member'];   // 속하지 않은 업체 — 아무것도 안 줌
+            }
+            $this->only = [$cid];
+        } else {
+            $scope = 'all';
+        }
+        $personal = $this->only === null || $this->only === [];   // 알림 · 주문 · 의뢰 · 내 프린터는 개인 것 — 업체 범위엔 없음
+
+        return Cache::remember('iotl:hastatus3:'.$uid.':'.$scope, 60, fn () => [
             'at' => now()->toIso8601String(),
-            'notices' => $this->safe(fn () => $this->notices($uid)),
-            'orders' => $this->safe(fn () => $this->orders($uid)),
-            'jobs' => $this->safe(fn () => $this->jobs($uid)),
+            'scope' => $scope,
+            'notices' => $personal ? $this->safe(fn () => $this->notices($uid)) : null,
+            'orders' => $personal ? $this->safe(fn () => $this->orders($uid)) : null,
+            'jobs' => $personal ? $this->safe(fn () => $this->jobs($uid)) : null,
             'filament' => $this->safe(fn () => $this->filament($uid)),
             'boxes' => $this->safe(fn () => $this->boxes($uid)),
             'spools' => $this->safe(fn () => $this->spoolList($uid)),     // 1.19.1 🎨 HA 카드 그림 (롤 색 · 남은 양)
-            'printers' => $this->safe(fn () => $this->printers($uid)),
+            'printers' => $personal ? $this->safe(fn () => $this->printers($uid)) : null,
             'devices' => $this->safe(fn () => $this->devices($uid)),      // 1.19.9 📡 연결된 센서 목록 (HA 에서 보기 · 통신 중 / 끊김)    // 1.19.1 🖨️ HA 카드 그림 (상태 · 진행률 · 온도)
         ]);
     }
@@ -90,6 +135,16 @@ class HaStatus
             return null;
         }
         $open = ['open', 'quote_request'];
+        $hasCo = DbSchema::hasColumn('maker_bids', 'company_id');
+        if ($this->only !== null && $this->only !== []) {   // 1.19.11 🏢 업체 범위 — 업체 이름으로 넣은 입찰 · 업체에 추천된 의뢰 (의뢰는 개인 것이라 없음)
+            $cid = (int) $this->only[0];
+
+            return [
+                'my_bids_pending' => $hasCo ? DB::table('maker_bids')->where('company_id', $cid)->where('status', 'pending')->count() : 0,
+                'site_open' => DB::table('maker_jobs')->where('status', 'open')->count(),
+                'recommended' => DbSchema::hasTable('maker_job_recs') ? DB::table('maker_job_recs as r')->join('maker_jobs as j', 'j.id', '=', 'r.job_id')->where('r.company_id', $cid)->whereIn('j.status', $open)->count() : 0,
+            ];
+        }
         $mine = DB::table('maker_jobs')->where('user_id', $uid)->whereIn('status', $open)->pluck('id')->all();
         $bids = fn () => DB::table('maker_bids')->whereIn('job_id', $mine ?: [0])->where('status', 'pending');
 
@@ -97,7 +152,8 @@ class HaStatus
             'my_open' => count($mine),
             'bids_waiting' => $bids()->count(),
             'bids_new_24h' => $bids()->where('created_at', '>=', now()->subDay())->count(),
-            'my_bids_pending' => DB::table('maker_bids')->where('user_id', $uid)->where('status', 'pending')->count(),
+            'my_bids_pending' => DB::table('maker_bids')->where('user_id', $uid)->where('status', 'pending')
+                ->when($hasCo && $this->only === [], fn ($q) => $q->where(fn ($w) => $w->whereNull('company_id')->orWhere('company_id', 0)))->count(),   // 1.19.11 개인 범위 = 개인으로 넣은 입찰만
             'site_open' => DB::table('maker_jobs')->where('status', 'open')->where('user_id', '!=', $uid)->count(),
         ];
     }
@@ -105,6 +161,9 @@ class HaStatus
     /** 내가 속한 업체 (재고 관리가 알려 줌) @return list<int> */
     private function companies(int $uid): array
     {
+        if ($this->only !== null) {
+            return $this->only;   // 1.19.11 범위 (개인만 = [] · 업체 하나 = [N])
+        }
         $c = '\\Modules\\Custom\\Inventory\\Support\\Co';
         if (! class_exists($c)) {
             return [];
@@ -120,8 +179,10 @@ class HaStatus
     {
         $cids = $this->companies($uid);
 
+        $mine = $this->only === null || $this->only === [];
+
         return DB::table('inv_spools')->whereNull('deleted_at')
-            ->where(fn ($w) => $w->where(fn ($a) => $a->where('company_id', 0)->where('created_by', $uid))->orWhereIn('company_id', $cids ?: [0]));
+            ->where(fn ($w) => $w->where(fn ($a) => $mine ? $a->where('company_id', 0)->where('created_by', $uid) : $a->whereRaw('1 = 0'))->orWhereIn('company_id', $cids ?: [-1]));
     }
 
     /** 남은 g (적어 둔 g · 없으면 한 롤 무게 × %) */
@@ -221,8 +282,10 @@ class HaStatus
     private function devices(int $uid): ?array
     {
         $o = (new HaService())->aiDevices($uid);
+        $list = array_values(array_filter($o['devices'] ?? [], fn ($d) => $this->only === null
+            || ($this->only === [] ? empty($d['company_id']) : in_array((int) ($d['company_id'] ?? 0), $this->only, true))));   // 1.19.11 범위
         $out = [];
-        foreach (array_slice($o['devices'] ?? [], 0, 40) as $d) {
+        foreach (array_slice($list, 0, 60) as $d) {
             $out[] = [
                 'id' => (int) ($d['id'] ?? 0),   // 1.19.10 HA 가 센서마다 엔티티로 (기기 화면 센서 목록)
                 'name' => (string) ($d['name'] ?? ''), 'source' => (string) ($d['source'] ?? ''), 'server' => (string) ($d['ha_server_name'] ?? ''),
@@ -243,7 +306,8 @@ class HaStatus
             return null;
         }
         $cids = $this->companies($uid);
-        $boxes = DB::table('inv_boxes')->where(fn ($w) => $w->where(fn ($a) => $a->where('company_id', 0)->where('user_id', $uid))->orWhereIn('company_id', $cids ?: [0]))
+        $mine = $this->only === null || $this->only === [];
+        $boxes = DB::table('inv_boxes')->where(fn ($w) => $w->where(fn ($a) => $mine ? $a->where('company_id', 0)->where('user_id', $uid) : $a->whereRaw('1 = 0'))->orWhereIn('company_id', $cids ?: [-1]))
             ->orderBy('id')->limit(50)->get(['id', 'loc_key', 'name']);
         if ($boxes->isEmpty()) {
             return [];
@@ -252,7 +316,7 @@ class HaStatus
         $spools = $this->spools($uid)->where('status', '!=', 'empty')->get(array_merge(['location', 'remain_pct', 'status'], $hasBoxId ? ['box_id'] : []));
         $key = static fn ($v) => mb_substr(mb_strtolower((string) preg_replace('/\s+/u', '', (string) $v)), 0, 60);
         $sensors = DbSchema::hasTable(Schema::DEVICES)
-            ? DB::table(Schema::DEVICES)->where('user_id', $uid)->where('target', 'location')->whereNotNull('location')->get(['location', 'temp', 'humidity', 'humidity_max', 'last_seen_at'])
+            ? DB::table(Schema::DEVICES)->where(fn ($w) => $w->where(fn ($a) => $mine ? $a->where('user_id', $uid)->where(fn ($z) => $z->whereNull('company_id')->orWhere('company_id', 0)) : $a->whereRaw('1 = 0'))->orWhereIn('company_id', $cids ?: [-1]))->where('target', 'location')->whereNotNull('location')->get(['location', 'temp', 'humidity', 'humidity_max', 'last_seen_at'])
             : collect();
         $out = [];
         foreach ($boxes as $b) {
