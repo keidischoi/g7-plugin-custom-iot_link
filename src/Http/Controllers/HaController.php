@@ -6,6 +6,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Plugins\Custom\IotLink\Services\HaService;
+use Plugins\Custom\IotLink\Services\HaStatus;
 use Plugins\Custom\IotLink\Services\SlotService;
 use Plugins\Custom\IotLink\Support\MatterInstaller;
 use Plugins\Custom\IotLink\Support\Settings;
@@ -152,6 +153,14 @@ class HaController extends Controller
         }
 
         return $uid ? $this->hubJson(true, 'ok', $this->svc->hub($uid, $this->server($r))) : $this->hubJson(false, '연결 코드가 맞지 않아요.', [], 404);
+    }
+
+    /** 1.19.0 🔁 GET hub/{code}/status — 3DSSync 통합이 HA 센서로 (그 회원 것만 · 1분 기억) */
+    public function hubStatus(string $code, HaStatus $st): JsonResponse
+    {
+        $uid = $this->svc->linkUser($code);
+
+        return $uid ? $this->hubJson(true, 'ok', ['status' => $st->status($uid)]) : $this->hubJson(false, '연결 코드가 맞지 않아요.', [], 404);
     }
 
     public function hubSave(Request $r, string $code, ?int $id = null): JsonResponse

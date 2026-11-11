@@ -44,6 +44,7 @@ Route::get('mq/{code}.sh', [MqttController::class, 'sh'])->where('code', '[a-f0-
 // HACS 통합 ↔ 사이트 (로그인 없음, 주소의 연결 코드) — 붙일 곳 목록 · 기기 만들기/고치기/지우기
 Route::middleware('throttle:30,1')->where(['code' => '[a-f0-9]{32}'])->group(function () {
     Route::get('hub/{code}', [HaController::class, 'hub'])->name('hub');
+    Route::get('hub/{code}/status', [HaController::class, 'hubStatus'])->name('hub.status');   // 1.19.0 🔁 사이트 → HA (알림 · 주문 · 의뢰 · 필라멘트 · 보관함)
     Route::post('hub/{code}/devices', [HaController::class, 'hubSave'])->name('hub.devices.store');
     Route::put('hub/{code}/devices/{id}', [HaController::class, 'hubSave'])->whereNumber('id')->name('hub.devices.update');
     Route::delete('hub/{code}/devices/{id}', [HaController::class, 'hubDelete'])->whereNumber('id')->name('hub.devices.destroy');
