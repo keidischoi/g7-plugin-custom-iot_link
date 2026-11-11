@@ -65,7 +65,7 @@ class HaStatus
         }
         $personal = $this->only === null || $this->only === [];   // 알림 · 주문 · 의뢰 · 내 프린터는 개인 것 — 업체 범위엔 없음
 
-        return Cache::remember('iotl:hastatus6:'.$uid.':'.$scope, 60, fn () => [
+        return Cache::remember('iotl:hastatus7:'.$uid.':'.$scope, 60, fn () => [
             'at' => now()->toIso8601String(),
             'scope' => $scope,
             'notices' => $personal ? $this->safe(fn () => $this->notices($uid)) : null,
@@ -325,7 +325,7 @@ class HaStatus
             $hum = $sen && $sen->humidity !== null ? (float) $sen->humidity : null;
             $max = $sen && $sen->humidity_max ? (int) $sen->humidity_max : null;
             $out[] = [
-                'key' => $b->loc_key, 'name' => (string) $b->name, 'color' => self::boxColor($b), 'kind' => in_array($b->kind ?? null, ['bin', 'dryer', 'shelf'], true) ? $b->kind : null,   // 1.19.14 🗂 고른 종류 (없으면 HA 카드가 이름으로) · 1.19.13 🎨 사이트 보관함 색 그대로 (HA 카드)
+                'key' => $b->loc_key, 'name' => (string) $b->name, 'color' => self::boxColor($b), 'kind' => self::boxKind($b),   // 1.19.15 🗂 종류는 사이트가 정함 (고른 것 · 없으면 이름) — HA 카드는 그대로 그림 · 1.19.13 🎨 사이트 보관함 색 그대로 (HA 카드)
                 'spools' => $in->count(), 'low' => $in->filter(fn ($s) => self::isLow($s))->count(),
                 'humidity' => $hum, 'temp' => $sen && $sen->temp !== null ? (float) $sen->temp : null,
                 'humidity_max' => $max, 'over' => $hum !== null && $max !== null && $hum > $max,
@@ -334,6 +334,18 @@ class HaStatus
         }
 
         return $out;
+    }
+
+    /** 1.19.15 🗂 보관함 종류 — 재고관리에서 고른 것 (bin · dryer · shelf), 없으면 재고관리 화면과 같은 이름 규칙 */
+    public static function boxKind(object $b): string
+    {
+        $k = (string) ($b->kind ?? '');
+        if (in_array($k, ['bin', 'dryer', 'shelf'], true)) {
+            return $k;
+        }
+        $n = (string) ($b->name ?? '');
+
+        return preg_match('/건조|드라이|dry/iu', $n) ? 'dryer' : (preg_match('/선반|랙|진열|shelf|rack/iu', $n) ? 'shelf' : 'bin');
     }
 
     /** 1.19.13 🎨 보관함 색 — 고른 색 (#rrggbb) · 없으면 재고관리 화면과 같은 「이름으로 정한 색」(loc_key 해시 → 10색) */
