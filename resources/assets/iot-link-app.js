@@ -1,4 +1,4 @@
-/*! custom-iot_link 1.19.7 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.19.8 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   // 🌐 화면 글자 사전 — en 에 없으면 ko
@@ -147,7 +147,7 @@
     no_name: "이름 없음",
     matter_3ds_link: "Matter (3ds 연결)",
     app_relay_tab: "앱 · 프로그램 중계",   // 1.18.0 📱 · 1.19.2 🏢
-    trader_how: '<div class="hal-mtg-apps" style="margin-top:10px"><div><b>🏢 회사 PC 프로그램 (3DS Trader Edition)</b><span>폰 대신 회사 PC 가 보내요 — 연결 프로그램(MQTT 중계)을 따로 깔 필요 없어요</span></div><div><b>① ⚙ 도구 › 옵션 › 📡 중계</b><span>프로그램에 로그인한 계정의 IoT 연결 코드를 저절로 받아 와요</span></div><div><b>② 📨 「매장 안 MQTT 브로커의 온습도 센서도 사이트로 보내기」 켜기</b><span>브로커 · 토픽은 이 화면 MQTT · BT 탭 설정 그대로 · 🏢 회사 프린터 상태도 같이</span></div><div><b>③ 💾 저장 · 켜 두기</b><span>옵션 › 🖥️ 일반의 「윈도우 시작할 때 켜기」 · 「알림 영역에 숨기기」를 켜 두면 늘 보내요</span></div></div>',   // 1.19.2 🏢
+    trader_how: '<div class="hal-mtg-apps" style="margin-top:10px"><div><b>🏢 3DS Trader</b><span>폰 대신 회사 PC 가 보내요 — 연결 프로그램(MQTT 중계)을 따로 깔 필요 없어요</span></div><div><b>① ⚙ 도구 › 옵션 › 📡 중계</b><span>프로그램에 로그인한 계정의 IoT 연결 코드를 저절로 받아 와요</span></div><div><b>② 📨 「매장 안 MQTT 브로커의 온습도 센서도 사이트로 보내기」 켜기</b><span>브로커 · 토픽은 이 화면 MQTT · BT 탭 설정 그대로 · 🏢 회사 프린터 상태도 같이</span></div><div><b>③ 💾 저장 · 켜 두기</b><span>옵션 › 🖥️ 일반의 「윈도우 시작할 때 켜기」 · 「알림 영역에 숨기기」를 켜 두면 늘 보내요</span></div></div>',   // 1.19.2 🏢
     app_relay_card: '</span><div><h2>📱 앱 중계 <small>3D SUEÑO 안드로이드 앱 · PC 없이</small></h2><p>집 와이파이에 둔 안드로이드 폰이 PC 연결 프로그램 대신 <b>프린터 상태</b>와 <b>📨 MQTT 센서 값</b>을 이 사이트로 보내요. 충전기에 꽂아 둔 남는 폰이면 좋아요.</p></div>',
     app_relay_how: '<div class="hal-mtg-apps"><div><b>① 앱 › 내 프린터 › 📡 중계 모드</b><span>3D SUEÑO 앱에 로그인한 폰</span></div><div><b>② 프린터 · 📨 IoT 센서 켜기</b><span>프린터는 「이 폰으로 중계」 · 센서는 「같이 중계」 (브로커 · 토픽은 MQTT · BT 탭 설정 그대로)</span></div><div><b>③ ▶ 켜기 · 📶 절전 막기</b><span>알림이 떠 있는 동안 보내요 · 배터리 최적화에서 빼 주세요</span></div><div><b>💾 백업</b><span>설정은 사이트에 암호화해 맡겨요 — 폰을 바꾸면 저절로 불러와요</span></div></div><p class="hal-hint">🏠 폰이 집 밖이면 쉬고, 돌아오면 저절로 이어요 · 🔀 PC 가 보내는 프린터는 PC 가 먼저 · 📶 블루투스 · 🧩 Matter · 📤 출력 파일 보내기는 PC 만 · 🏠 홈어시스턴트 · 🔷 SmartThings 는 중계가 필요 없어요</p>',
     app_relay_none: '<p class="hal-hint">아직 앱으로 중계하는 폰이 없어요.</p>',
@@ -444,13 +444,13 @@
     beta_via_windows_relay: "🧪 베타 · 윈도우 중계 PC 로",
     phone_app_relay: "폰으로 중계",   // 1.17.9 📱 3D SUEÑO 앱 중계 모드
     android_no_pc: "안드로이드 앱 · PC 없이",
-    trader_tile: "회사 PC 프로그램",   // 1.19.6 🏢 3DS Trader Edition
-    trader_tile_sub: "3DS Trader Edition · 업체",
+    trader_tile: "3DS Trader",   // 1.19.6 🏢 3DS Trader Edition
+    trader_tile_sub: "업체 PC · 윈도우",
     gt_app: "📱 폰 앱",   // 1.19.7 ❓ 연결 방법 탭
-    gt_trader: "🏢 회사 프로그램",
+    gt_trader: "🏢 3DS Trader",
     app_guide_top: '<p class="hal-guide-top">📱 집 와이파이에 둔 안드로이드 폰(<b>3D SUEÑO 앱</b>)이 PC 대신 보내요 — MQTT 브로커의 온습도 센서 · 🖨️ 프린터(Bambu · OctoPrint · Klipper)를 같이. 브로커 · 토픽은 <b>MQTT · BT</b> 탭 ⚙️ 브로커 설정 그대로예요.</p>',
-    trader_guide_top: '<p class="hal-guide-top">🏢 업체 PC 에 <b>3DS Trader Edition</b>(회사 PC 프로그램)이 켜져 있으면 그 PC 가 보내요 — 대표 · 매니저 계정만 · 연결 프로그램을 따로 깔 필요 없어요. 브로커 · 토픽은 <b>MQTT · BT</b> 탭 ⚙️ 브로커 설정 그대로예요.</p>',
-    ha_direct: '<p class="hal-guide-top" data-mtg-top>🏠 Home Assistant 는 <b>3DSSync</b> 통합이 이 사이트로 <b>바로</b> 보내요 — 중계 PC · 폰 앱 · 회사 프로그램이 필요 없어요.</p>',
+    trader_guide_top: '<p class="hal-guide-top">🏢 업체 PC 에 <b>3DS Trader</b>가 켜져 있으면 그 PC 가 보내요 — 대표 · 매니저 계정만 · 연결 프로그램을 따로 깔 필요 없어요. 브로커 · 토픽은 <b>MQTT · BT</b> 탭 ⚙️ 브로커 설정 그대로예요.</p>',
+    ha_direct: '<p class="hal-guide-top" data-mtg-top>🏠 Home Assistant 는 <b>3DSSync</b> 통합이 이 사이트로 <b>바로</b> 보내요 — 중계 PC · 폰 앱 · 3DS Trader가 필요 없어요.</p>',
     app_relay_guide: '<section class="hal-sec"><h4>📱 폰으로 중계 <small>3D SUEÑO 안드로이드 앱 · PC 대신</small></h4><div class="hal-mtg-apps"><div><b>① 앱 › 내 프린터 › 📡 중계 모드</b><span>집 와이파이에 둔 폰(충전기에 꽂은 남는 폰이면 좋아요)</span></div><div><b>② 📨 IoT 센서 「같이 중계」 켜기</b><span>연결 코드는 저절로 · 브로커 · 받을 토픽은 이 화면 ⚙️ 브로커 설정 그대로</span></div><div><b>③ ▶ 켜기</b><span>알림이 떠 있는 동안 보내요 · 받는 곳에 「📱 기기 이름 (앱)」 으로 보여요 · 📶 절전 막기에서 배터리 최적화를 빼 주세요</span></div><div><b>💾 백업</b><span>설정은 사이트에 암호화해 저절로 맡겨요 — 폰을 바꾸면 중계 화면을 열 때 불러와요</span></div></div><p class="hal-hint">📶 블루투스 온습도계는 아직 PC 중계만 돼요. 🏠 홈어시스턴트 · 🔷 SmartThings · 🧩 Matter 는 중계가 필요 없거나 따로예요.</p></section>',
     topic_examples: "토픽 예",
     turn_off: "끄기",
@@ -477,7 +477,7 @@
     turn_off_the_relay: '<div><b>① 중계 끄기</b><span>그 PC 에서 보내기를 멈추고 지워요 · 사이트 기기는 「끊김」으로 남아요</span><code>🪟 powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\\3dsMqtt\\uninstall.ps1"</code><code>🐧🍎 bash ~/.3ds-mqtt/uninstall.sh</code></div>',
     stop_receiving_one_sensor: "<div><b>② 센서 하나 그만 받기</b><span>MQTT 카드의 ✅ 받는 중 단추를 눌러요</span></div>",
     delete_a_site_device: "<div><b>③ 사이트 기기 지우기</b><span>기기 ✏️ 고치기 › 🗑 지우기</span></div></div></section>",
-    sensor_mqtt_broker_bluetooth: '<div class="hal-mtg"><p class="hal-mtg-flow">🌡️ 센서 → MQTT 브로커 · 📶 블루투스 → 💻 중계 PC · 📱 폰 앱 · 🏢 회사 프로그램 → 이 사이트 <small>HA 없이 · 센서는 원래 앱에 그대로</small></p>',
+    sensor_mqtt_broker_bluetooth: '<div class="hal-mtg"><p class="hal-mtg-flow">🌡️ 센서 → MQTT 브로커 · 📶 블루투스 → 💻 중계 PC · 📱 폰 앱 · 🏢 3DS Trader → 이 사이트 <small>HA 없이 · 센서는 원래 앱에 그대로</small></p>',
     hidden_back_to_start: '" hidden><button type="button" class="hal-btn sm hal-mtg-back" data-mtg-back>◀ 처음으로</button>',
     broker_address_ip_or: '<section class="hal-sec"><div class="hal-two"><label>브로커 주소 <small>IP 또는 이름</small><input name="host" value="',
     placeholder_e_g_192_2: '" placeholder="예: 192.168.0.54" autocapitalize="off" autocomplete="off" spellcheck="false"></label>',
@@ -1070,7 +1070,7 @@
     no_name: "No name",
     matter_3ds_link: "Matter (3ds link)",
     app_relay_tab: "App · program relay",   // 1.18.0 📱 · 1.19.2 🏢
-    trader_how: '<div class="hal-mtg-apps" style="margin-top:10px"><div><b>🏢 Business PC program (3DS Trader Edition)</b><span>A shop PC sends instead of a phone — no separate link program (MQTT relay) needed</span></div><div><b>① ⚙ Tools › Options › 📡 Relay</b><span>It fetches the IoT link code of the signed-in account by itself</span></div><div><b>② Turn on 📨 「Also send temp/humidity sensors on the shop MQTT broker」</b><span>Broker · topics follow the MQTT · BT tab here · 🏢 business printer status too</span></div><div><b>③ 💾 Save · keep it running</b><span>Turn on 「start with Windows」 · 「hide in the tray」 in Options › 🖥️ General to keep it sending</span></div></div>',   // 1.19.2 🏢
+    trader_how: '<div class="hal-mtg-apps" style="margin-top:10px"><div><b>🏢 3DS Trader</b><span>A shop PC sends instead of a phone — no separate link program (MQTT relay) needed</span></div><div><b>① ⚙ Tools › Options › 📡 Relay</b><span>It fetches the IoT link code of the signed-in account by itself</span></div><div><b>② Turn on 📨 「Also send temp/humidity sensors on the shop MQTT broker」</b><span>Broker · topics follow the MQTT · BT tab here · 🏢 business printer status too</span></div><div><b>③ 💾 Save · keep it running</b><span>Turn on 「start with Windows」 · 「hide in the tray」 in Options › 🖥️ General to keep it sending</span></div></div>',   // 1.19.2 🏢
     app_relay_card: '</span><div><h2>📱 App relay <small>3D SUEÑO Android app · no PC</small></h2><p>An Android phone on your home Wi-Fi sends <b>printer status</b> and <b>📨 MQTT sensor values</b> to this site instead of the PC link program. A spare phone on a charger works well.</p></div>',
     app_relay_how: '<div class="hal-mtg-apps"><div><b>① App › My printers › 📡 Relay mode</b><span>A phone signed in to the 3D SUEÑO app</span></div><div><b>② Turn on printers · 📨 IoT sensors</b><span>Printers: 「Relay with this phone」 · sensors: 「relay too」 (broker · topics come from the MQTT · BT tab)</span></div><div><b>③ ▶ Turn on · 📶 stop power saving</b><span>It sends while the notification stays · remove it from battery optimization</span></div><div><b>💾 Backup</b><span>Settings are kept on the site, encrypted — they load on a new phone</span></div></div><p class="hal-hint">🏠 Pauses when the phone leaves home and resumes when back · 🔀 printers sent by a PC: the PC wins · 📶 Bluetooth · 🧩 Matter · 📤 sending print files need the PC · 🏠 Home Assistant · 🔷 SmartThings need no relay</p>',
     app_relay_none: '<p class="hal-hint">No phone is relaying with the app yet.</p>',
@@ -1367,13 +1367,13 @@
     beta_via_windows_relay: "🧪 Beta · via Windows relay PC",
     phone_app_relay: "Relay with a phone",   // 1.17.9 📱 3D SUEÑO app relay mode
     android_no_pc: "Android app · no PC",
-    trader_tile: "Business PC program",   // 1.19.6 🏢 3DS Trader Edition
-    trader_tile_sub: "3DS Trader Edition · business",
+    trader_tile: "3DS Trader",   // 1.19.6 🏢 3DS Trader Edition
+    trader_tile_sub: "Shop PC · Windows",
     gt_app: "📱 Phone app",   // 1.19.7 ❓ how-to tabs
-    gt_trader: "🏢 Business program",
+    gt_trader: "🏢 3DS Trader",
     app_guide_top: '<p class="hal-guide-top">📱 An Android phone on your home Wi-Fi (<b>3D SUEÑO app</b>) sends instead of a PC — temp/humidity sensors on the MQTT broker · 🖨️ printers (Bambu · OctoPrint · Klipper) together. Broker · topics follow ⚙️ Broker settings in the <b>MQTT · BT</b> tab.</p>',
-    trader_guide_top: '<p class="hal-guide-top">🏢 If <b>3DS Trader Edition</b> (the business PC program) runs on a shop PC, that PC sends — owner · manager accounts only · no separate link program needed. Broker · topics follow ⚙️ Broker settings in the <b>MQTT · BT</b> tab.</p>',
-    ha_direct: '<p class="hal-guide-top" data-mtg-top>🏠 Home Assistant sends to this site <b>directly</b> through the <b>3DSSync</b> integration — no relay PC · phone app · business program needed.</p>',
+    trader_guide_top: '<p class="hal-guide-top">🏢 If <b>3DS Trader</b> runs on a shop PC, that PC sends — owner · manager accounts only · no separate link program needed. Broker · topics follow ⚙️ Broker settings in the <b>MQTT · BT</b> tab.</p>',
+    ha_direct: '<p class="hal-guide-top" data-mtg-top>🏠 Home Assistant sends to this site <b>directly</b> through the <b>3DSSync</b> integration — no relay PC · phone app · 3DS Trader needed.</p>',
     app_relay_guide: '<section class="hal-sec"><h4>📱 Relay with a phone <small>3D SUEÑO Android app · instead of a PC</small></h4><div class="hal-mtg-apps"><div><b>① App › My printers › 📡 Relay mode</b><span>A phone on your home Wi-Fi (a spare phone on a charger works well)</span></div><div><b>② Turn on 📨 IoT sensors 「relay too」</b><span>The link code is filled in automatically · broker and topics come from ⚙️ Broker settings here</span></div><div><b>③ ▶ Turn on</b><span>It sends while the notification stays · shows in Receivers as 「📱 device name (app)」 · remove battery optimization in 📶 Power saving</span></div><div><b>💾 Backup</b><span>Settings are backed up to the site, encrypted — on a new phone they load when you open the relay screen</span></div></div><p class="hal-hint">📶 Bluetooth thermo-hygrometers still need the PC relay. 🏠 Home Assistant · 🔷 SmartThings · 🧩 Matter need no relay or have their own.</p></section>',
     topic_examples: "Topic examples",
     turn_off: "Turn off",
@@ -1400,7 +1400,7 @@
     turn_off_the_relay: '<div><b>① Turn off the relay</b><span>Stops sending from that PC and removes it · site devices remain as 「Disconnected」</span><code>🪟 powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\\3dsMqtt\\uninstall.ps1"</code><code>🐧🍎 bash ~/.3ds-mqtt/uninstall.sh</code></div>',
     stop_receiving_one_sensor: "<div><b>② Stop receiving one sensor</b><span>Click the ✅ Receiving button on the MQTT card</span></div>",
     delete_a_site_device: "<div><b>③ Delete a site device</b><span>Device ✏️ Edit › 🗑 Delete</span></div></div></section>",
-    sensor_mqtt_broker_bluetooth: '<div class="hal-mtg"><p class="hal-mtg-flow">🌡️ Sensor → MQTT broker · 📶 Bluetooth → 💻 relay PC · 📱 phone app · 🏢 business program → this site <small>no HA · sensors stay in their original app</small></p>',
+    sensor_mqtt_broker_bluetooth: '<div class="hal-mtg"><p class="hal-mtg-flow">🌡️ Sensor → MQTT broker · 📶 Bluetooth → 💻 relay PC · 📱 phone app · 🏢 3DS Trader → this site <small>no HA · sensors stay in their original app</small></p>',
     hidden_back_to_start: '" hidden><button type="button" class="hal-btn sm hal-mtg-back" data-mtg-back>◀ Back to start</button>',
     broker_address_ip_or: '<section class="hal-sec"><div class="hal-two"><label>Broker address <small>IP or hostname</small><input name="host" value="',
     placeholder_e_g_192_2: '" placeholder="e.g. 192.168.0.54" autocapitalize="off" autocomplete="off" spellcheck="false"></label>',
