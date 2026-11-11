@@ -1,4 +1,4 @@
-/*! custom-iot_link 1.19.3 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
+/*! custom-iot_link 1.19.4 — 📡 IoT 연결 (Home Assistant · SmartThings · Matter 온습도 · 기기 상태 받기) 화면 · 관리자 */
 (function () {
   'use strict';
   // 🌐 화면 글자 사전 — en 에 없으면 ko
@@ -335,8 +335,8 @@
     storage_box_humidity_drying: "보관함 습도 · 건조일 · 알림",
     maintenance_log: "정비 수첩",
     runtime_maintenance: "가동 시간 → 정비 때",
-    s_3ds_server: "3DS 서버",
-    this_site_where_the: "이 사이트 — 중계 PC 가 값을 보내는 곳",
+    s_3ds_server: "3DSSync",   // 1.19.4 🌐 (예전 「3DS 서버」)
+    this_site_where_the: "이 사이트 — 중계 PC · HA · SmartThings 가 값을 보내는 곳",
     relay_pc: "중계 PC",
     source_2: "받는 곳",
     device: "기기",
@@ -1251,8 +1251,8 @@
     storage_box_humidity_drying: "Storage box humidity · drying date · alerts",
     maintenance_log: "Maintenance log",
     runtime_maintenance: "Runtime → maintenance",
-    s_3ds_server: "3DS server",
-    this_site_where_the: "This site — where the relay PC sends values",
+    s_3ds_server: "3DSSync",   // 1.19.4 🌐
+    this_site_where_the: "This site — where relay PCs · HA · SmartThings send values",
     relay_pc: "Relay PC",
     source_2: "Source",
     device: "Device",
