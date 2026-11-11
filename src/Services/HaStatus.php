@@ -65,7 +65,7 @@ class HaStatus
         }
         $personal = $this->only === null || $this->only === [];   // 알림 · 주문 · 의뢰 · 내 프린터는 개인 것 — 업체 범위엔 없음
 
-        return Cache::remember('iotl:hastatus5:'.$uid.':'.$scope, 60, fn () => [
+        return Cache::remember('iotl:hastatus6:'.$uid.':'.$scope, 60, fn () => [
             'at' => now()->toIso8601String(),
             'scope' => $scope,
             'notices' => $personal ? $this->safe(fn () => $this->notices($uid)) : null,
@@ -308,7 +308,7 @@ class HaStatus
         $cids = $this->companies($uid);
         $mine = $this->only === null || $this->only === [];
         $boxes = DB::table('inv_boxes')->where(fn ($w) => $w->where(fn ($a) => $mine ? $a->where('company_id', 0)->where('user_id', $uid) : $a->whereRaw('1 = 0'))->orWhereIn('company_id', $cids ?: [-1]))
-            ->orderBy('id')->limit(50)->get(array_merge(['id', 'loc_key', 'name'], DbSchema::hasColumn('inv_boxes', 'color') ? ['color'] : []));
+            ->orderBy('id')->limit(50)->get(array_merge(['id', 'loc_key', 'name'], DbSchema::hasColumn('inv_boxes', 'color') ? ['color'] : [], DbSchema::hasColumn('inv_boxes', 'kind') ? ['kind'] : []));
         if ($boxes->isEmpty()) {
             return [];
         }
@@ -325,7 +325,7 @@ class HaStatus
             $hum = $sen && $sen->humidity !== null ? (float) $sen->humidity : null;
             $max = $sen && $sen->humidity_max ? (int) $sen->humidity_max : null;
             $out[] = [
-                'key' => $b->loc_key, 'name' => (string) $b->name, 'color' => self::boxColor($b),   // 1.19.13 🎨 사이트 보관함 색 그대로 (HA 카드)
+                'key' => $b->loc_key, 'name' => (string) $b->name, 'color' => self::boxColor($b), 'kind' => in_array($b->kind ?? null, ['bin', 'dryer', 'shelf'], true) ? $b->kind : null,   // 1.19.14 🗂 고른 종류 (없으면 HA 카드가 이름으로) · 1.19.13 🎨 사이트 보관함 색 그대로 (HA 카드)
                 'spools' => $in->count(), 'low' => $in->filter(fn ($s) => self::isLow($s))->count(),
                 'humidity' => $hum, 'temp' => $sen && $sen->temp !== null ? (float) $sen->temp : null,
                 'humidity_max' => $max, 'over' => $hum !== null && $max !== null && $hum > $max,
